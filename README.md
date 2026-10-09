@@ -2,7 +2,7 @@
 
 BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt, được xây dựng cho bài tập lớn môn Công nghệ Phần mềm. Sản phẩm hướng tới luồng đặt món nhanh tại quầy: xem menu, chọn size/topping, quản lý giỏ hàng, đăng nhập, tạo đơn, thanh toán và theo dõi trạng thái.
 
-> Trạng thái hiện tại: đã scaffold Next.js/NestJS, có health endpoint và cấu hình Docker chạy được. Các module nghiệp vụ và Prisma schema sẽ được triển khai theo Sprint Backlog.
+> Trạng thái hiện tại: có scaffold Next.js/NestJS, schema Prisma tổng thể, migration, PrismaService và readiness kiểm tra PostgreSQL. Module nghiệp vụ sẽ được triển khai theo Sprint Backlog. [Contract foundation](./docs/architecture/foundation-contract.md).
 
 ## Công nghệ dự kiến
 
@@ -106,13 +106,12 @@ BrewLite/
 
 ```text
 PENDING -> PAID -> PREPARING -> READY -> COMPLETED
-    |         |
-    |         +-> CANCELLED
-    +-> PAYMENT_FAILED -> PENDING
-    +-> CANCELLED
+PENDING -> PAYMENT_FAILED -> PENDING (retry)
+PENDING -> CANCELLED
+PAYMENT_FAILED -> CANCELLED
 ```
 
-Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào lịch sử trạng thái. `COMPLETED` và `CANCELLED` là trạng thái kết thúc.
+Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào lịch sử trạng thái. `COMPLETED` và `CANCELLED` là trạng thái kết thúc. Chỉ hủy đơn chưa thanh toán; Barista thực hiện các bước pha chế. Role tài khoản chỉ có `CUSTOMER` (user/khách hàng) và `BARISTA`; Mock Payment Gateway là tác nhân tích hợp.
 
 ## Tài liệu
 
@@ -138,7 +137,9 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Kiểm tra trạng thái bằng `docker compose ps`. Frontend chạy tại `http://localhost:3000`, backend tại `http://localhost:3001/api/v1` và health endpoint là `http://localhost:3001/api/v1/health`.
+Compose chạy service `migrate` trước backend. Kiểm tra trạng thái bằng `docker compose ps -a`; `migrate` phải exit 0, các service còn lại healthy. Frontend chạy tại `http://localhost:3000`, backend tại `http://localhost:3001/api/v1` và health endpoint là `http://localhost:3001/api/v1/health`.
+
+Khi chạy trực tiếp trên host, tạo database PostgreSQL rồi làm theo [README API](./apps/api/README.md): dùng `apps/api/.env.example` với hostname `localhost`, chạy migrate trước start. Root `.env.example` dùng hostname `postgres` cho Compose.
 
 ## Quy ước phát triển
 

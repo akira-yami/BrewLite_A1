@@ -103,8 +103,8 @@ BEGIN
   kiểm tra giới hạn coupon và INSERT coupon_redemption(status=RESERVED) nếu có
   với từng variant:
     UPDATE product_variants
-      SET stock = stock - qty
-      WHERE id = :id AND stock >= :qty
+      SET stock = stock - qty, version = version + 1
+      WHERE id = :id AND version = :expected_version AND stock >= :qty
     nếu row_count = 0: conflict/hết hàng
   INSERT order + items + item_toppings
   INSERT inventory_reservations(status=ACTIVE)
@@ -114,7 +114,7 @@ COMMIT
 
 Nếu câu lệnh trừ tồn không cập nhật được dòng nào, Service trả `409 OUT_OF_STOCK` kèm variant bị thiếu. Chỉ retry transaction khi PostgreSQL trả lỗi serialization/deadlock có thể retry an toàn.
 
-Thứ tự lock/update variant luôn theo `product_variant_id` tăng dần để giảm deadlock khi nhiều đơn chứa cùng tập sản phẩm.
+Thứ tự lock/update variant luôn theo `product_variant_id` tăng dần để giảm deadlock khi nhiều đơn chứa cùng tập sản phẩm. Nếu version đã đổi, đọc lại và retry có giới hạn khi còn stock; nếu hết stock thì trả 409. Stock/version phải được cập nhật cùng nhau.
 
 ## 6. Transaction hoàn tồn kho
 
@@ -127,7 +127,7 @@ WHERE id = :id AND status = ACTIVE
 
 nếu row_count = 1:
   UPDATE product_variants
-  SET stock = stock + reservation.quantity
+  SET stock = stock + reservation.quantity, version = version + 1
 ```
 
 Hai update nằm trong cùng transaction. Nếu reservation đã `RELEASED`, `EXPIRED` hoặc `CONSUMED`, không cộng stock lần nữa.
@@ -183,6 +183,10 @@ PK vẫn là UUID. `order_number` chỉ dùng hiển thị, ví dụ `BL-2026092
 4. Seed tối thiểu: user demo, 4 sản phẩm, đủ size S/M/L, topping, một coupon còn hạn.
 5. CI chạy database tạm, migrate từ rỗng, seed và integration test.
 6. Trước thay đổi phá vỡ, có backup/rollback plan; migration expand-contract khi cần tương thích nhiều phiên bản.
+
+Migration `20261009110000_customer_barista_roles` đồng bộ role tài khoản với SD-01: chỉ `CUSTOMER` và `BARISTA`. Migration cũ được giữ nguyên lịch sử; migration mới tái tạo PostgreSQL enum và giữ default CUSTOMER. Nếu database cũ có tài khoản thuộc role đã bỏ, migration dừng trước khi đổi enum để nhóm phân loại tài khoản, không tự gán quyền thay người dùng.
+
+Migration `20261009090000_foundation_constraints` hiện thực các CHECK và partial unique index nêu ở mục 3, cùng cột `version` mặc định 0. Không sửa migration `20260925100913_init`. Nếu database hiện có dữ liệu vi phạm invariant, migration phải fail để nhóm xử lý dữ liệu trước; không tự xóa/sửa dữ liệu. `npm run test:migration` kiểm tra database test rỗng, migrate, replay và các invariant trên PostgreSQL thật. Seed Catalog là việc của Hoàng trong S1-03.
 
 ## 11. Phân trang và hiệu năng
 

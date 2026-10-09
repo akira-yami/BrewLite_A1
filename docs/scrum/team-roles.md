@@ -6,13 +6,13 @@ Tài liệu này dùng để ghi nhận vai trò thực tế của nhóm. Đề 
 
 | Vai trò | Thành viên | Trách nhiệm chính |
 |---|---|---|
-| Product Owner | _Điền tên_ | Ưu tiên Product Backlog, làm rõ Acceptance Criteria, nghiệm thu Increment |
-| Scrum Master | _Điền tên_ | Điều phối Planning/Daily/Review/Retrospective, gỡ blocker và bảo vệ quy trình |
-| Development Team | _Điền các thành viên_ | Phân tích, thiết kế, lập trình, kiểm thử và bàn giao Increment |
+| Product Owner | Dev Khang | Ưu tiên Product Backlog, làm rõ Acceptance Criteria, nghiệm thu Increment |
+| Scrum Master | Dev Khang | Điều phối Planning/Daily/Review/Retrospective, gỡ blocker và bảo vệ quy trình |
+| Development Team | Khang, Hoàng, Huy, Khải, Kiệt | Phân tích, thiết kế, lập trình, kiểm thử và bàn giao Increment |
 
 > Một sinh viên có thể kiêm PO hoặc SM trong phạm vi bài tập, nhưng toàn nhóm vẫn cùng chịu trách nhiệm chất lượng Increment.
 
-Chi tiết phần việc kỹ thuật của 5 thành viên trong từng Sprint được mô tả tại [Phân công nhóm 5 thành viên theo Sprint](./team-assignment-by-sprint.md).
+Khang đồng thời là Tech Lead/Schema Owner; PR của Khang phải có reviewer khác owner. Phân công hiện hành nằm trên [Trello 6 tuần](https://trello.com/b/JXTjedPU) và workbook `BrewLite_PhanCong_Scrum.xlsx`.
 
 ## Stakeholders cần lấy phản hồi
 

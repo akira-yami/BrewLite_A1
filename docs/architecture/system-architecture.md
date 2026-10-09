@@ -1,4 +1,6 @@
-# Kiến trúc hệ thống BrewLite
+# SD-02 — Kiến trúc hệ thống BrewLite
+
+Owner: Dev Khang. Reviewer: Dev Kiệt. Trạng thái: chờ xác nhận review độc lập. Foundation triển khai tại `apps/api/src/database`, [contract bổ sung tuần 1](./foundation-contract.md).
 
 ## 1. Quyết định tổng thể
 
@@ -50,7 +52,7 @@ brewlite/
 │  ├─ eslint-config/
 │  └─ tsconfig/
 ├─ docs/
-├─ docker-compose.yml
+├─ compose.yaml
 └─ .env.example
 ```
 
@@ -111,9 +113,9 @@ Ví dụ luồng tạo đơn:
 ```text
 OrdersController.create(dto, currentUser)
   -> OrdersService.createOrder(dto, currentUser.id)
-     -> CatalogRepository.findActiveOptions(...)
+     -> CatalogService.findActiveOptions(...)
      -> PromotionService.calculateDiscount(...)
-     -> InventoryRepository.reserve(..., tx)
+     -> InventoryService.reserve(..., tx)
      -> OrderRepository.create(..., tx)
   -> OrderResponseDto
 ```
@@ -157,7 +159,7 @@ sequenceDiagram
 1. Xác thực user và kiểm tra giỏ không rỗng.
 2. Đọc variant/topping đang hoạt động và tính giá server-side.
 3. Kiểm tra coupon, tính `subtotal`, `discountAmount`, `total`; nếu dùng coupon thì giữ lượt bằng `CouponRedemption(RESERVED)`.
-4. Với từng variant, trừ tồn bằng cập nhật nguyên tử với điều kiện `stock >= quantity`; nếu không cập nhật được dòng nào thì báo hết hàng/xung đột tồn kho.
+4. Với từng variant, trừ tồn bằng cập nhật nguyên tử với điều kiện `version = expectedVersion AND stock >= quantity`, đồng thời tăng `version`. Nếu không cập nhật được dòng nào, đọc lại và retry có giới hạn khi xung đột version; báo hết hàng nếu tồn không đủ.
 5. Tạo `Order`, `OrderItem`, `OrderItemTopping`, `InventoryReservation` và `OrderStatusHistory`.
 6. Commit rồi trả order `PENDING`.
 
@@ -173,14 +175,14 @@ Không giữ transaction trong khi gọi payment gateway. Nếu gateway chậm, 
 4. Nếu chưa tồn tại, tạo payment `PROCESSING` với unique key. Race do hai request đồng thời được unique constraint chặn; request thua đọc lại bản ghi đã thắng.
 5. Gọi mock gateway ngoài transaction.
 6. Trong transaction mới, khóa/kiểm tra order, cập nhật payment và transition order đúng một lần.
-7. Khi thành công: `PENDING -> PAID`, consume inventory reservation, chuyển coupon redemption `RESERVED -> CONSUMED` (nếu có), ghi lịch sử và cộng loyalty với unique `(order_id, type)`.
+7. Khi thành công: payment `SUCCEEDED`, order `PENDING -> PAID`, consume inventory reservation, chuyển coupon redemption `RESERVED -> CONSUMED` (nếu có), ghi lịch sử và cộng loyalty với partial unique `(order_id, type)` chỉ cho `EARN` có order.
 8. Khi thất bại: chuyển `PAYMENT_FAILED`; inventory/coupon reservation được giữ trong thời gian retry và được release/expire nếu order hủy hoặc quá hạn.
 
 ## 7. Nhất quán và lỗi
 
 - Các thay đổi bắt buộc đồng bộ trong cùng PostgreSQL được gói trong transaction.
 - Tác vụ có thể lặp lại đều có khóa idempotency hoặc unique business key.
-- Cập nhật tồn dùng điều kiện `WHERE stock >= quantity`; chỉ transaction trừ tồn thành công mới tạo reservation.
+- Cập nhật tồn so sánh `version` và kiểm tra `stock >= quantity`, đồng thời tăng version; chỉ transaction trừ tồn thành công mới tạo reservation. Hoàn tồn cũng tăng version và gắn với transition reservation đúng một lần.
 - HTTP status chỉ là lớp vận chuyển; response luôn có `error.code`, `message`, `details`, `requestId`.
 - Không trả stack trace/Prisma error cho client.
 - Với MVP, xử lý nội bộ chạy đồng bộ trong Service. Nếu tích hợp dịch vụ thật, bổ sung transactional outbox thay vì phát message trước khi commit.

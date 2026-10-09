@@ -25,9 +25,10 @@ RBAC:
 |---|---|
 | `CUSTOMER` | Tạo/thanh toán/hủy đơn hợp lệ và xem tài nguyên của chính mình |
 | `BARISTA` | Xem hàng đợi và chuyển `PAID -> PREPARING -> READY -> COMPLETED` |
-| `ADMIN` | Quản lý catalog/coupon và can thiệp vận hành có audit |
 
-RBAC chưa đủ: mọi endpoint order còn phải kiểm tra ownership theo `userId` từ JWT. Không lấy `userId` do client gửi làm căn cứ. Với order không thuộc khách, trả `404` thay vì `403` để hạn chế dò UUID.
+`CUSTOMER` là user/khách hàng. Mock Payment Gateway là tác nhân tích hợp, không có role/JWT của người dùng. Đăng ký công khai luôn cấp CUSTOMER; tài khoản BARISTA được cấp qua quy trình nội bộ của nhóm, không nhận role từ form đăng ký. Cả khách hàng và barista dùng UC-02 để đăng nhập.
+
+RBAC chưa đủ: API dành cho khách còn phải kiểm tra ownership theo `userId` từ JWT. Không lấy `userId` do client gửi làm căn cứ. Với order không thuộc khách, trả `404` thay vì `403` để hạn chế dò UUID. Endpoint vận hành chỉ cho BARISTA và chỉ chấp nhận transition của UC-10, không dùng quyền barista để thanh toán/hủy thay khách.
 
 ## 4. Bảo vệ dữ liệu đầu vào
 
@@ -103,7 +104,7 @@ Không khóa tài khoản vĩnh viễn chỉ vì nhiều login sai; dùng backof
 - Login sai không tiết lộ username tồn tại.
 - JWT hết hạn/sai issuer/sai audience bị từ chối.
 - Customer không đọc/cập nhật order của user khác.
-- Customer không gọi endpoint barista/admin.
+- Customer không gọi endpoint barista.
 - Field thừa như `total`, `role`, `userId`, `status` bị DTO từ chối.
 - Dùng cùng idempotency key khác payload bị chặn.
 - Race hai payment không tạo hai bản ghi thành công.

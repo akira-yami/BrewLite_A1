@@ -11,7 +11,7 @@
 ## 2. Enum dùng chung
 
 ```text
-UserRole = CUSTOMER | BARISTA | ADMIN
+UserRole = CUSTOMER | BARISTA
 ProductSize = S | M | L
 OrderStatus = PENDING | PAYMENT_FAILED | PAID | PREPARING | READY | COMPLETED | CANCELLED
 PaymentMethod = E_WALLET | CARD
@@ -23,6 +23,8 @@ LoyaltyTransactionType = EARN | REDEEM | ADJUSTMENT | REVERSAL
 ```
 
 ## 3. Nhóm tài khoản
+
+`CUSTOMER` là user/khách hàng; `BARISTA` là nhân viên quầy. Mock Payment Gateway là tác nhân tích hợp trong SD-01, không phải role tài khoản.
 
 ### User
 
@@ -61,6 +63,7 @@ Invariant: username là định danh đăng nhập duy nhất; password chỉ t�
 | `size` | ProductSize | Unique cùng product |
 | `price` | money | Giá bán của variant, `>= 0` |
 | `stock` | int | `>= 0` |
+| `version` | int | Mặc định 0, `>= 0`; tăng cùng update stock để optimistic locking |
 | `isActive` | boolean | Không cho thêm vào đơn mới nếu false |
 
 Invariant: giá và stock không âm; variant inactive vẫn được giữ để lịch sử order tham chiếu.
@@ -173,7 +176,7 @@ Invariant: tối đa một payment `SUCCEEDED` cho mỗi order; key cũ cùng ha
 | `expiresAt` | timestamp | Thời điểm hết giữ tồn |
 | `createdAt`, `updatedAt` | timestamp | Audit |
 
-Transition: `ACTIVE -> CONSUMED` khi paid; `ACTIVE -> RELEASED` khi hủy; `ACTIVE -> EXPIRED` khi timeout. Mỗi transition hoàn/trừ tồn tối đa một lần.
+Transition: `ACTIVE -> CONSUMED` khi paid; `ACTIVE -> RELEASED` khi hủy chưa paid; `ACTIVE -> EXPIRED` khi timeout. Với PAID → CANCELLED trước pha chế, `CONSUMED -> RELEASED` hoàn stock và tăng version đúng một lần. Mỗi transition hoàn/trừ tồn tối đa một lần, commit cùng order/history.
 
 ## 7. Khuyến mãi và loyalty
 
@@ -210,6 +213,8 @@ Transition: `ACTIVE -> CONSUMED` khi paid; `ACTIVE -> RELEASED` khi hủy; `ACTI
 
 Transition: `RESERVED -> CONSUMED` khi order `PAID`; `RESERVED -> RELEASED` khi hủy; `RESERVED -> EXPIRED` khi order hết thời gian giữ. Khi kiểm tra `usageLimit`/`perUserLimit`, chỉ tính các redemption `RESERVED` hoặc `CONSUMED`, nhờ đó đơn thanh toán thất bại/hủy không chiếm lượt coupon vĩnh viễn.
 
+PAID → CANCELLED giữ Payment SUCCEEDED, coupon CONSUMED và loyalty EARN theo chính sách hủy đơn giữ giao dịch thành công; không hoàn tiền giả lập hoặc tự ghi REVERSAL điểm.
+
 ### LoyaltyTransaction
 
 | Thuộc tính | Kiểu | Quy tắc |
@@ -223,7 +228,7 @@ Transition: `RESERVED -> CONSUMED` khi order `PAID`; `RESERVED -> RELEASED` khi 
 | `reason` | varchar(255) | Mô tả ngắn |
 | `createdAt` | timestamp | Bất biến |
 
-Ledger không sửa/xóa. Sai sót được bù bằng một `REVERSAL` hoặc `ADJUSTMENT` mới. Unique theo `(orderId, type)` với giao dịch từ đơn để chống xử lý lặp.
+Ledger không sửa/xóa. Sai sót được bù bằng một `REVERSAL` hoặc `ADJUSTMENT` mới. Partial unique `(orderId, type)` chỉ áp dụng khi `type = EARN` và `orderId` không null, để mỗi đơn cộng điểm một lần. Các loại giao dịch khác không bị index này giới hạn; service phải áp dụng quy tắc chống lặp phù hợp cho từng nghiệp vụ.
 
 ## 8. Aggregate và ownership
 

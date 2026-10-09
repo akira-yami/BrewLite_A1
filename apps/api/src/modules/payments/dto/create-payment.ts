@@ -1,14 +1,11 @@
-export enum PaymentMethod {
-  E_WALLET = 'E_WALLET',
-  CREDIT_CARD = 'CREDIT_CARD',
-}
+import type { PaymentMethod } from '../../../generated/prisma/enums.js';
+
+export { PaymentMethod } from '../../../generated/prisma/enums.js';
 
 export class CreatePaymentDto {
-  orderId: string;             // Mã đơn hàng cần thanh toán
-  amount: number;              // Số tiền (vd: 50000)
-  method: PaymentMethod;       // Phương thức thanh toán
-  
-  // Các cờ phục vụ Idempotency (Task 10-B)
-  idempotencyKey: string;      // UUID duy nhất cho mỗi nỗ lực thanh toán từ Client
-  requestHash: string;         // Chuỗi hash payload để chống giả mạo/thay đổi dữ liệu
+  orderId: string;
+  method: PaymentMethod; // E_WALLET hoặc CARD, cùng enum với database.
+
+  // Idempotency-Key lấy từ header. Backend lấy amount từ Order.total
+  // và tự tính requestHash; các giá trị này không thuộc payload client.
 }

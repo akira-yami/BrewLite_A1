@@ -1,6 +1,14 @@
 # Tài liệu dự án BrewLite
 
-Thư mục này mô tả kiến trúc đích của BrewLite dựa trên đề bài phiên bản 1.0. Repository đã có scaffold Next.js/NestJS và Docker; các tài liệu là đường cơ sở để nhóm triển khai module nghiệp vụ theo từng Sprint.
+Thư mục này mô tả kiến trúc đích của BrewLite dựa trên đề bài phiên bản 1.0. Repository có scaffold Next.js/NestJS, Prisma/PostgreSQL và Docker; các tài liệu là đường cơ sở để nhóm triển khai module nghiệp vụ theo từng Sprint.
+
+## Bàn giao Khang tuần 1
+
+- [SD-01 — Use Case tổng quan](./architecture/use-case-overview.md)
+- [SD-02 — Kiến trúc](./architecture/system-architecture.md)
+- [SD-03 — ERD](./architecture/erd.md)
+- [SD-04 — Order State Machine](./architecture/order-state-machine.md)
+- [Contract bổ sung foundation](./architecture/foundation-contract.md)
 
 ## Lộ trình đọc
 
@@ -23,16 +31,16 @@ Thư mục này mô tả kiến trúc đích của BrewLite dựa trên đề b�
 - ID dùng UUID để không lộ số lượng bản ghi và thuận tiện khi tách dịch vụ về sau.
 - Tên bảng/cột trong PostgreSQL dùng `snake_case`; tên model TypeScript dùng `PascalCase`/`camelCase`.
 - Backend luôn tính lại giá, khuyến mãi và tổng tiền; không tin dữ liệu giá từ frontend.
-- Mermaid trong tài liệu là nguồn sơ đồ có thể version-control cùng mã nguồn.
+- Ảnh Use Case và ERD gốc của nhóm được giữ trong repository; Mermaid/PlantUML là bản mô tả bằng văn bản để review cùng mã nguồn.
 
 ## Phạm vi tài liệu
 
-Kiến trúc này bao phủ luồng: xem menu -> chọn size/topping -> giỏ hàng -> đăng nhập -> tạo đơn -> thanh toán giả lập -> xác nhận/lịch sử đơn. Chức năng vận hành Barista/Admin được mô hình hóa ở mức API và phân quyền để hỗ trợ state machine, nhưng UI quản trị không thuộc MVP bắt buộc.
+Kiến trúc này bao phủ luồng: xem menu -> chọn size/topping -> giỏ hàng -> đăng nhập -> tạo đơn -> thanh toán giả lập -> xác nhận/lịch sử đơn. Barista đăng nhập và cập nhật trạng thái đơn theo UC-10. Ba tác nhân và các quan hệ được giữ theo [sơ đồ Use Case gốc của nhóm](./architecture/use-case-overview.md).
 
 ## Tài liệu Scrum thực thi
 
 - [Vai trò Scrum](./scrum/team-roles.md)
-- [Phân công nhóm 5 thành viên theo Sprint](./scrum/team-assignment-by-sprint.md)
+- [Board phân công 6 tuần](https://trello.com/b/JXTjedPU)
 - [Sprint 1](./scrum/sprint-01.md)
 - [Sprint 2](./scrum/sprint-02.md)
 - [Sprint 3](./scrum/sprint-03.md)

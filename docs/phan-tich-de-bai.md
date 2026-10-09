@@ -96,6 +96,7 @@ stateDiagram-v2
     PAYMENT_FAILED --> PENDING: thử lại
     PENDING --> CANCELLED: hủy/hết hạn
     PAYMENT_FAILED --> CANCELLED: hủy
+    PAID --> CANCELLED: hủy trước khi nhận pha
     PAID --> PREPARING: barista nhận pha
     PREPARING --> READY: pha xong
     READY --> COMPLETED: giao khách
@@ -103,7 +104,7 @@ stateDiagram-v2
     CANCELLED --> [*]
 ```
 
-`COMPLETED` và `CANCELLED` là trạng thái kết thúc. Không hủy sau `PAID` trong phạm vi hiện tại. Sơ đồ Use Case chuẩn của nhóm có ba tác nhân: user/khách hàng, barista/nhân viên quầy và Mock Payment Gateway; role tài khoản chỉ có `CUSTOMER` và `BARISTA`.
+`COMPLETED` và `CANCELLED` là trạng thái kết thúc. Chủ đơn được hủy từ PAID trước khi Barista nhận pha; giữ giao dịch thanh toán thành công và không hoàn tiền giả lập. Sơ đồ Use Case chuẩn của nhóm có ba tác nhân: user/khách hàng, barista/nhân viên quầy và Mock Payment Gateway; role tài khoản chỉ có `CUSTOMER` và `BARISTA`.
 
 ## 8. Truy vết 10 task của đề bài
 

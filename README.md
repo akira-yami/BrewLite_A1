@@ -109,9 +109,10 @@ PENDING -> PAID -> PREPARING -> READY -> COMPLETED
 PENDING -> PAYMENT_FAILED -> PENDING (retry)
 PENDING -> CANCELLED
 PAYMENT_FAILED -> CANCELLED
+PAID -> CANCELLED (trước khi nhận pha)
 ```
 
-Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào lịch sử trạng thái. `COMPLETED` và `CANCELLED` là trạng thái kết thúc. Chỉ hủy đơn chưa thanh toán; Barista thực hiện các bước pha chế. Role tài khoản chỉ có `CUSTOMER` (user/khách hàng) và `BARISTA`; Mock Payment Gateway là tác nhân tích hợp.
+Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào lịch sử trạng thái. `COMPLETED` và `CANCELLED` là trạng thái kết thúc. Chủ đơn được hủy từ PENDING/PAYMENT_FAILED/PAID khi hợp lệ; hủy từ PAID giữ giao dịch thành công và không hoàn tiền giả lập. Barista thực hiện các bước pha chế. Role tài khoản chỉ có `CUSTOMER` (user/khách hàng) và `BARISTA`; Mock Payment Gateway là tác nhân tích hợp.
 
 ## Tài liệu
 

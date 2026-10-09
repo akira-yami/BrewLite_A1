@@ -134,7 +134,9 @@ Hai update nằm trong cùng transaction. Nếu reservation đã `RELEASED`, `EX
 
 Job định kỳ tìm `ACTIVE AND expires_at < now()`, khóa bằng `FOR UPDATE SKIP LOCKED` (hoặc claim theo batch) rồi chuyển `EXPIRED` và hoàn tồn. Trong MVP có thể chạy cron của NestJS; nhiều instance vẫn an toàn nhờ điều kiện trạng thái.
 
-Cùng transaction hủy/hết hạn order, nếu có `coupon_redemption` đang `RESERVED` thì chuyển sang `RELEASED` hoặc `EXPIRED`. Việc đổi trạng thái phải có điều kiện `WHERE status = RESERVED` để retry không giải phóng hai lần.
+Với PAID → CANCELLED trước nhận pha, cùng transaction khóa/compare-and-set order: chuyển inventory reservation từ CONSUMED sang RELEASED bằng điều kiện `WHERE status = CONSUMED`, rồi hoàn stock/tăng version chỉ khi transition reservation cập nhật được một dòng. Giữ payment SUCCEEDED, coupon CONSUMED và loyalty EARN; không hoàn tiền giả lập. Chỉ chủ đơn được gọi nhánh này, job hết hạn không hủy PAID.
+
+Cùng transaction hủy/hết hạn order chưa thanh toán, nếu có `coupon_redemption` đang `RESERVED` thì chuyển sang `RELEASED` hoặc `EXPIRED`. Việc đổi trạng thái phải có điều kiện `WHERE status = RESERVED` để retry không giải phóng hai lần.
 
 ## 7. Transaction hoàn tất thanh toán
 

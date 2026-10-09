@@ -226,7 +226,7 @@ Yêu cầu `CUSTOMER` là chủ đơn. Payload:
 { "reason": "Khách đổi ý" }
 ```
 
-Chỉ cho phép hủy từ `PENDING` hoặc `PAYMENT_FAILED` theo state machine. Kết quả `200 OK` với status `CANCELLED`. Đơn đã thanh toán trả `409 ORDER_INVALID_TRANSITION`; hủy/hoàn tiền sau PAID chưa thuộc phạm vi hiện tại.
+Cho phép chủ đơn hủy từ `PENDING`, `PAYMENT_FAILED` hoặc `PAID` theo state machine. Kết quả `200 OK` với status `CANCELLED`. Hủy từ PAID chỉ được thực hiện trước khi Barista nhận pha; hoàn tồn đúng một lần, giữ Payment SUCCEEDED, coupon CONSUMED và loyalty EARN, không hoàn tiền giả lập. Từ PREPARING/READY/COMPLETED/CANCELLED trả `409 ORDER_INVALID_TRANSITION`. Hủy và nhận pha phải kiểm tra trạng thái dưới cùng cơ chế lock/compare-and-set để chỉ một transition thành công.
 
 ### `PATCH /orders/:id/status`
 

@@ -176,7 +176,7 @@ Invariant: tối đa một payment `SUCCEEDED` cho mỗi order; key cũ cùng ha
 | `expiresAt` | timestamp | Thời điểm hết giữ tồn |
 | `createdAt`, `updatedAt` | timestamp | Audit |
 
-Transition: `ACTIVE -> CONSUMED` khi paid; `ACTIVE -> RELEASED` khi hủy; `ACTIVE -> EXPIRED` khi timeout. Mỗi transition hoàn/trừ tồn tối đa một lần.
+Transition: `ACTIVE -> CONSUMED` khi paid; `ACTIVE -> RELEASED` khi hủy chưa paid; `ACTIVE -> EXPIRED` khi timeout. Với PAID → CANCELLED trước pha chế, `CONSUMED -> RELEASED` hoàn stock và tăng version đúng một lần. Mỗi transition hoàn/trừ tồn tối đa một lần, commit cùng order/history.
 
 ## 7. Khuyến mãi và loyalty
 
@@ -212,6 +212,8 @@ Transition: `ACTIVE -> CONSUMED` khi paid; `ACTIVE -> RELEASED` khi hủy; `ACTI
 | `createdAt`, `updatedAt` | timestamp | Audit |
 
 Transition: `RESERVED -> CONSUMED` khi order `PAID`; `RESERVED -> RELEASED` khi hủy; `RESERVED -> EXPIRED` khi order hết thời gian giữ. Khi kiểm tra `usageLimit`/`perUserLimit`, chỉ tính các redemption `RESERVED` hoặc `CONSUMED`, nhờ đó đơn thanh toán thất bại/hủy không chiếm lượt coupon vĩnh viễn.
+
+PAID → CANCELLED giữ Payment SUCCEEDED, coupon CONSUMED và loyalty EARN theo chính sách hủy đơn giữ giao dịch thành công; không hoàn tiền giả lập hoặc tự ghi REVERSAL điểm.
 
 ### LoyaltyTransaction
 

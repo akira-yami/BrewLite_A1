@@ -160,6 +160,7 @@ Yêu cầu role `CUSTOMER`. Tạo đơn `PENDING`, tính lại giá và giữ t�
       "quantity": 2,
       "sugarLevel": 50,
       "iceLevel": 0,
+      "note": "Để topping riêng",
       "toppingIds": ["uuid"]
     }
   ],
@@ -174,7 +175,8 @@ Validation:
 - Variant/topping phải active và topping phải hợp lệ cho product.
 - Không chấp nhận giá/tổng/userId từ client.
 - `sugarLevel`, `iceLevel` là tùy chọn, mỗi trường nhận số nguyên 0..100 hoặc null; không gửi được chuẩn hóa thành null (công thức chuẩn). `0` là không đường/đá, không được thay bằng giá trị mặc định. UI cung cấp chuẩn/0/25/50/75/100%, API vẫn chấp nhận mọi số nguyên trong khoảng.
-- Các dòng cùng variant, tập topping và cả hai mức đường/đá được gộp quantity (null khác 100% tường minh); khác một tùy chọn phải giữ thành dòng riêng. Sau gộp, quantity mỗi dòng vẫn phải trong 1..20. Inventory tổng hợp quantity theo variant qua mọi dòng.
+- `note` là chuỗi tùy chọn tối đa 500 ký tự sau trim đầu/cuối; null/không gửi/rỗng/toàn khoảng trắng dùng null. Giữ khoảng trắng bên trong và xuống dòng; ghi chú áp dụng cho toàn bộ quantity của dòng và không đổi giá.
+- Các dòng cùng variant, tập topping, cả hai mức đường/đá và note đã chuẩn hóa được gộp quantity (null khác 100% tường minh); khác một tùy chọn hoặc ghi chú phải giữ thành dòng riêng. Sau gộp, quantity mỗi dòng vẫn phải trong 1..20. Inventory tổng hợp quantity theo variant qua mọi dòng.
 - Đường/đá áp dụng cho toàn bộ quantity của dòng, không làm thay đổi giá và được lưu cùng snapshot; không có API sửa tùy chọn của đơn đã tạo.
 
 Kết quả `201 Created`:
@@ -194,6 +196,7 @@ Kết quả `201 Created`:
         "quantity": 2,
         "sugarLevel": 50,
         "iceLevel": 0,
+        "note": "Để topping riêng",
         "toppings": [
           { "name": "Kem", "unitPrice": 7000, "quantity": 1 }
         ],
@@ -214,6 +217,8 @@ Lỗi chính: `401 UNAUTHORIZED`, `400 INVALID_OPTION`, `409 OUT_OF_STOCK`, `409
 
 Sai kiểu, số thập phân hoặc đường/đá ngoài 0..100 trả `400 VALIDATION_ERROR` theo error envelope chung. `CreateOrderDto` và mapper item đã có trong code; controller/service tạo đơn vẫn thuộc phần triển khai tiếp theo.
 
+Note sai kiểu hoặc dài hơn 500 ký tự sau trim cũng trả `400 VALIDATION_ERROR`. Ghi chú được snapshot lúc tạo đơn, không có API chỉnh sửa sau khi tạo.
+
 `lineTotal` và `currency` trong response là giá trị tính ở lớp API (`currency` cố định là `VND` trong MVP), không phải cột của các bảng `orders` hay `order_items`.
 
 ### `GET /orders/me`
@@ -227,6 +232,8 @@ Query: `status?`, `cursor?`, `limit=20`. Kết quả `200 OK`, sắp xếp `crea
 Yêu cầu chủ đơn (`CUSTOMER`) hoặc `BARISTA` trong luồng vận hành UC-10. Trả item, payment summary và timeline trạng thái. Nếu khách không sở hữu order, trả `404 ORDER_NOT_FOUND` để tránh dò ID.
 
 Mỗi item dùng cấu trúc response của `POST /orders`, luôn có `sugarLevel` và `iceLevel` (number hoặc null), bao gồm đơn cũ. Khách và barista đọc cùng giá trị đã lưu; giao diện phải hiển thị 0% rõ ràng và null là công thức chuẩn.
+
+Mỗi item luôn trả `note` (string hoặc null); đơn cũ trả null. Khách/barista hiển thị ghi chú như văn bản thuần, không thực thi HTML.
 
 ### `POST /orders/:id/cancel`
 

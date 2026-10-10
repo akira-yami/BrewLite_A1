@@ -4,6 +4,7 @@ export interface CreateOrderItemInput {
   toppingIds?: string[];
   sugarLevel?: number | null;
   iceLevel?: number | null;
+  note?: string | null;
 }
 
 export interface CreateOrderInput {
@@ -19,6 +20,7 @@ export interface OrderItem {
   quantity: number;
   sugarLevel: number | null;
   iceLevel: number | null;
+  note: string | null;
   toppings: Array<{ name: string; unitPrice: number; quantity: number }>;
   lineTotal: number;
 }

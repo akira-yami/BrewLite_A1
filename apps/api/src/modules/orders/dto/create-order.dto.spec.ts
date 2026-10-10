@@ -44,4 +44,34 @@ describe('CreateOrderDto drink preferences', () => {
       await check({ sugarLevel: 0, iceLevel: 0, unitPrice: 1 }),
     ).not.toEqual([]);
   });
+
+  it.each([undefined, null, '', '   ', 'Để topping riêng', 'a'.repeat(500)])(
+    'accepts optional notes up to 500 characters: %j',
+    async (note) => {
+      expect(await check({ note })).toEqual([]);
+    },
+  );
+
+  it.each([123, false, [], {}, 'a'.repeat(501)])(
+    'rejects invalid notes: %j',
+    async (note) => {
+      const errors = await check({ note });
+      expect(
+        errors[0].children?.[0].children?.map((error) => error.property),
+      ).toContain('note');
+    },
+  );
+
+  it('trims notes and normalizes blank notes to null', () => {
+    const dto = plainToInstance(CreateOrderDto, {
+      items: [
+        { ...item, note: '  Để topping riêng  ' },
+        { ...item, note: ' \n ' },
+      ],
+    });
+    expect(dto.items.map((entry) => entry.note)).toEqual([
+      'Để topping riêng',
+      null,
+    ]);
+  });
 });

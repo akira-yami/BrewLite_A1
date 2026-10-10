@@ -81,6 +81,7 @@ Các mục ngoài phạm vi có thể bổ sung sau mà không đổi cấu trú
 2. Một đơn phải có ít nhất một item, số lượng mỗi item nằm trong giới hạn cấu hình.
 3. Tổng tiền: `subtotal - discountAmount = total`; `total >= 0`.
 4. Giá/tên món, biến thể, topping và mức đường/đá được snapshot vào dòng đơn để lịch sử không đổi khi menu được cập nhật. Dòng khác đường/đá giữ riêng; reservation tổng hợp quantity theo variant.
+   Ghi chú `note` cũng được gửi/lưu theo từng dòng: chuỗi tối đa 500 ký tự sau trim, thiếu/trắng thành null; khác ghi chú giữ dòng riêng, không đổi giá.
 5. `Idempotency-Key` là bắt buộc cho `POST /payments`, unique toàn hệ thống và gắn với hash của request. Dùng lại cùng key nhưng khác payload bị từ chối.
 6. Tồn kho được giữ trong transaction tạo đơn. Khi thanh toán thành công, reservation chuyển thành `CONSUMED`; khi hủy/hết hạn/thanh toán thất bại cuối cùng, tồn kho được hoàn lại đúng một lần.
 7. Điểm thưởng được ghi bằng ledger `LoyaltyTransaction`, không chỉ cập nhật một con số. Mỗi đơn chỉ có tối đa một giao dịch cộng điểm.

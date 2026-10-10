@@ -43,6 +43,7 @@ function ProductDetailModalContent({
   const [quantity, setQuantity] = useState(1);
   const [sugarLevel, setSugarLevel] = useState<number | null>(null);
   const [iceLevel, setIceLevel] = useState<number | null>(null);
+  const [note, setNote] = useState('');
 
   const selectedVariant = product.variants.find((variant) => variant.id === selectedVariantId);
   const selectedToppings = product.toppings.filter((topping) =>
@@ -72,6 +73,7 @@ function ProductDetailModalContent({
       quantity,
       sugarLevel,
       iceLevel,
+      note,
       toppings: selectedToppings.map((topping) => ({
         id: topping.id,
         name: topping.name,
@@ -193,6 +195,20 @@ function ProductDetailModalContent({
               </label>
             ))}
           </div>
+
+          <label className="block font-bold text-[#163E2B]">
+            Ghi chú cho món
+            <textarea
+              name="note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Ví dụ: để topping riêng"
+              className="mt-1.5 block w-full rounded-xl border border-[#E5DCD2] bg-[#FAF6F2] px-3 py-2 font-normal text-[#4A3E36]"
+            />
+            <span className="mt-1 block text-right font-normal text-[#756A63]">{note.length}/500</span>
+          </label>
 
           {product.toppings.length > 0 && (
             <div>

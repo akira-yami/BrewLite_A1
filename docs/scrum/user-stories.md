@@ -20,6 +20,7 @@ Tiêu chí chấp nhận:
 - Chỉ chọn được topping hợp lệ và đang hoạt động.
 - UI hiển thị giá tạm tính; backend vẫn tính lại khi tạo đơn.
 - Đường/đá chọn độc lập: công thức chuẩn (null) hoặc 0/25/50/75/100%; 0% là không đường/đá, không phụ thu.
+- Có ghi chú món tối đa 500 ký tự sau trim; rỗng thành null, không phụ thu.
 
 ## US-03 - Quản lý giỏ hàng
 
@@ -30,7 +31,7 @@ Tiêu chí chấp nhận:
 - Badge phản ánh tổng số lượng.
 - Tổng tạm tính cập nhật khi item thay đổi.
 - Giỏ được giữ khi reload và khi thanh toán thất bại.
-- Persist cả đường/đá; giỏ cũ thiếu trường được đọc thành null. Chỉ gộp dòng khi cùng variant, tập topping và cả hai mức đường/đá.
+- Persist cả đường/đá và note; giỏ cũ thiếu trường được đọc thành null. Chỉ gộp dòng khi cùng variant, tập topping, cả hai mức đường/đá và note đã trim.
 
 ## US-04 - Đăng ký/đăng nhập
 
@@ -51,6 +52,7 @@ Tiêu chí chấp nhận:
 - Order tạo ở `PENDING` với mã unique.
 - Backend tự tính giá/coupon và snapshot item.
 - Validate đường/đá là số nguyên 0..100 hoặc null, lưu nguyên lựa chọn cùng item và tổng hợp tồn kho theo variant qua mọi dòng.
+- Validate note là chuỗi tối đa 500 ký tự sau trim hoặc null, lưu cùng item.
 - Nếu không đủ tồn, không tạo order dở dang và trả item bị thiếu.
 - Request đồng thời không làm stock âm.
 
@@ -75,6 +77,7 @@ Tiêu chí chấp nhận:
 - Chi tiết có item, tổng tiền, payment summary và timeline trạng thái.
 - Dữ liệu lịch sử không đổi khi menu cập nhật giá/tên.
 - Chi tiết trả đường/đá đã lưu; đơn cũ trả null, 0% hiển thị đúng.
+- Chi tiết trả note đã lưu dưới dạng văn bản thuần; đơn cũ trả null.
 
 ## US-08 - Xử lý đơn tại quầy
 
@@ -86,6 +89,7 @@ Tiêu chí chấp nhận:
 - Chỉ cho phép `PAID -> PREPARING -> READY -> COMPLETED`.
 - Mọi transition ghi actor, thời gian và trạng thái trước/sau.
 - Barista nhìn thấy mức đường/đá của từng dòng để pha đúng yêu cầu; null là công thức chuẩn.
+- Barista đọc ghi chú của từng dòng để thực hiện yêu cầu riêng.
 
 ## US-09 - Khuyến mãi và điểm thưởng
 

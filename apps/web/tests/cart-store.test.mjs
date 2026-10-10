@@ -30,7 +30,7 @@ test('different sugar/ice preferences stay separate; identical options merge wit
   assert.equal(read()[0].quantity, 2);
   assert.equal(read()[0].lineTotal, 90000);
   assert.deepEqual(cartStore.getOrderItems()[0], {
-    productVariantId: 'variant', quantity: 2, toppingIds: ['pearl'], sugarLevel: 0, iceLevel: 50,
+    productVariantId: 'variant', quantity: 2, toppingIds: ['pearl'], sugarLevel: 0, iceLevel: 50, note: null,
   });
 });
 
@@ -43,6 +43,7 @@ test('omitted and null preferences merge, while explicit 100% remains separate',
   assert.equal(read()[0].quantity, 2);
   assert.equal(read()[0].sugarLevel, null);
   assert.equal(read()[0].iceLevel, null);
+  assert.equal(read()[0].note, null);
 });
 
 test('legacy carts retain quantities, migrate their identity and merge with new standard items', async () => {
@@ -56,6 +57,7 @@ test('legacy carts retain quantities, migrate their identity and merge with new 
   assert.equal(read()[0].quantity, 3);
   assert.equal(read()[0].sugarLevel, null);
   assert.equal(read()[0].iceLevel, null);
+  assert.equal(read()[0].note, null);
 });
 
 test('reload preserves zero preferences and quantity updates/removal address the correct item', async () => {
@@ -79,4 +81,41 @@ test('topping order does not change cart identity', async () => {
   cartStore.addItem({ ...input, toppings: [...toppings].reverse(), sugarLevel: 25, iceLevel: 75 });
   assert.equal(read().length, 1);
   assert.equal(read()[0].quantity, 2);
+});
+
+test('different notes stay separate, identical trimmed notes merge and survive reload', async () => {
+  const first = await setup();
+  first.cartStore.addItem({ ...input, note: '  Để topping riêng  ' });
+  first.cartStore.addItem({ ...input, note: 'Để topping riêng' });
+  first.cartStore.addItem({ ...input, note: 'Không khuấy' });
+  assert.equal(first.read().length, 2);
+  assert.equal(first.read()[0].quantity, 2);
+  assert.equal(first.read()[0].lineTotal, 90000);
+  const reloaded = await setup(first.read());
+  assert.equal(reloaded.cartStore.getOrderItems()[0].note, 'Để topping riêng');
+  assert.equal(reloaded.cartStore.getOrderItems()[1].note, 'Không khuấy');
+});
+
+test('missing, null and whitespace-only notes merge as no note', async () => {
+  const { cartStore, read } = await setup();
+  for (const note of [undefined, null, '', ' \n ']) cartStore.addItem({ ...input, note });
+  assert.equal(read().length, 1);
+  assert.equal(read()[0].quantity, 4);
+  assert.equal(cartStore.getOrderItems()[0].note, null);
+});
+
+test('notes with reserved delimiters and HTML are preserved as text', async () => {
+  const { cartStore, read } = await setup();
+  const note = '<b>riêng</b>:note=%:ice=0\nKhông khuấy';
+  cartStore.addItem({ ...input, note });
+  cartStore.addItem({ ...input, note: encodeURIComponent(note) });
+  assert.equal(read().length, 2);
+  assert.equal(cartStore.getOrderItems()[0].note, note);
+});
+
+test('arbitrary note text can be persisted without breaking cart identity', async () => {
+  const { cartStore, read } = await setup();
+  const note = 'Ghi chú \uD800';
+  cartStore.addItem({ ...input, note });
+  assert.equal(read()[0].note, note);
 });

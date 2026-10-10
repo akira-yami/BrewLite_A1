@@ -161,6 +161,7 @@ sequenceDiagram
 3. Kiểm tra coupon, tính `subtotal`, `discountAmount`, `total`; nếu dùng coupon thì giữ lượt bằng `CouponRedemption(RESERVED)`.
 4. Với từng variant, trừ tồn bằng cập nhật nguyên tử với điều kiện `version = expectedVersion AND stock >= quantity`, đồng thời tăng `version`. Nếu không cập nhật được dòng nào, đọc lại và retry có giới hạn khi xung đột version; báo hết hàng nếu tồn không đủ.
 5. Tạo `Order`, `OrderItem` (snapshot cả `sugarLevel`/`iceLevel`), `OrderItemTopping`, `InventoryReservation` và `OrderStatusHistory`. Đường/đá là phần trăm nguyên 0..100 hoặc null (công thức chuẩn), không đổi giá. Tách dòng khi khác tùy chọn, nhưng tổng hợp quantity theo variant khi giữ tồn.
+   `OrderItem.note` là ghi chú nullable tối đa 500 ký tự sau trim, snapshot và trả cho khách/barista. Giỏ persist note, khác note giữ dòng riêng; không phụ thu và reservation vẫn tổng hợp theo variant.
 6. Commit rồi trả order `PENDING`.
 
 Không giữ transaction trong khi gọi payment gateway. Nếu gateway chậm, kết nối database không bị chiếm giữ.

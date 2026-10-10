@@ -4,6 +4,8 @@ Owner: Dev Khang. Reviewer theo sheet `SoDo`: Dev Hoàng; card tuần 1 ghi Ki�
 
 ## 1. Sơ đồ quan hệ
 
+Bổ sung `ORDER_ITEM.note` nullable (varchar(500)) ngày 10/10/2026; Mermaid và schema là mô hình cập nhật, ảnh gốc giữ làm tham chiếu.
+
 Ảnh ERD gốc do nhóm thiết kế, được đồng bộ vào repository ngày 09/10/2026:
 
 ![ERD BrewLite của nhóm](../../database/BrewLite.png)
@@ -108,6 +110,7 @@ erDiagram
         int quantity
         int sugar_level "nullable; 0..100"
         int ice_level "nullable; 0..100"
+        string note "nullable; varchar(500)"
     }
 
     ORDER_ITEM_TOPPING {

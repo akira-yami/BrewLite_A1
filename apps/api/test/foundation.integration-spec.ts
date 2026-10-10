@@ -87,6 +87,16 @@ describe('Foundation on migrated PostgreSQL', () => {
     }
   });
 
+  it('stores optional notes and rejects more than 500 characters', async () => {
+    expect((await prisma.orderItem.findMany({ where: { orderId } }))[0].note).toBeNull();
+    for (const note of ['Để topping riêng', 'a'.repeat(500)]) {
+      await prisma.orderItem.updateMany({ where: { orderId }, data: { note } });
+      expect((await prisma.orderItem.findMany({ where: { orderId } }))[0].note).toBe(note);
+    }
+    await expect(prisma.orderItem.updateMany({ where: { orderId }, data: { note: 'a'.repeat(501) } })).rejects.toThrow();
+    await prisma.orderItem.updateMany({ where: { orderId }, data: { note: null } });
+  });
+
   it('rejects invalid coupon percentage and time window', async () => {
     const coupon = { code: randomUUID(), discountType: 'PERCENTAGE' as const, discountValue: 101n,
       startsAt: new Date('2026-10-01T00:00:00Z'), endsAt: new Date('2026-11-01T00:00:00Z') };

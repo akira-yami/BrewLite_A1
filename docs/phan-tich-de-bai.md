@@ -31,7 +31,7 @@ Công nghệ bắt buộc từ đề bài:
 ### Ngoài phạm vi MVP
 
 - Kết nối Momo/VNPay/Stripe thật và đối soát tiền thật.
-- UI vận hành đầy đủ cho Barista/Admin.
+- UI vận hành đầy đủ cho Barista.
 - Giao hàng, nhiều chi nhánh, thuế/hóa đơn điện tử.
 - Quản lý công thức nguyên liệu chi tiết theo từng gram/ml.
 - WebSocket/push notification thời gian thực.
@@ -45,7 +45,6 @@ Các mục ngoài phạm vi có thể bổ sung sau mà không đổi cấu trú
 | Khách chưa đăng nhập | Xem menu, chọn món, quản lý giỏ local | Phải đăng nhập trước khi tạo đơn |
 | Khách hàng | Tạo đơn, thanh toán, hủy khi hợp lệ, xem lịch sử của mình | Vai trò `CUSTOMER` |
 | Barista | Cập nhật `PAID -> PREPARING -> READY -> COMPLETED` | API hỗ trợ Task 10; UI là phần mở rộng |
-| Quản trị viên | Quản lý menu/khuyến mãi và can thiệp vận hành | Ngoài UI MVP |
 | Mock Payment Gateway | Trả kết quả thanh toán thành công/thất bại | Được bọc bởi adapter để thay thế sau |
 
 ## 4. Yêu cầu chức năng chuẩn hóa
@@ -56,7 +55,7 @@ Các mục ngoài phạm vi có thể bổ sung sau mà không đổi cấu trú
 | FR-02 | Xem chi tiết | Chỉ hiển thị sản phẩm/biến thể đang hoạt động |
 | FR-03 | Tùy chọn món | Chọn đúng một size và nhiều topping hợp lệ |
 | FR-04 | Quản lý giỏ | Thêm, đổi số lượng, xóa; giỏ lưu local |
-| FR-05 | Đăng ký/đăng nhập | Email duy nhất; cấp access token JWT |
+| FR-05 | Đăng ký/đăng nhập | Username duy nhất theo API/schema hiện hành; cấp access token JWT |
 | FR-06 | Tạo đơn | Backend tính lại toàn bộ giá, giữ tồn kho, tạo mã đơn |
 | FR-07 | Thanh toán | Chỉ thanh toán đơn của chính user; idempotent theo header |
 | FR-08 | Xác nhận/lịch sử | Trả mã đơn, trạng thái và danh sách đơn phân trang |
@@ -70,7 +69,7 @@ Các mục ngoài phạm vi có thể bổ sung sau mà không đổi cấu trú
 | NFR-01 | API đọc/ghi thông thường p95 < 500 ms với dữ liệu mẫu | Index đúng, phân trang, tránh N+1, đo bằng integration/load test |
 | NFR-02 | Không lưu mật khẩu rõ | Băm bằng bcrypt với cost phù hợp và được đo trên môi trường chạy |
 | NFR-03 | Dữ liệu đầu vào được kiểm tra | DTO + `class-validator`, whitelist và transform |
-| NFR-04 | Không bán quá tồn kho khi có request đồng thời | Transaction + cập nhật nguyên tử `WHERE stock >= quantity`; chỉ retry lỗi serialization/deadlock |
+| NFR-04 | Không bán quá tồn kho khi có request đồng thời | Transaction + optimistic locking `version` + điều kiện `stock >= quantity`; retry có giới hạn |
 | NFR-05 | Retry thanh toán không tạo giao dịch kép | Unique `idempotency_key` và trả lại kết quả đã lưu |
 | NFR-06 | Chạy nhất quán trên máy thành viên | Docker Compose, migration và seed có version |
 | NFR-07 | Quan sát được lỗi | Correlation ID, log có cấu trúc, không log bí mật |
@@ -97,15 +96,15 @@ stateDiagram-v2
     PAYMENT_FAILED --> PENDING: thử lại
     PENDING --> CANCELLED: hủy/hết hạn
     PAYMENT_FAILED --> CANCELLED: hủy
+    PAID --> CANCELLED: hủy trước khi nhận pha
     PAID --> PREPARING: barista nhận pha
-    PAID --> CANCELLED: hủy có kiểm soát
     PREPARING --> READY: pha xong
     READY --> COMPLETED: giao khách
     COMPLETED --> [*]
     CANCELLED --> [*]
 ```
 
-`COMPLETED` và `CANCELLED` là trạng thái kết thúc. Nếu cho phép hủy sau `PAID`, hệ thống phải hoàn tiền/ghi nhận hoàn tiền; mock MVP có thể giới hạn thao tác này cho `ADMIN`.
+`COMPLETED` và `CANCELLED` là trạng thái kết thúc. Chủ đơn được hủy từ PAID trước khi Barista nhận pha; giữ giao dịch thanh toán thành công và không hoàn tiền giả lập. Sơ đồ Use Case chuẩn của nhóm có ba tác nhân: user/khách hàng, barista/nhân viên quầy và Mock Payment Gateway; role tài khoản chỉ có `CUSTOMER` và `BARISTA`.
 
 ## 8. Truy vết 10 task của đề bài
 

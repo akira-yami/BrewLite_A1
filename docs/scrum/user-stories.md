@@ -78,7 +78,7 @@ Tiêu chí chấp nhận:
 
 Tiêu chí chấp nhận:
 
-- Chỉ `BARISTA/ADMIN` gọi được API vận hành.
+- Chỉ `BARISTA` gọi được API vận hành, sau khi đăng nhập bằng UC-02.
 - Chỉ cho phép `PAID -> PREPARING -> READY -> COMPLETED`.
 - Mọi transition ghi actor, thời gian và trạng thái trước/sau.
 

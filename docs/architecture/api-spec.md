@@ -216,21 +216,21 @@ Query: `status?`, `cursor?`, `limit=20`. Kết quả `200 OK`, sắp xếp `crea
 
 ### `GET /orders/:id`
 
-Yêu cầu chủ đơn hoặc role vận hành. Trả item, payment summary và timeline trạng thái. Nếu user không sở hữu order, trả `404 ORDER_NOT_FOUND` để tránh dò ID.
+Yêu cầu chủ đơn (`CUSTOMER`) hoặc `BARISTA` trong luồng vận hành UC-10. Trả item, payment summary và timeline trạng thái. Nếu khách không sở hữu order, trả `404 ORDER_NOT_FOUND` để tránh dò ID.
 
 ### `POST /orders/:id/cancel`
 
-Yêu cầu chủ đơn hoặc `ADMIN`. Payload:
+Yêu cầu `CUSTOMER` là chủ đơn. Payload:
 
 ```json
 { "reason": "Khách đổi ý" }
 ```
 
-Chỉ cho phép theo state machine. Kết quả `200 OK` với status `CANCELLED`. Lỗi: `409 ORDER_INVALID_TRANSITION`; nếu đã thanh toán, chính sách hoàn tiền phải được thực hiện hoặc giới hạn cho admin trong MVP.
+Cho phép chủ đơn hủy từ `PENDING`, `PAYMENT_FAILED` hoặc `PAID` theo state machine. Kết quả `200 OK` với status `CANCELLED`. Hủy từ PAID chỉ được thực hiện trước khi Barista nhận pha; hoàn tồn đúng một lần, giữ Payment SUCCEEDED, coupon CONSUMED và loyalty EARN, không hoàn tiền giả lập. Từ PREPARING/READY/COMPLETED/CANCELLED trả `409 ORDER_INVALID_TRANSITION`. Hủy và nhận pha phải kiểm tra trạng thái dưới cùng cơ chế lock/compare-and-set để chỉ một transition thành công.
 
 ### `PATCH /orders/:id/status`
 
-API vận hành cho `BARISTA|ADMIN`, hỗ trợ Task 10.
+API vận hành chỉ cho `BARISTA`, hỗ trợ UC-10/Task 10; barista đăng nhập bằng UC-02. Chỉ cho phép `PAID -> PREPARING -> READY -> COMPLETED`.
 
 ```json
 {
@@ -288,7 +288,7 @@ Kết quả gateway từ chối vẫn là request được xử lý hợp lệ, 
 
 Quy tắc retry:
 
-- Cùng key, cùng payload: trả đúng kết quả payment đã lưu, không gọi gateway lần hai. Key cũ **không** được dùng để thử thanh toán lại.
+- Cùng key, cùng payload và attempt đã hoàn tất: trả đúng kết quả payment đã lưu, không gọi gateway lần hai. Attempt còn `PROCESSING`: trả `409 PAYMENT_IN_PROGRESS`, client chờ rồi gửi lại cùng key. Key cũ **không** được dùng để thử thanh toán lại.
 - Cùng key, khác payload: `409 IDEMPOTENCY_KEY_REUSED`.
 - Sau một payment `FAILED`, client tạo **Idempotency-Key mới**. Trước attempt mới, `PaymentService` khóa order và transition `PAYMENT_FAILED -> PENDING`, đồng thời ghi `OrderStatusHistory`; sau đó mới tạo payment attempt mới.
 - Nếu reservation đã hết hạn hoặc order đã bị hủy thì không cho retry; trả lỗi nghiệp vụ phù hợp.

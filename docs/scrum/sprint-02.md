@@ -4,7 +4,7 @@
 
 ## Sprint Goal
 
-Hoàn thiện giỏ hàng, xác thực và tạo đơn PENDING từ dữ liệu đã được backend kiểm tra.
+Hoàn thiện giỏ hàng, xác thực và tạo đơn PENDING từ dữ liệu đã được backend kiểm tra. Persist/tách dòng theo đường/đá, validate 0..100 hoặc null và lưu cùng snapshot OrderItem; giữ tồn theo tổng quantity mỗi variant.
 
 ## Sprint Backlog
 

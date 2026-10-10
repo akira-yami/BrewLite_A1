@@ -57,9 +57,9 @@ Hai quan hệ `extend` giữ đúng sơ đồ của nhóm: UC-04 → UC-03 khi k
 | UC | Owner | Contract/điều kiện chấp nhận |
 |---|---|---|
 | UC-01, UC-02 | Huy | Khách đăng ký; khách và barista đăng nhập; hash mật khẩu, JWT; không trả hash; đăng ký công khai chỉ cấp CUSTOMER |
-| UC-03, UC-04 | Hoàng | Chỉ lấy catalog active; đúng size và topping được phép |
-| UC-05 | Khải | Thêm/sửa/xóa, persist giỏ, tổng tạm tính |
-| UC-06 | Khang | User từ JWT, giá từ DB, snapshot, reservation, `PENDING`; rollback khi lỗi |
+| UC-03, UC-04 | Hoàng | Chỉ lấy catalog active; đúng size/topping, chọn đường/đá chuẩn hoặc 0/25/50/75/100% |
+| UC-05 | Khải | Thêm/sửa/xóa, persist cả đường/đá, tách dòng khác tùy chọn, tổng tạm tính |
+| UC-06 | Khang | User từ JWT, giá từ DB, snapshot cả đường/đá nullable 0..100, reservation theo tổng quantity mỗi variant, `PENDING`; rollback khi lỗi |
 | UC-07 | Kiệt | Coupon hợp lệ về thời gian, giá trị, giới hạn; tùy chọn trong checkout |
 | UC-08 | Kiệt | Amount từ order; idempotency; PaymentsService gọi OrdersService để chuyển trạng thái |
 | UC-09 | Khải | Chỉ đọc đơn của user hiện tại; mã đơn, trạng thái, lịch sử |

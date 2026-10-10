@@ -54,6 +54,8 @@ WHERE order_id IS NOT NULL AND type = 'EARN';
 ```sql
 CHECK (stock >= 0)
 CHECK (quantity > 0)
+CHECK (sugar_level IS NULL OR sugar_level BETWEEN 0 AND 100)
+CHECK (ice_level IS NULL OR ice_level BETWEEN 0 AND 100)
 CHECK (price >= 0)
 CHECK (subtotal >= 0 AND discount_amount >= 0 AND total >= 0)
 CHECK (discount_amount <= subtotal)
@@ -62,6 +64,8 @@ CHECK (starts_at < ends_at)
 ```
 
 Tổng từng dòng order được tính ở Service từ snapshot giá và quantity; ERD không lưu `line_total` nên không có check constraint cho cột này.
+
+`order_items.sugar_level` và `ice_level` là `INTEGER NULL`, không có default. Migration `20261010090000_order_item_sugar_ice_levels` thêm cột và CHECK, giữ dữ liệu cũ với hai giá trị null; không sửa migration đã áp dụng và không backfill thành 100. Null dùng công thức chuẩn; 0 là lựa chọn không đường/đá. DTO kiểm tra số nguyên trước transaction, DB bảo vệ khoảng 0..100. Các mức này không ảnh hưởng tính tiền.
 
 ### Foreign key và hành vi xóa
 
@@ -99,6 +103,7 @@ Transaction cần ngắn và không gọi HTTP bên ngoài:
 ```text
 BEGIN
   đọc product/variant/topping active
+  validate đường/đá 0..100; chuẩn hóa thiếu thành null, giữ 0
   tính snapshot giá, subtotal, coupon, total
   kiểm tra giới hạn coupon và INSERT coupon_redemption(status=RESERVED) nếu có
   với từng variant:
@@ -107,6 +112,7 @@ BEGIN
       WHERE id = :id AND version = :expected_version AND stock >= :qty
     nếu row_count = 0: conflict/hết hàng
   INSERT order + items + item_toppings
+  lưu sugar_level/ice_level cho từng item, cùng snapshot giá
   INSERT inventory_reservations(status=ACTIVE)
   INSERT order_status_history(NULL -> PENDING)
 COMMIT
@@ -115,6 +121,8 @@ COMMIT
 Nếu câu lệnh trừ tồn không cập nhật được dòng nào, Service trả `409 OUT_OF_STOCK` kèm variant bị thiếu. Chỉ retry transaction khi PostgreSQL trả lỗi serialization/deadlock có thể retry an toàn.
 
 Thứ tự lock/update variant luôn theo `product_variant_id` tăng dần để giảm deadlock khi nhiều đơn chứa cùng tập sản phẩm. Nếu version đã đổi, đọc lại và retry có giới hạn khi còn stock; nếu hết stock thì trả 409. Stock/version phải được cập nhật cùng nhau.
+
+Dòng cùng variant nhưng khác đường/đá được lưu riêng. Khi giữ/trừ tồn, tổng hợp quantity theo `product_variant_id` qua tất cả dòng để đáp ứng unique reservation `(order_id, product_variant_id)`.
 
 ## 6. Transaction hoàn tồn kho
 

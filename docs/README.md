@@ -2,6 +2,8 @@
 
 Thư mục này mô tả kiến trúc đích của BrewLite dựa trên đề bài phiên bản 1.0. Repository có scaffold Next.js/NestJS, Prisma/PostgreSQL và Docker; các tài liệu là đường cơ sở để nhóm triển khai module nghiệp vụ theo từng Sprint.
 
+Cập nhật 10/10/2026: thêm `OrderItem.sugarLevel`/`iceLevel` nullable 0..100 vào schema, migration, contract và giỏ. Quy ước null/0%, snapshot, tách dòng và tổng hợp tồn nằm trong [entity](./architecture/entities.md), [database](./architecture/database-design.md) và [API](./architecture/api-spec.md). PDF đề bài và ảnh ERD gốc giữ làm tài liệu tham chiếu; Mermaid ERD là mô hình đã cập nhật.
+
 ## Bàn giao Khang tuần 1
 
 - [SD-01 — Use Case tổng quan](./architecture/use-case-overview.md)

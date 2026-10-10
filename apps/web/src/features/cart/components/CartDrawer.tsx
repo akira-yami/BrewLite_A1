@@ -51,7 +51,7 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
             </div>
             <h3 className="text-base font-black text-[#163E2B]">Giỏ hàng đang trống</h3>
             <p className="mt-2 text-sm leading-6 text-[#756A63]">
-              Chọn một món trong menu, tùy biến size hoặc topping rồi thêm vào giỏ để tiếp tục đặt hàng.
+              Chọn một món trong menu, tùy biến size, topping, đường và đá rồi thêm vào giỏ để tiếp tục đặt hàng.
             </p>
             <button
               type="button"
@@ -100,6 +100,11 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                           Xóa
                         </button>
                       </div>
+
+                      <p className="text-[11px] leading-5 text-[#756A63]">
+                        Đường: {item.sugarLevel === null ? 'Theo công thức chuẩn' : `${item.sugarLevel}%`}
+                        {' • '}Đá: {item.iceLevel === null ? 'Theo công thức chuẩn' : `${item.iceLevel}%`}
+                      </p>
 
                       {item.toppings.length > 0 && (
                         <p className="line-clamp-2 text-[11px] leading-5 text-[#756A63]">

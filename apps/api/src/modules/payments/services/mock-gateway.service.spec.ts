@@ -13,15 +13,15 @@ describe('MockGatewayService', () => {
         }).compile();
 
         service = module.get<MockGatewayService>(MockGatewayService);
+
+        // Kích hoạt cỗ máy thời gian của Vitest để bỏ qua delay 1-2s (Giải quyết KT-06)
+        vi.useFakeTimers();
     });
 
     afterEach(() => {
         // Xóa các spy sau mỗi lần chạy để không ảnh hưởng test khác
         vi.restoreAllMocks();
-    });
-
-    it('nên được khởi tạo thành công', () => {
-        expect(service).toBeDefined();
+        vi.useRealTimers(); // Trả lại thời gian thực sau khi test xong
     });
 
     describe('charge()', () => {
@@ -29,8 +29,13 @@ describe('MockGatewayService', () => {
         // Ép Math.random trả về 0.5 (nhỏ hơn 0.8 -> Chắc chắn thành công)
         vi.spyOn(Math, 'random').mockReturnValue(0.5);
 
-        const result = await service.charge(50000, PaymentMethod.E_WALLET);
-
+        // Bắt đầu gọi hàm nhưng không await ngay vì nó vướng setTimeout
+        const promise = service.charge(50000, PaymentMethod.E_WALLET);
+        
+        // Tua nhanh thời gian để bỏ qua thời gian chờ
+        await vi.runAllTimersAsync();
+        const result = await promise;
+    
         expect(result.success).toBe(true);
         expect(result.gatewayTransactionId).toBeDefined();
         expect(result.gatewayTransactionId).toContain('MOCK_E_WALLET_');
@@ -41,7 +46,9 @@ describe('MockGatewayService', () => {
         // Ép Math.random trả về 0.9 (lớn hơn 0.8 -> Chắc chắn thất bại)
         vi.spyOn(Math, 'random').mockReturnValue(0.9);
 
-        const result = await service.charge(50000, PaymentMethod.CREDIT_CARD);
+        const promise = service.charge(50000, PaymentMethod.CARD);
+        await vi.runAllTimersAsync();
+        const result = await promise;
 
         expect(result.success).toBe(false);
         expect(result.errorCode).toBe('INSUFFICIENT_FUNDS');

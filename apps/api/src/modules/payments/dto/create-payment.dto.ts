@@ -1,37 +1,26 @@
-import { 
-  IsString, 
-  IsNotEmpty, 
-  IsNumber, 
-  IsEnum, 
-  IsUUID, 
-  Min 
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsUUID,
 } from 'class-validator';
 
 export enum PaymentMethod {
   E_WALLET = 'E_WALLET',
-  CREDIT_CARD = 'CREDIT_CARD',
+  CARD = 'CARD',
 }
 
 export class CreatePaymentDto {
   @IsString()
+  @IsUUID(4, { message: 'orderId phải là chuẩn UUID v4' })
   @IsNotEmpty({ message: 'orderId không được để trống' })
-  orderId: string;             // Mã đơn hàng cần thanh toán
+  orderId: string; // Chỉ nhận UUID của đơn hàng
 
-  @IsNumber()
-  @Min(1000, { message: 'Số tiền thanh toán tối thiểu là 1,000 VND' })
-  amount: number;              // Số tiền (vd: 50000)
-  
+
   @IsEnum(PaymentMethod, { message: 'Phương thức thanh toán không hợp lệ' })
   @IsNotEmpty()
   method: PaymentMethod;       // Phương thức thanh toán
-  
-  // Các cờ phục vụ Idempotency (Task 10-B)
-  // UUID cực kỳ quan trọng để bắt chuẩn Idempotency (Task 10-B)
-  @IsUUID(4, { message: 'Idempotency-Key phải là chuẩn UUID v4' })
-  @IsNotEmpty()
-  idempotencyKey: string;      // UUID duy nhất cho mỗi nỗ lực thanh toán từ Client
 
-  @IsString()
-  @IsNotEmpty({ message: 'Request Hash không được để trống' })
-  requestHash: string;         // Chuỗi hash payload để chống giả mạo/thay đổi dữ liệu
+  // ĐÃ XÓA: amount và requestHash (Server sẽ tự tính ở Sprint 2)
+  // ĐÃ XÓA: idempotencyKey (Sẽ được lấy từ HTTP Header trong Controller)
 }

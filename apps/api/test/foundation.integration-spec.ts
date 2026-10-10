@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
-import { PaymentMethod } from '../src/modules/payments/dto/create-payment.js';
-import { PaymentStatus } from '../src/modules/payments/dto/payment-response.js';
+import { PaymentMethod } from '../src/modules/payments/dto/create-payment.dto.js';
+import { PaymentStatus } from '../src/modules/payments/dto/payment-response.dto.js';
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
 if (!connectionString || !new URL(connectionString).pathname.slice(1).startsWith('brewlite_foundation_smoke')) {

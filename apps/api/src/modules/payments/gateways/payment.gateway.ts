@@ -12,6 +12,6 @@ export interface IPaymentGateway {
   processPayment(
     payload: CreatePaymentDto,
     idempotencyKey: string,
-    userId: string,
+    userId: string
   ): Promise<PaymentResponseDto>;
 }

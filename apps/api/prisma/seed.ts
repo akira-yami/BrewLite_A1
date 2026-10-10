@@ -1,7 +1,7 @@
 
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient, ProductSize } from '../src/generated/prisma/client';
+import { PrismaClient, ProductSize } from '../src/generated/prisma/client.js';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -28,7 +28,7 @@ async function main() {
   ];
 
   const createdToppings = await Promise.all(
-    toppingsData.map((t) => prisma.topping.create({ data: t }))
+    toppingsData.map((any) => prisma.topping.create({ data: any }))
   );
 
   // 2. Tạo Products & Variants

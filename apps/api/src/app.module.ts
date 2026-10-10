@@ -12,3 +12,12 @@ import { AuthModule } from './modules/auth/auth.module.js';
 })
 export class AppModule {}
 
+import { PaymentsModule } from './modules/payments/payments.module.js';
+import { CatalogModule } from './modules/catalog/catalog.module.js';
+
+@Module({
+  imports: [HealthModule, PaymentsModule, CatalogModule],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}

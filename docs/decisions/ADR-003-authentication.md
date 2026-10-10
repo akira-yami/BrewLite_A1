@@ -5,13 +5,14 @@
 
 ## Bối cảnh
 
-Next.js gọi NestJS qua REST. Đề bài yêu cầu đăng ký/đăng nhập JWT, đồng thời Task 10 cần phân biệt khách hàng với Barista/Admin.
+Next.js gọi NestJS qua REST. Đề bài yêu cầu đăng ký/đăng nhập JWT, đồng thời Task 10 cần phân biệt khách hàng với Barista. Phạm vi được xác nhận lại theo sơ đồ gốc của nhóm ngày 09/10/2026: khách hàng, nhân viên quầy và Mock Payment Gateway.
 
 ## Quyết định
 
 - Access token JWT sống ngắn, có `sub`, `role`, `iss`, `aud`, `exp`, `jti`.
 - Mật khẩu băm bằng bcrypt theo yêu cầu đề bài, với cost được cấu hình và kiểm tra trên môi trường chạy.
-- RBAC dùng `CUSTOMER`, `BARISTA`, `ADMIN`; ownership check áp dụng thêm cho tài nguyên order.
+- RBAC chỉ dùng `CUSTOMER` (user/khách hàng) và `BARISTA`; ownership check áp dụng thêm cho tài nguyên order. Mock Payment Gateway là tác nhân tích hợp, không phải role tài khoản.
+- Khách và barista dùng cùng luồng đăng nhập; đăng ký công khai chỉ cấp `CUSTOMER`.
 - Refresh token/cookie HttpOnly là phần khuyến nghị nếu triển khai phiên dài.
 
 ## Lý do

@@ -1,6 +1,6 @@
 # Hướng dẫn Docker cho BrewLite
 
-> Cấu hình Docker, frontend Next.js và backend NestJS đã được scaffold. Prisma/migration sẽ được bổ sung khi triển khai tầng database nghiệp vụ.
+> Foundation có PrismaService, schema và migration. Docker chạy migration one-shot trước backend; backend readiness kiểm tra PostgreSQL.
 
 ## 1. Topology
 
@@ -16,6 +16,7 @@ flowchart LR
 |---|---:|---|---|
 | `frontend` | 3000 | HTTP `/` hoặc `/health` | `backend` healthy |
 | `backend` | 3001 | HTTP `/api/v1/health` | `postgres` healthy |
+| `migrate` | Không mở port | Exit 0 | `postgres` healthy; backend chờ migration hoàn tất |
 | `postgres` | chỉ mở 5432 khi dev cần | `pg_isready` | volume dữ liệu |
 
 Trong production không công khai trực tiếp PostgreSQL. Reverse proxy/TLS termination nằm ngoài phạm vi MVP.
@@ -45,7 +46,7 @@ ORDER_RESERVATION_TTL_MINUTES=15
 
 Không commit file `.env` thật. Secret cho môi trường chia sẻ phải cấp qua CI/secret store.
 
-## 3. Quy trình khởi động dự kiến
+## 3. Quy trình khởi động
 
 Khởi động stack hiện tại:
 
@@ -53,7 +54,7 @@ Khởi động stack hiện tại:
 docker compose up --build
 ```
 
-Backend hiện chờ PostgreSQL healthy trước khi khởi động. Khi Prisma được thêm, tạo migration one-shot service và chỉ cho backend nhận traffic sau khi migration hoàn tất; không để nhiều replica đồng thời chạy migration.
+Service `migrate` dùng target `migration` trong Dockerfile API và chạy `npm run prisma:deploy`. Backend chờ cả PostgreSQL healthy lẫn migration exit 0, rồi connect Prisma trước khi lắng nghe. Kiểm tra `docker compose ps -a` và `docker compose logs migrate`.
 
 ## 4. Yêu cầu cho Dockerfile
 
@@ -63,7 +64,7 @@ Backend hiện chờ PostgreSQL healthy trước khi khởi động. Khi Prisma 
 - Copy lockfile và dùng install frozen/locked.
 - Không bake `.env`, secret hoặc credential vào image.
 - Có `.dockerignore` loại `node_modules`, `.git`, log, coverage và file môi trường.
-- Healthcheck phản ánh readiness. Hiện backend kiểm tra process/API; sau khi tích hợp Prisma, health endpoint phải kiểm tra thêm kết nối database.
+- Healthcheck phản ánh readiness: backend chạy `SELECT 1` qua Prisma; DB lỗi trả 503.
 
 ## 5. Dữ liệu và migration
 

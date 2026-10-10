@@ -4,8 +4,14 @@ import { PaymentResponseDto } from '../dto/payment-response.dto.js';
 
 export interface IPaymentGateway {
   /**
-   * Khang sẽ gọi hàm này từ OrdersService để tiến hành thanh toán.
-   * Chịu trách nhiệm check Idempotency, gọi MockGateway, và lưu DB.
+   * Hợp đồng orchestration của PaymentsService, được PaymentsController gọi.
+   * Kiểm tra quyền sở hữu bằng userId đã xác thực, lấy amount từ Order.total,
+   * tính requestHash và xử lý idempotency trước khi gọi IMockGatewayService.
+   * idempotencyKey lấy từ header, không lấy amount/hash do client gửi.
    */
-  processPayment(payload: CreatePaymentDto): Promise<PaymentResponseDto>;
+  processPayment(
+    payload: CreatePaymentDto,
+    idempotencyKey: string,
+    userId: string,
+  ): Promise<PaymentResponseDto>;
 }

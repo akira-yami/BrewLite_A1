@@ -11,6 +11,11 @@ FROM dependencies AS build
 COPY . .
 RUN npm run build
 
+# One-shot migrations use the CLI from build dependencies.
+FROM build AS migration
+USER node
+CMD ["npm", "run", "prisma:deploy"]
+
 FROM base AS production-dependencies
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev

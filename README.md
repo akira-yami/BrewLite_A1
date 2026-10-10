@@ -142,6 +142,16 @@ Compose chạy service `migrate` trước backend. Kiểm tra trạng thái bằ
 
 Khi chạy trực tiếp trên host, tạo database PostgreSQL rồi làm theo [README API](./apps/api/README.md): dùng `apps/api/.env.example` với hostname `localhost`, chạy migrate trước start. Root `.env.example` dùng hostname `postgres` cho Compose.
 
+## CI trên GitHub Actions
+
+Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull request hoặc chạy thủ công từ tab **Actions**. Các job dùng Node.js 24, cài dependencies bằng `npm ci` và cache npm theo lockfile của từng app:
+
+- **Frontend:** lint, typecheck và build Next.js. Hiện frontend chưa có bộ test tự động.
+- **Backend:** generate Prisma client, lint, typecheck, unit test, API E2E test và build NestJS. Bộ API E2E hiện kiểm tra health endpoint bằng Prisma mock.
+- **Database migrations and integration:** PostgreSQL 18 riêng cho mỗi lần chạy; validate/generate Prisma, apply migration hai lần để kiểm tra chạy lặp, kiểm tra migration status và chạy integration test với database thật.
+
+CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Sau khi đưa workflow lên GitHub, có thể chọn ba job trên làm required checks trong ruleset/branch protection.
+
 ## Quy ước phát triển
 
 - Backend không tin giá, tổng tiền, user ID hoặc trạng thái do frontend gửi.

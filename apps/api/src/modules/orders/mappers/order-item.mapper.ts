@@ -22,6 +22,7 @@ export function toOrderItemResponse(
     quantity: item.quantity,
     sugarLevel: item.sugarLevel,
     iceLevel: item.iceLevel,
+    note: item.note,
     toppings: item.orderItemToppings.map((topping) => ({
       name: topping.toppingNameSnapshot,
       unitPrice: Number(topping.unitPrice),

@@ -33,5 +33,7 @@ Build production dùng `output: "standalone"` để Docker image chỉ chứa c�
 
 Chi tiết món cho chọn độc lập mức đường/đá: công thức chuẩn (null) hoặc 0/25/50/75/100%. Giỏ hiển thị và persist cả hai trường, giữ 0% và tự đọc giỏ cũ thiếu trường thành null. Dòng chỉ gộp khi cùng variant, tập topping và đường/đá; tùy chọn không thay đổi giá.
 
-`cartStore.getOrderItems()` cung cấp payload cho checkout gồm `productVariantId`, `quantity`, `toppingIds`, `sugarLevel`, `iceLevel`, không gửi giá từ client. Type tạo đơn và item response nằm ở `src/features/orders/types.ts`; checkout/API tạo đơn chưa triển khai. `npm test` chạy test giỏ bằng Node.js 24.
+Chi tiết món có ô ghi chú tối đa 500 ký tự. Giỏ hiển thị văn bản thuần, trim ghi chú và chuyển rỗng thành null, persist khi reload và tách dòng khác note. Giỏ cũ thiếu note được đọc với null.
+
+`cartStore.getOrderItems()` cung cấp payload cho checkout gồm `productVariantId`, `quantity`, `toppingIds`, `sugarLevel`, `iceLevel`, `note`, không gửi giá từ client. Type tạo đơn và item response nằm ở `src/features/orders/types.ts`; checkout/API tạo đơn chưa triển khai. `npm test` chạy test giỏ bằng Node.js 24.
 

@@ -154,6 +154,8 @@ CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết n�
 
 ## Quy ước phát triển
 
+`OrderItem.note` là ghi chú món tùy chọn, tối đa 500 ký tự sau trim; thiếu/rỗng thành null. UI nhập và hiển thị ghi chú, giỏ persist và tách dòng khác ghi chú; DTO/mapper giữ cùng snapshot, không thay đổi giá. Migration bổ sung riêng giữ đơn cũ với note null.
+
 `OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo [hợp đồng API](./docs/architecture/api-spec.md).
 
 - Backend không tin giá, tổng tiền, user ID hoặc trạng thái do frontend gửi.

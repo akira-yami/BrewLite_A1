@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -43,6 +43,14 @@ export class CreateOrderItemDto {
   @Min(0)
   @Max(100)
   iceLevel?: number | null;
+
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() || null : value,
+  )
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string | null;
 }
 
 // Contract for the future orders controller; prices and userId come from the server.

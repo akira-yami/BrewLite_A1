@@ -106,6 +106,12 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                         {' • '}Đá: {item.iceLevel === null ? 'Theo công thức chuẩn' : `${item.iceLevel}%`}
                       </p>
 
+                      {item.note !== null && (
+                        <p className="whitespace-pre-wrap break-words text-[11px] leading-5 text-[#756A63]">
+                          Ghi chú: {item.note}
+                        </p>
+                      )}
+
                       {item.toppings.length > 0 && (
                         <p className="line-clamp-2 text-[11px] leading-5 text-[#756A63]">
                           Topping: {item.toppings.map((topping) => topping.name).join(', ')}

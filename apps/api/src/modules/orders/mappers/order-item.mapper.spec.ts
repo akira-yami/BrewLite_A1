@@ -17,6 +17,7 @@ describe('toOrderItemResponse', () => {
         quantity: 2,
         sugarLevel,
         iceLevel,
+        note: sugarLevel === null ? null : 'Để topping riêng',
         orderItemToppings: [
           {
             id: 'item-topping',
@@ -31,6 +32,7 @@ describe('toOrderItemResponse', () => {
       expect(response).toMatchObject({
         sugarLevel,
         iceLevel,
+        note: sugarLevel === null ? null : 'Để topping riêng',
         productName: 'Coffee',
         lineTotal: 90000,
       });

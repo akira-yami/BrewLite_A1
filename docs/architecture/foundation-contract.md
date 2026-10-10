@@ -2,6 +2,8 @@
 
 Ngày đối chiếu: 09/10/2026. Owner: Khang.
 
+Bổ sung `OrderItem.note String? @db.VarChar(500)` ngày 10/10/2026: migration riêng `20261010100000_order_item_note` giữ đơn cũ với null. DTO trim và validate tối đa 500 ký tự, note trắng thành null; mapper/type response trả note đã lưu. UI nhập/hiển thị văn bản thuần, giỏ persist và tách dòng khi khác note; payload checkout có note. Ghi chú không đổi giá và áp dụng cho toàn bộ quantity của dòng.
+
 Bổ sung ngày 10/10/2026: `OrderItem.sugarLevel Int? @map("sugar_level")` và `iceLevel Int? @map("ice_level")`. Migration mới thêm INTEGER nullable và CHECK 0..100, giữ đơn cũ với null. Null/không gửi dùng công thức chuẩn, 0 là không đường/đá; hai lựa chọn không đổi giá. Đã bổ sung `CreateOrderDto`, type response, mapper snapshot và type frontend; module orders vẫn chưa có controller/service tạo đơn. Giỏ hiện có lựa chọn đường/đá, persist và tách dòng theo tùy chọn; `cartStore.getOrderItems()` chuẩn bị payload cho checkout sau này. Chi tiết tại [API spec](./api-spec.md) và [entities](./entities.md).
 
 Thiết kế này bổ sung cơ chế chạy cho schema/kiến trúc đã có. Đây là bản đề xuất để review, chưa phải approval của thành viên khác.

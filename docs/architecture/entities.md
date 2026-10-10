@@ -114,8 +114,12 @@ Không lưu `loyaltyPointsEarned` như nguồn sự thật trên order; số đi
 | `variantNameSnapshot` | varchar(50) | Ví dụ `M` |
 | `unitPrice` | money | Giá variant trước topping |
 | `quantity` | int | `> 0`, giới hạn ở DTO |
+| `sugarLevel` | int? | Cột `sugar_level`; phần trăm nguyên `0..100`, nullable |
+| `iceLevel` | int? | Cột `ice_level`; phần trăm nguyên `0..100`, nullable |
 
 Tổng một dòng được tính từ `unitPrice`, topping và `quantity`; ERD hiện tại không lưu `lineTotal` thành cột riêng.
+
+`null` hoặc không gửi là theo công thức chuẩn; `0` là không đường/không đá, `100` là 100% lượng theo công thức. Hai trường độc lập, áp dụng cho mọi đơn vị trong dòng và không làm thay đổi giá. Giỏ UI cung cấp chuẩn/0/25/50/75/100%, API chấp nhận mọi số nguyên 0..100. Giá trị được lưu cùng snapshot lúc tạo đơn, trả lại cho khách và barista; không chỉnh sửa sau khi tạo đơn. Các dòng chỉ gộp khi cùng variant, tập topping và cả hai mức đường/đá (không gửi được chuẩn hóa thành null); null khác lựa chọn 100% tường minh.
 
 ### OrderItemTopping
 

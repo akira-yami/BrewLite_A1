@@ -41,6 +41,8 @@ function ProductDetailModalContent({
   const [selectedVariantId, setSelectedVariantId] = useState(defaultVariant?.id ?? '');
   const [selectedToppingIds, setSelectedToppingIds] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
+  const [sugarLevel, setSugarLevel] = useState<number | null>(null);
+  const [iceLevel, setIceLevel] = useState<number | null>(null);
 
   const selectedVariant = product.variants.find((variant) => variant.id === selectedVariantId);
   const selectedToppings = product.toppings.filter((topping) =>
@@ -68,6 +70,8 @@ function ProductDetailModalContent({
       size: selectedVariant.size as ProductSize,
       unitPrice: selectedVariant.price,
       quantity,
+      sugarLevel,
+      iceLevel,
       toppings: selectedToppings.map((topping) => ({
         id: topping.id,
         name: topping.name,
@@ -164,6 +168,30 @@ function ProductDetailModalContent({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {[
+              { name: 'sugarLevel', label: 'Mức đường', value: sugarLevel, setValue: setSugarLevel },
+              { name: 'iceLevel', label: 'Mức đá', value: iceLevel, setValue: setIceLevel },
+            ].map((option) => (
+              <label key={option.name} className="block font-bold text-[#163E2B]">
+                {option.label}
+                <select
+                  name={option.name}
+                  value={option.value ?? 'standard'}
+                  onChange={(event) => option.setValue(
+                    event.target.value === 'standard' ? null : Number(event.target.value),
+                  )}
+                  className="mt-1.5 block w-full rounded-xl border border-[#E5DCD2] bg-[#FAF6F2] px-3 py-2 text-[#4A3E36]"
+                >
+                  <option value="standard">Theo công thức chuẩn</option>
+                  {[0, 25, 50, 75, 100].map((level) => (
+                    <option key={level} value={level}>{level}%</option>
+                  ))}
+                </select>
+              </label>
+            ))}
           </div>
 
           {product.toppings.length > 0 && (

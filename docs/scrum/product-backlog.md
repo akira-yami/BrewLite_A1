@@ -7,8 +7,8 @@ Backlog dưới đây bám sát 10 task của đề bài. Story point là ước
 | BL-01 | 1 | Khởi tạo monorepo | Next.js/NestJS chạy, env mẫu, lint/test, README | 3 |
 | BL-02 | 1 | API danh sách sản phẩm | `GET /products`, dữ liệu seed, contract test | 3 |
 | BL-03 | 1 | Trang menu | Grid sản phẩm, loading/empty/error | 3 |
-| BL-04 | 1 | Chi tiết và tùy chọn | Size/topping hợp lệ, hiển thị giá tạm tính | 5 |
-| BL-05 | 2 | Giỏ hàng | Thêm/sửa/xóa, badge, persist local, tổng tạm tính | 5 |
+| BL-04 | 1 | Chi tiết và tùy chọn | Size/topping hợp lệ, chọn đường/đá chuẩn hoặc 0/25/50/75/100%, hiển thị giá tạm tính | 5 |
+| BL-05 | 2 | Giỏ hàng | Thêm/sửa/xóa, badge, persist cả đường/đá, tách dòng khác tùy chọn, tổng tạm tính | 5 |
 | BL-06 | 2 | API tạo đơn | Validate, tính giá server-side, giữ tồn, tạo `PENDING` | 8 |
 | BL-07 | 2 | Đăng ký/đăng nhập | Hash password, JWT, guard/ownership | 5 |
 | BL-08 | 3 | Thanh toán không tiền mặt | Mock gateway, idempotency, PAID/FAILED | 8 |

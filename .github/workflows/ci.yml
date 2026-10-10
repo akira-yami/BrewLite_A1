@@ -43,6 +43,8 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      - name: Cart tests
+        run: npm test
       - name: Build
         run: npm run build
 

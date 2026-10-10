@@ -2,6 +2,8 @@
 
 Ngày đối chiếu: 09/10/2026. Owner: Khang.
 
+Bổ sung ngày 10/10/2026: `OrderItem.sugarLevel Int? @map("sugar_level")` và `iceLevel Int? @map("ice_level")`. Migration mới thêm INTEGER nullable và CHECK 0..100, giữ đơn cũ với null. Null/không gửi dùng công thức chuẩn, 0 là không đường/đá; hai lựa chọn không đổi giá. Đã bổ sung `CreateOrderDto`, type response, mapper snapshot và type frontend; module orders vẫn chưa có controller/service tạo đơn. Giỏ hiện có lựa chọn đường/đá, persist và tách dòng theo tùy chọn; `cartStore.getOrderItems()` chuẩn bị payload cho checkout sau này. Chi tiết tại [API spec](./api-spec.md) và [entities](./entities.md).
+
 Thiết kế này bổ sung cơ chế chạy cho schema/kiến trúc đã có. Đây là bản đề xuất để review, chưa phải approval của thành viên khác.
 
 Phạm vi theo [sơ đồ gốc của nhóm](./use-case-overview.md): user/khách hàng, barista/nhân viên quầy và Mock Payment Gateway. Role tài khoản chỉ có `CUSTOMER` và `BARISTA`; gateway là tác nhân tích hợp. SD-01 giữ các liên kết barista → UC-02/UC-10 và `extend` UC-04 → UC-03, UC-07 → UC-06.

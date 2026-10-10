@@ -1,4 +1,4 @@
-import type { PaymentMethod } from '../dto/create-payment.js';
+import type { PaymentMethod } from '../dto/create-payment.dto.js';
 
 // File: apps/api/src/modules/payments/services/IMockGatewayService.ts
 export interface IMockGatewayService {

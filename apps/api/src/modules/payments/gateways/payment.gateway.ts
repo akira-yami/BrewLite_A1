@@ -1,6 +1,6 @@
 // File: apps/api/src/modules/payments/gateways/payment-gateway.ts
-import { CreatePaymentDto } from '../dto/create-payment.js';
-import { PaymentResponseDto } from '../dto/payment-response.js';
+import { CreatePaymentDto } from '../dto/create-payment.dto.js';
+import { PaymentResponseDto } from '../dto/payment-response.dto.js';
 
 export interface IPaymentGateway {
   /**

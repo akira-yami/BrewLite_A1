@@ -9,12 +9,12 @@ export async function registerApi(payload: RegisterPayload): Promise<AuthRespons
     body: JSON.stringify(payload),
   });
 
-  const data = await res.json();
+  const json = await res.json();
   if (!res.ok) {
-    throw new Error(data.message || 'Đăng ký tài khoản không thành công.');
+    throw new Error(json.error?.message || json.message || 'Đăng ký tài khoản không thành công.');
   }
 
-  return data;
+  return json.data ?? json;
 }
 
 export async function loginApi(payload: LoginPayload): Promise<AuthResponse> {
@@ -24,12 +24,12 @@ export async function loginApi(payload: LoginPayload): Promise<AuthResponse> {
     body: JSON.stringify(payload),
   });
 
-  const data = await res.json();
+  const json = await res.json();
   if (!res.ok) {
-    throw new Error(data.message || 'Tài khoản hoặc mật khẩu không chính xác.');
+    throw new Error(json.error?.message || json.message || 'Tài khoản hoặc mật khẩu không chính xác.');
   }
 
-  return data;
+  return json.data ?? json;
 }
 
 export async function getMeApi(token: string): Promise<User> {
@@ -39,10 +39,10 @@ export async function getMeApi(token: string): Promise<User> {
     },
   });
 
-  const data = await res.json();
+  const json = await res.json();
   if (!res.ok) {
-    throw new Error(data.message || 'Không thể lấy thông tin người dùng.');
+    throw new Error(json.error?.message || json.message || 'Không thể lấy thông tin người dùng.');
   }
 
-  return data;
+  return json.data ?? json;
 }

@@ -17,7 +17,7 @@ Theo yêu cầu nghiệp vụ và kiến trúc hệ thống BrewLite:
    - Mật khẩu người dùng bắt buộc băm bằng **bcrypt** (salt rounds $\ge 10$), tuyệt đối không lưu plaintext.
    - Tuyệt đối không để lộ `passwordHash` trong response DTO, exception hay log hệ thống.
    - Chống tấn công dò danh tính người dùng (Username Enumeration): Khi đăng nhập sai tài khoản hoặc sai mật khẩu, backend đều trả về mã lỗi thống nhất `INVALID_CREDENTIALS` (401).
-   - Kiểm soát quyền chặt chẽ theo **RBAC** (`CUSTOMER`, `BARISTA`, `ADMIN`) kết hợp xác thực phi trạng thái bằng **JWT Access Token**.
+   - Kiểm soát quyền chặt chẽ theo **RBAC** (`USER`, `ADMIN`) kết hợp xác thực phi trạng thái bằng **JWT Access Token**.
 3. **Phân định rõ Happy Path & Error Paths:** Đảm bảo toàn bộ luồng lỗi ngoại lệ được chuẩn hóa theo envelope lỗi chung của BrewLite:
    ```json
    {
@@ -49,14 +49,14 @@ sequenceDiagram
     participant DB as PostgreSQL (Prisma)
     participant JS as JwtService
 
-    C->>FE: 1. Nhập email/username, password, confirmPassword & bấm "Đăng ký"
-    FE->>FE: 2. Client Validate (format email, password >= 8 ký tự, khớp confirmPassword)
+    C->>FE: 1. Nhập username, password (>= 6 ký tự), confirmPassword & bấm "Đăng ký"
+    FE->>FE: 2. Client Validate (username 3-50 ký tự, password >= 6 ký tự, khớp confirmPassword)
     
     alt Validate client thất bại
         FE-->>C: 2a. Hiển thị lỗi trực tiếp tại form (không gửi request)
     else Validate client hợp lệ
         FE->>AC: 3. POST /api/v1/auth/register (RegisterDto)
-        AC->>VP: 4. Kiểm tra DTO (@IsNotEmpty, @IsEmail, @MinLength(8))
+        AC->>VP: 4. Kiểm tra DTO (@IsNotEmpty, @Length(3, 50), @Length(6, 100))
         
         alt DTO không hợp lệ (400 Bad Request)
             VP-->>AC: Validation failed
@@ -68,18 +68,18 @@ sequenceDiagram
             AS->>UR: 6. findByUsername(username)
             UR->>DB: 7. prisma.user.findUnique({ where: { username } })
             
-            alt Tài khoản / Email đã tồn tại (409 Conflict)
+            alt Tài khoản đã tồn tại (409 Conflict)
                 DB-->>UR: User record tồn tại
                 UR-->>AS: User entity
                 AS-->>AC: 8a. throw ConflictException('USERNAME_ALREADY_EXISTS')
-                AC-->>FE: 8b. 409 Conflict ({ error: { code: 'USERNAME_ALREADY_EXISTS', message: 'Tài khoản/Email đã được đăng ký.' } })
-                FE-->>C: 8c. Hiển thị thông báo email đã tồn tại, gợi ý đăng nhập
+                AC-->>FE: 8b. 409 Conflict ({ error: { code: 'USERNAME_ALREADY_EXISTS', message: 'Tên đăng nhập đã tồn tại trong hệ thống.' } })
+                FE-->>C: 8c. Hiển thị thông báo tài khoản đã tồn tại, gợi ý đăng nhập
             else Tài khoản chưa tồn tại (Happy Path)
                 DB-->>UR: null
                 UR-->>AS: null
                 AS->>BC: 9. hash(password, saltRounds = 10)
                 BC-->>AS: 10. passwordHash (chuỗi băm $2b$10$...)
-                AS->>UR: 11. create({ username, passwordHash, role: CUSTOMER, isActive: true })
+                AS->>UR: 11. create({ username, passwordHash, role: USER, isActive: true })
                 UR->>DB: 12. prisma.user.create(...)
                 DB-->>UR: 13. User record đã lưu
                 UR-->>AS: 14. User entity (đã map, tách biệt passwordHash)
@@ -101,21 +101,21 @@ sequenceDiagram
 - **Request Body:**
   ```json
   {
-    "username": "customer01@example.com",
+    "username": "customer01",
     "password": "Password123!"
   }
   ```
 - **Validation Rules:**
-  - `username`: `@IsNotEmpty()`, `@IsEmail()` (hoặc định dạng username hợp lệ, độ dài tối đa 100 ký tự).
-  - `password`: `@IsNotEmpty()`, `@IsString()`, `@MinLength(8)`.
+  - `username`: `@IsNotEmpty()`, `@IsString()`, `@Length(3, 50)`.
+  - `password`: `@IsNotEmpty()`, `@IsString()`, `@Length(6, 100)`.
 - **Response thành công (`201 Created`):**
   ```json
   {
     "data": {
       "user": {
         "id": "e6a17b8f-3d4c-4e89-9a1b-123456789abc",
-        "username": "customer01@example.com",
-        "role": "CUSTOMER",
+        "username": "customer01",
+        "role": "USER",
         "loyaltyBalance": 0
       },
       "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -128,7 +128,7 @@ sequenceDiagram
   ```
 - **Error Paths:**
   1. `400 Bad Request`: Payload sai định dạng hoặc thiếu trường bắt buộc (`code: VALIDATION_ERROR`).
-  2. `409 Conflict`: Username/Email đã được đăng ký trước đó (`code: USERNAME_ALREADY_EXISTS`).
+  2. `409 Conflict`: Username đã được đăng ký trước đó (`code: USERNAME_ALREADY_EXISTS`).
 
 ---
 
@@ -199,8 +199,8 @@ sequenceDiagram
     %% Giai đoạn 2: Gọi Protected API & Phân quyền RBAC
     rect rgb(245, 255, 245)
     note right of U: Giai đoạn 2: Xác thực & Phân quyền RBAC trên từng Request
-    U->>FE: 17. Thực hiện thao tác bảo vệ (VD: xem danh sách đơn hàng pha chế)
-    FE->>SEC: 18. GET /api/v1/barista/queue (Header: "Authorization: Bearer <accessToken>")
+    U->>FE: 17. Thực hiện thao tác bảo vệ (VD: xem báo cáo quản trị hệ thống)
+    FE->>SEC: 18. GET /api/v1/admin/reports (Header: "Authorization: Bearer <accessToken>")
     SEC->>JS: 19. Xác thực token (verify signature, expiration, issuer, audience)
     
     alt Token không hợp lệ hoặc đã hết hạn (401 Unauthorized)
@@ -208,19 +208,19 @@ sequenceDiagram
         SEC-->>FE: 20a. 401 Unauthorized ({ error: { code: 'UNAUTHORIZED', message: 'Token không hợp lệ hoặc đã hết hạn.' } })
         FE-->>U: 20b. Điều hướng người dùng về trang /login
     else Token hợp lệ
-        JS-->>SEC: TokenPayload { sub: "uuid", username: "barista01", role: "CUSTOMER" }
+        JS-->>SEC: TokenPayload { sub: "uuid", username: "admin01", role: "ADMIN" }
         SEC->>SEC: 21. Gắn user payload vào request: req.user = payload
-        SEC->>SEC: 22. RolesGuard kiểm tra @Roles(UserRole.BARISTA, UserRole.ADMIN)
+        SEC->>SEC: 22. RolesGuard kiểm tra @Roles(UserRole.ADMIN)
         
         alt Quyền không thỏa mãn (403 Forbidden - RBAC Chặn)
             SEC-->>FE: 23a. 403 Forbidden ({ error: { code: 'FORBIDDEN_RESOURCE', message: 'Bạn không có quyền truy cập chức năng này.' } })
             FE-->>U: 23b. Điều hướng hoặc hiển thị trang 403 Access Denied
-        else Quyền hợp lệ (User có role BARISTA hoặc ADMIN)
+        else Quyền hợp lệ (User có role ADMIN)
             SEC->>OC: 24. Cho phép request đi qua Controller & Service
-            OC->>DB: 25. Truy vấn dữ liệu đơn hàng
-            DB-->>OC: Danh sách đơn hàng cần pha
+            OC->>DB: 25. Truy vấn dữ liệu quản trị
+            DB-->>OC: Dữ liệu báo cáo
             OC-->>FE: 26. 200 OK ({ data: [...] })
-            FE-->>U: 27. Hiển thị hàng đợi pha chế cho Barista
+            FE-->>U: 27. Hiển thị báo cáo quản trị cho Admin
         end
     end
     end
@@ -232,7 +232,7 @@ sequenceDiagram
 - **Request Body:**
   ```json
   {
-    "username": "customer01@example.com",
+    "username": "customer01",
     "password": "Password123!"
   }
   ```
@@ -242,8 +242,8 @@ sequenceDiagram
     "data": {
       "user": {
         "id": "e6a17b8f-3d4c-4e89-9a1b-123456789abc",
-        "username": "customer01@example.com",
-        "role": "CUSTOMER",
+        "username": "customer01",
+        "role": "USER",
         "loyaltyBalance": 0
       },
       "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -258,8 +258,8 @@ sequenceDiagram
   ```json
   {
     "sub": "e6a17b8f-3d4c-4e89-9a1b-123456789abc",
-    "username": "customer01@example.com",
-    "role": "CUSTOMER",
+    "username": "customer01",
+    "role": "USER",
     "iat": 1727913600,
     "exp": 1727914500,
     "iss": "brewlite-api",
@@ -268,7 +268,7 @@ sequenceDiagram
   ```
 - **Bảo vệ Endpoint & Phân quyền RBAC:**
   - `@UseGuards(JwtAuthGuard, RolesGuard)`: Gắn tại Controller hoặc Method.
-  - `@Roles(UserRole.BARISTA, UserRole.ADMIN)`: Khai báo danh sách vai trò được phép truy cập.
+  - `@Roles(UserRole.ADMIN)`: Khai báo danh sách vai trò được phép truy cập.
   - `@CurrentUser()`: Custom Decorator trích xuất thông tin người dùng từ `req.user` để kiểm tra ownership (ví dụ `user.id === order.userId`).
 
 ---
@@ -328,7 +328,7 @@ activate BC
 BC --> AS: passwordHash
 deactivate BC
 
-AS -> UR: 9. create({ username, passwordHash, role: CUSTOMER })
+AS -> UR: 9. create({ username, passwordHash, role: USER })
 activate UR
 UR -> DB: 10. prisma.user.create(...)
 activate DB
@@ -337,7 +337,7 @@ deactivate DB
 UR --> AS: UserEntity (đã loại bỏ passwordHash)
 deactivate UR
 
-AS -> JWT: 11. signAsync({ sub: id, username, role: CUSTOMER })
+AS -> JWT: 11. signAsync({ sub: id, username, role: USER })
 activate JWT
 JWT --> AS: accessToken (JWT)
 deactivate JWT
@@ -361,7 +361,7 @@ autonumber
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 
-actor "Người dùng\n(Customer / Barista)" as User
+actor "Người dùng\n(User / Admin)" as User
 
 box "Frontend (apps/web)" #F8F9FA
     participant "LoginForm\n(features/auth)" as FE
@@ -378,7 +378,7 @@ end box
 
 database "PostgreSQL\n(Prisma ORM)" as DB
 
-User -> FE: 1. Nhập username/email & password, bấm "Đăng nhập"
+User -> FE: 1. Nhập username & password, bấm "Đăng nhập"
 activate FE
 FE -> AC: 2. POST /api/v1/auth/login (LoginDto)
 activate AC
@@ -426,7 +426,7 @@ else Người dùng tồn tại
             AC --> FE: 9. 200 OK (AuthResultDto)
             deactivate AC
             
-            FE -> FE: 10. Lưu accessToken, phân luồng điều hướng theo Role\n(CUSTOMER -> /menu, BARISTA -> /barista/orders)
+            FE -> FE: 10. Lưu accessToken, phân luồng điều hướng theo Role\n(USER -> /menu, ADMIN -> /admin)
             FE --> User: 11. Chuyển hướng thành công
             deactivate FE
         end
@@ -446,8 +446,8 @@ Trước khi chuyển sang giai đoạn code (Implementation), tài liệu thi�
 | 1 | **Băm mật khẩu an toàn** | Sử dụng BCrypt với salt rounds = 10; mật khẩu gốc không bao giờ lưu DB | [x] |
 | 2 | **Không rò rỉ Password Hash** | Cắt bỏ `passwordHash` tại Repository Mapper và DTO trước khi trả về Controller | [x] |
 | 3 | **Chống Username Enumeration** | Cả 2 trường hợp sai username hoặc sai password đều trả về `INVALID_CREDENTIALS` (401) | [x] |
-| 4 | **Validate chặt chẽ đầu vào** | `ValidationPipe` whitelist strict, chặn payload thừa và kiểm tra định dạng email/độ dài password | [x] |
-| 5 | **RBAC & JWT chuẩn mực** | Phân quyền 3 role rõ ràng (`CUSTOMER`, `BARISTA`, `ADMIN`), từ chối 403 khi thiếu role | [x] |
+| 4 | **Validate chặt chẽ đầu vào** | `ValidationPipe` whitelist strict, chặn payload thừa và kiểm tra username 3-50 / password >= 6 | [x] |
+| 5 | **RBAC & JWT chuẩn mực** | Phân quyền 2 role thống nhất (`USER`, `ADMIN`), từ chối 403 khi thiếu role | [x] |
 | 6 | **Xử lý tài khoản khóa** | Kiểm tra `isActive === false` và trả `ACCOUNT_INACTIVE` (403) ngay tại bước login | [x] |
 | 7 | **Khớp nối Đặc tả Use Case** | Tương ứng 1:1 với `UC-01` (Đăng ký) và `UC-02` (Đăng nhập & RBAC) | [x] |
 

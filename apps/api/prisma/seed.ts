@@ -1,7 +1,7 @@
 
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient, ProductSize } from '../src/generated/prisma/client';
+import { PrismaClient, ProductSize } from '../src/generated/prisma/client.js';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -119,7 +119,7 @@ async function main() {
     // Gán topping cho tất cả đồ uống
     if (!prod.sku.startsWith('PASTRY')) {
       await prisma.productTopping.createMany({
-        data: createdToppings.map((t) => ({
+        data: createdToppings.map((t: { id: string }) => ({
           productId: createdProduct.id,
           toppingId: t.id,
         })),

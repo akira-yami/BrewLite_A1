@@ -38,18 +38,18 @@ describe('Foundation on migrated PostgreSQL', () => {
   });
   afterAll(async () => { await prisma.$disconnect(); });
 
-  it('supports only customer and barista accounts; the gateway is not an account role', async () => {
+  it('supports only user and admin accounts; the gateway is not an account role', async () => {
     const roles = await prisma.$queryRaw<Array<{ role: string }>>`
       SELECT e.enumlabel AS role FROM pg_enum e
       JOIN pg_type t ON t.oid = e.enumtypid
       WHERE t.typname = 'UserRole' ORDER BY e.enumsortorder
     `;
-    expect(roles.map(row => row.role)).toEqual(['CUSTOMER', 'BARISTA']);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).role).toBe('CUSTOMER');
-    const barista = await prisma.user.create({ data: {
-      username: `barista-${randomUUID()}`, passwordHash: 'test-hash', role: 'BARISTA',
+    expect(roles.map(row => row.role)).toEqual(['USER', 'ADMIN']);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).role).toBe('USER');
+    const admin = await prisma.user.create({ data: {
+      username: `admin-${randomUUID()}`, passwordHash: 'test-hash', role: 'ADMIN',
     } });
-    expect(barista.role).toBe('BARISTA');
+    expect(admin.role).toBe('ADMIN');
   });
 
   it('has all 14 domain tables and the default stock version', async () => {

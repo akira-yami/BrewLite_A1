@@ -14,7 +14,7 @@ describe('AuthController (Unit Test - TDD)', () => {
   const mockSafeUser = {
     id: 'test-uuid',
     username: 'testuser',
-    role: UserRole.CUSTOMER,
+    role: UserRole.USER,
     loyaltyBalance: 0,
     isActive: true,
     createdAt: new Date('2026-10-10T00:00:00Z'),
@@ -31,42 +31,49 @@ describe('AuthController (Unit Test - TDD)', () => {
     controller = new AuthController(authServiceMock as unknown as AuthService);
   });
 
-  it('should call authService.register and return auth result', async () => {
+  it('should call authService.register and return data enveloped auth result', async () => {
     authServiceMock.register.mockResolvedValue({
       user: mockSafeUser,
       accessToken: 'jwt-access-token',
+      expiresIn: 900,
     });
 
     const dto = { username: 'testuser', password: 'Password123!' };
     const res = await controller.register(dto);
 
     expect(authServiceMock.register).toHaveBeenCalledWith(dto);
-    expect(res.user.username).toBe('testuser');
-    expect(res.accessToken).toBe('jwt-access-token');
+    expect(res).toHaveProperty('data');
+    expect(res.data.user.username).toBe('testuser');
+    expect(res.data.accessToken).toBe('jwt-access-token');
+    expect(res.data.expiresIn).toBe(900);
   });
 
-  it('should call authService.login and return token and user', async () => {
+  it('should call authService.login and return data enveloped token and user', async () => {
     authServiceMock.login.mockResolvedValue({
       user: mockSafeUser,
       accessToken: 'jwt-access-token',
+      expiresIn: 900,
     });
 
     const dto = { username: 'testuser', password: 'Password123!' };
     const res = await controller.login(dto);
 
     expect(authServiceMock.login).toHaveBeenCalledWith(dto);
-    expect(res.user.username).toBe('testuser');
-    expect(res.accessToken).toBe('jwt-access-token');
+    expect(res).toHaveProperty('data');
+    expect(res.data.user.username).toBe('testuser');
+    expect(res.data.accessToken).toBe('jwt-access-token');
+    expect(res.data.expiresIn).toBe(900);
   });
 
-  it('should return profile for the authenticated user via me endpoint', async () => {
+  it('should return profile wrapped in data envelope for the authenticated user via me endpoint', async () => {
     authServiceMock.getProfile.mockResolvedValue(mockSafeUser);
 
-    const user = { sub: 'test-uuid', username: 'testuser', role: UserRole.CUSTOMER };
+    const user = { sub: 'test-uuid', username: 'testuser', role: UserRole.USER };
     const res = await controller.getMe(user);
 
     expect(authServiceMock.getProfile).toHaveBeenCalledWith('test-uuid');
-    expect(res.id).toBe('test-uuid');
-    expect(res.username).toBe('testuser');
+    expect(res).toHaveProperty('data');
+    expect(res.data.id).toBe('test-uuid');
+    expect(res.data.username).toBe('testuser');
   });
 });

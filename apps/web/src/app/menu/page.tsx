@@ -157,7 +157,7 @@ export default function MenuPage() {
             <div className="text-3xl">☕</div>
             <p className="text-base font-semibold text-[#1E1813]">Chưa có món nào phù hợp</p>
             <span className="text-xs text-[#756A63] block">
-              Không tìm thấy thức uống theo bộ lọc hoặc từ khóa "{searchQuery}".
+              Không tìm thấy thức uống theo bộ lọc hoặc từ khóa &quot;{searchQuery}&quot;.
             </span>
             <button
               onClick={() => {

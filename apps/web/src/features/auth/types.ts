@@ -1,7 +1,7 @@
 export interface User {
   id: string;
   username: string;
-  role: 'CUSTOMER' | 'BARISTA';
+  role: 'USER' | 'ADMIN';
   loyaltyBalance: number;
   isActive: boolean;
   createdAt: string;
@@ -10,6 +10,7 @@ export interface User {
 export interface AuthResponse {
   user: User;
   accessToken: string;
+  expiresIn: number;
 }
 
 export interface LoginPayload {

@@ -10,59 +10,51 @@ interface ProductCardProps {
   onQuickAdd: (product: Product) => void;
 }
 
-export const ProductCard = ({ product, onPreview, onCustomize, onQuickAdd }: ProductCardProps) => {
+export const ProductCard = ({
+  product,
+  onPreview,
+  onCustomize,
+  onQuickAdd,
+}: ProductCardProps) => {
   return (
-    <div className="group flex flex-col justify-between rounded-2xl border border-[#E5DCD2] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#c9bcaf] hover:shadow-xl">
-      <div>
-        <div
-          onClick={() => onPreview(product)}
-          className="relative h-52 w-full cursor-pointer overflow-hidden rounded-t-2xl"
-        >
-          <Image
-            src={product.imageUrl}
-            alt={product.name}
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          />
-          <span className="absolute left-3 top-3 rounded-full border border-amber-500/30 bg-black/60 px-3 py-1 text-[10px] font-extrabold text-[#fcd34d] backdrop-blur-md">
-            {product.sku}
-          </span>
-        </div>
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-[#E8DFC8] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md">
+      <div
+        onClick={() => onPreview(product)}
+        className="relative h-44 sm:h-48 w-full cursor-pointer overflow-hidden bg-[#F7F3ED]"
+      >
+        <Image
+          src={product.imageUrl}
+          alt={product.name}
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          className="object-cover transition duration-500 group-hover:scale-105"
+        />
+      </div>
 
-        <div className="space-y-3 p-5">
+      <div className="flex flex-1 flex-col justify-between p-4 space-y-3">
+        <div className="space-y-1">
           <h4
             onClick={() => onPreview(product)}
-            className="cursor-pointer text-lg font-black leading-snug text-[#1E1813] transition hover:text-[#163E2B]"
+            className="cursor-pointer font-serif text-base font-bold text-[#1A1612] line-clamp-1 transition group-hover:text-[#163D2C]"
           >
             {product.name}
           </h4>
-          <p className="line-clamp-2 text-xs leading-relaxed text-[#756A63]">
-            {product.description || 'Thức uống được chiết xuất tươi mới giữ trọn hương vị tại quầy Barista BrewLite.'}
+          <p className="line-clamp-1 text-xs font-medium text-[#4A3E35]">
+            {product.description || 'Thơm mát · Hương vị tự nhiên'}
           </p>
         </div>
-      </div>
 
-      <div className="mt-2 flex flex-col gap-3 border-t border-[#FAF6F2] p-5 pt-0 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <span className="block text-[10px] font-semibold uppercase text-[#756A63]">Giá từ</span>
-          <span className="font-mono text-lg font-black text-[#163E2B]">
-            {product.basePrice.toLocaleString('vi-VN')} đ
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-sm font-extrabold text-[#1A1612]">
+            {Number(product.basePrice).toLocaleString('vi-VN')} đ
           </span>
-        </div>
-
-        <div className="flex items-center space-x-2">
           <button
-            onClick={() => onQuickAdd(product)}
-            className="flex items-center space-x-1 rounded-xl border border-[#E5DCD2] bg-[#FAF6F2] px-3 py-2 text-xs font-bold text-[#163E2B] transition hover:bg-[#E8F1EC]"
-          >
-            + Thêm
-          </button>
-          <button
+            type="button"
             onClick={() => onCustomize(product)}
-            className="rounded-xl bg-[#163E2B] px-4 py-2 text-xs font-bold text-white shadow-md transition hover:bg-[#1f4f38] hover:shadow-lg active:scale-95"
+            className="flex items-center gap-1.5 rounded-full bg-[#163D2C] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#1f503a] active:scale-95"
           >
-            Tùy Biến
+            <span>+</span>
+            <span>Tùy chọn</span>
           </button>
         </div>
       </div>

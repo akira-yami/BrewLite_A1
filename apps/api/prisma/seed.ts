@@ -33,11 +33,11 @@ async function main() {
 
   // 2. Tạo Products & Variants
   const productsData = [
-    {
+   {
       sku: 'COFFEE-CAU-DAT-01',
-      name: 'Cà phê sữa Cầu Đất Mộc',
-      description: 'Robusta Cầu Đất rang mộc vừa, chiết xuất phin hòa quyện cùng sữa đặc giữ nhiệt 70°C.',
-      imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80',
+      name: 'Cà phê sữa Cầu Đất',
+      description: 'Rang mộc · Đậm vị, thơm lâu',
+      imageUrl: 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80',
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(30000), stock: 100 },
@@ -47,9 +47,9 @@ async function main() {
     },
     {
       sku: 'COLD-BREW-ICE-02',
-      name: 'Cold Brew Tuyết Trắng Băng Giá',
-      description: 'Espresso ủ lạnh 16 tiếng qua màng lọc thạch anh, nốt hương socola đen và vỏ cam sấy.',
-      imageUrl: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=600&auto=format&fit=crop&q=80',
+      name: 'Cold Brew Tuyết Trắng',
+      description: 'Êm dịu · Hương cacao và cam',
+      imageUrl: 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=800&auto=format&fit=crop&q=85',
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(38000), stock: 50 },
@@ -59,9 +59,9 @@ async function main() {
     },
     {
       sku: 'CAPPUCCINO-HEARTH-03',
-      name: 'Cappuccino Hoa Quế Lò Sưởi',
-      description: 'Lớp bọt sữa tươi mịn như tuyết ôm trọn dòng cà phê nóng, rắc bột quế hoa lửa thơm nồng.',
-      imageUrl: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=600&auto=format&fit=crop&q=80',
+      name: 'Cappuccino Hoa Quế',
+      description: 'Bọt sữa mịn · Hương quế ấm',
+      imageUrl: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=800&auto=format&fit=crop&q=85',
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(40000), stock: 50 },
@@ -71,9 +71,9 @@ async function main() {
     },
     {
       sku: 'TEA-PEACH-ORANGE-04',
-      name: 'Trà Đào Cam Sả Ủ Lửa Thảo Mộc',
-      description: 'Lá trà xanh ướp sả tươi hòa cùng lát cam vàng mọng nước sưởi ấm cổ họng.',
-      imageUrl: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=80',
+      name: 'Trà đào cam sả',
+      description: 'Thanh mát · Cam vàng, sả thơm',
+      imageUrl: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&auto=format&fit=crop&q=85',
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(35000), stock: 80 },
@@ -81,11 +81,11 @@ async function main() {
         { size: ProductSize.L, price: BigInt(44000), stock: 80 },
       ],
     },
-    {
+   {
       sku: 'TEA-OOLONG-EGG-05',
-      name: 'Trà Oolong Than Kem Trứng Khò',
-      description: 'Trà Oolong sấy than củi thượng hạng phủ lớp kem trứng béo ngậy khò caramen thơm nức.',
-      imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80',
+      name: 'Oolong kem trứng khò',
+      description: 'Trà rang thơm · Kem trứng béo',
+      imageUrl: 'https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=800&q=80',
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(40000), stock: 80 },
@@ -94,13 +94,14 @@ async function main() {
       ],
     },
     {
-      sku: 'PASTRY-CROISSANT-06',
-      name: 'Bánh Croissant Bơ Pháp Nướng Nóng',
-      description: 'Bánh sừng bò ngàn lớp nướng mới tại quầy, giữ trọn mùi thơm ngào ngạt của bơ tươi.',
-      imageUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&auto=format&fit=crop&q=80',
+      sku: 'COFFEE-AMERICANO-06',
+      name: 'Americano',
+      description: 'Espresso nguyên chất · Đậm hương',
+      imageUrl: 'https://images.unsplash.com/photo-1509785307050-d4066910ec1e?w=800&auto=format&fit=crop&q=85',
       isActive: true,
       variants: [
-        { size: ProductSize.M, price: BigInt(28000), stock: 30 },
+        { size: ProductSize.S, price: BigInt(35000), stock: 60 },
+        { size: ProductSize.M, price: BigInt(40000), stock: 60 },
       ],
     },
   ];

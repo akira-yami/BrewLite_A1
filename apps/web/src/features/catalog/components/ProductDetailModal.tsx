@@ -1,9 +1,9 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
-import { useState } from 'react';
 import { CartItem, cartStore, formatVnd } from '@/stores/cart-store';
-import { Product, ProductSize } from '../types';
+import { Product } from '../types';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -11,8 +11,6 @@ interface ProductDetailModalProps {
   onAddedToCart?: () => void;
   editingItem?: CartItem | null;
 }
-
-const percentageOptions = [0, 30, 50, 70, 100];
 
 export const ProductDetailModal = ({
   product,
@@ -33,7 +31,7 @@ export const ProductDetailModal = ({
   );
 };
 
-function ProductDetailModalContent({
+const ProductDetailModalContent = ({
   product,
   onClose,
   onAddedToCart,
@@ -43,35 +41,40 @@ function ProductDetailModalContent({
   onClose: () => void;
   onAddedToCart?: () => void;
   editingItem?: CartItem | null;
-}) {
-  const defaultVariant = product.variants.find((variant) => variant.size === 'M') ?? product.variants[0];
-  const [selectedVariantId, setSelectedVariantId] = useState(
-    editingItem?.variantId ?? defaultVariant?.id ?? '',
-  );
-  const [selectedToppingIds, setSelectedToppingIds] = useState<string[]>(
-    editingItem?.toppings.map((topping) => topping.id) ?? [],
+}) => {
+  const defaultVariant = product.variants.find((v) => v.size === 'M') || product.variants[0];
+
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(
+    editingItem?.variantId ?? defaultVariant?.id ?? ''
   );
   const [quantity, setQuantity] = useState(editingItem?.quantity ?? 1);
-  const [sugarLevel, setSugarLevel] = useState<number | null>(editingItem?.sugarLevel ?? 100);
-  const [iceLevel, setIceLevel] = useState<number | null>(editingItem?.iceLevel ?? 70);
+
+  const [sugarLevel, setSugarLevel] = useState<number | null>(editingItem?.sugarLevel ?? null);
+  const [iceLevel, setIceLevel] = useState<number | null>(editingItem?.iceLevel ?? null);
+
+  const [selectedToppingIds, setSelectedToppingIds] = useState<string[]>(
+    editingItem?.toppings?.map((t) => t.id) ?? []
+  );
   const [note, setNote] = useState(editingItem?.note ?? '');
 
-  const selectedVariant = product.variants.find((variant) => variant.id === selectedVariantId);
-  const selectedToppings = product.toppings.filter((topping) =>
-    selectedToppingIds.includes(topping.id),
-  );
-
-  const variantPrice = selectedVariant?.price ?? product.basePrice;
-  const toppingsTotal = selectedToppings.reduce((sum, topping) => sum + topping.price, 0);
-  const itemTotal = (variantPrice + toppingsTotal) * quantity;
-
   const toggleTopping = (toppingId: string) => {
-    setSelectedToppingIds((current) =>
-      current.includes(toppingId)
-        ? current.filter((id) => id !== toppingId)
-        : [...current, toppingId],
+    setSelectedToppingIds((prev) =>
+      prev.includes(toppingId)
+        ? prev.filter((id) => id !== toppingId)
+        : [...prev, toppingId]
     );
   };
+
+  const selectedVariant = product.variants.find((v) => v.id === selectedVariantId) || defaultVariant;
+
+  const itemTotal = useMemo(() => {
+    const base = selectedVariant ? Number(selectedVariant.price) : product.basePrice;
+    const toppingsSum = selectedToppingIds.reduce((acc, id) => {
+      const t = product.toppings?.find((top) => top.id === id);
+      return acc + (t ? Number(t.price) : 0);
+    }, 0);
+    return (base + toppingsSum) * quantity;
+  }, [selectedVariant, selectedToppingIds, quantity, product]);
 
   const handleAddToCart = () => {
     if (!selectedVariant) return;
@@ -79,17 +82,20 @@ function ProductDetailModalContent({
     const cartInput = {
       product,
       variantId: selectedVariant.id,
-      size: selectedVariant.size as ProductSize,
-      unitPrice: selectedVariant.price,
+      size: selectedVariant.size,
+      unitPrice: Number(selectedVariant.price),
       quantity,
-      toppings: selectedToppings.map((topping) => ({
-        id: topping.id,
-        name: topping.name,
-        price: topping.price,
-      })),
-      sugarLevel: editingItem ? sugarLevel : null,
-      iceLevel: editingItem ? iceLevel : null,
-      note: editingItem ? note : null,
+      sugarLevel,
+      iceLevel,
+      note,
+      toppings: selectedToppingIds
+        .map((id) => product.toppings?.find((t) => t.id === id))
+        .filter((t): t is NonNullable<typeof t> => t !== undefined)
+        .map((t) => ({
+          id: t.id,
+          name: t.name,
+          price: Number(t.price),
+        })),
     };
 
     if (editingItem) {
@@ -98,8 +104,10 @@ function ProductDetailModalContent({
       cartStore.addItem(cartInput);
     }
 
-    onAddedToCart?.();
     onClose();
+    if (onAddedToCart) {
+      onAddedToCart();
+    }
   };
 
   if (editingItem) {
@@ -108,7 +116,7 @@ function ProductDetailModalContent({
         <section className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-t-[2rem] border border-[#E5DCD2] bg-white shadow-2xl">
           <div className="mx-auto mt-3 h-1.5 w-16 rounded-full bg-[#D6CEC6]" />
 
-          <div className="flex max-h-[88vh] flex-col">
+          <div className="flex max-h-[calc(88vh-1.125rem)] flex-col">
             <div className="flex items-start justify-between px-6 pb-4 pt-7 md:px-8">
               <h2 className="text-3xl font-black leading-tight text-[#073F2B]">Sửa tùy chọn</h2>
               <button
@@ -121,7 +129,7 @@ function ProductDetailModalContent({
               </button>
             </div>
 
-            <div className="flex-1 space-y-5 overflow-y-auto px-6 pb-5 md:px-8">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-5 md:px-8">
               <div className="grid grid-cols-[96px_1fr] items-center gap-4 border-b border-[#E5DCD2] pb-5">
                 <div className="relative h-24 overflow-hidden rounded-2xl bg-[#FAF6F2]">
                   <Image
@@ -139,6 +147,29 @@ function ProductDetailModalContent({
                   <p className="mt-1 text-sm font-semibold text-[#756A63]">
                     Giá gốc {formatVnd(selectedVariant?.price ?? product.basePrice)}
                   </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-2xl border border-[#EBE1D4] bg-[#FAF7F2] p-3">
+                <span className="text-xs font-bold text-[#1A1612]">Số lượng</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#D5C9B8] bg-white text-sm font-bold text-[#1A1612] transition hover:bg-[#F3EDE3] active:scale-95"
+                  >
+                    -
+                  </button>
+                  <span className="w-5 text-center text-xs font-bold text-[#1A1612]">
+                    {quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => q + 1)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#D5C9B8] bg-white text-sm font-bold text-[#1A1612] transition hover:bg-[#F3EDE3] active:scale-95"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
 
@@ -222,8 +253,9 @@ function ProductDetailModalContent({
 
               <label className="block space-y-2">
                 <span className="text-lg font-black text-[#073F2B]">Ghi chú</span>
-                <input
-                  type="text"
+                <textarea
+                  name="note"
+                  rows={2}
                   value={note}
                   maxLength={500}
                   onChange={(event) => setNote(event.target.value)}
@@ -263,132 +295,201 @@ function ProductDetailModalContent({
     );
   }
 
+
+  const availableToppings = product.toppings || [];
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#E5DCD2] bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+      <div className="relative z-10 flex h-[88vh] max-h-[700px] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+
         <button
+          type="button"
           onClick={onClose}
-          className="absolute right-5 top-5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[#FAF6F2] text-xs font-bold text-[#756A63] hover:text-black"
+          className="absolute right-4 top-4 z-20 flex h-9 w-9 items-center justify-center rounded-full bg-[#1A1612]/5 text-[#5A4D43] transition hover:bg-[#1A1612]/10 hover:text-black"
+          aria-label="Đóng"
         >
           ✕
         </button>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-6 md:p-8">
-          <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
-            <div className="space-y-3">
-              <div className="relative h-60 w-full overflow-hidden rounded-2xl shadow-sm">
-                <Image
-                  src={product.imageUrl}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                />
-                <span className="absolute left-3 top-3 rounded-md bg-[#163E2B] px-2.5 py-1 text-[10px] font-bold text-white">
-                  {product.sku}
-                </span>
-              </div>
+        <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-8 space-y-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="relative h-52 sm:h-56 w-full overflow-hidden rounded-2xl bg-[#F7F3ED]">
+              <Image
+                src={product.imageUrl}
+                alt={product.name}
+                fill
+                priority
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 50vw"
+              />
             </div>
 
-            <div className="space-y-3.5">
+            <div className="flex flex-col justify-between space-y-4">
               <div>
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-[#756A63]">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#A39282]">
                   CHI TIẾT & TÙY BIẾN
                 </span>
-                <h3 className="text-xl font-black text-[#163E2B]">{product.name}</h3>
-                <div className="pt-0.5 text-base font-extrabold text-[#163E2B]">
-                  {formatVnd(selectedVariant?.price ?? product.basePrice)}
-                </div>
+                <h3 className="font-serif text-2xl font-black text-[#163D2C]">
+                  {product.name}
+                </h3>
+                <p className="mt-1 text-lg font-bold text-[#1A1612]">
+                  {selectedVariant
+                    ? formatVnd(Number(selectedVariant.price))
+                    : formatVnd(product.basePrice)}
+                </p>
+                <p className="mt-2 text-xs text-[#5A4D43] leading-relaxed">
+                  {product.description || 'Hương vị tự nhiên, pha chế tươi mới mỗi ngày.'}
+                </p>
               </div>
 
-              <p className="text-xs leading-relaxed text-[#756A63]">{product.description}</p>
-
-              <div className="rounded-2xl border border-[#E5DCD2] bg-[#FAF6F2] p-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#163E2B]">Số lượng</span>
-                  <div className="flex items-center rounded-full border border-[#E5DCD2] bg-white">
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((value) => Math.max(1, value - 1))}
-                      className="flex h-8 w-8 items-center justify-center font-black text-[#163E2B]"
-                    >
-                      -
-                    </button>
-                    <span className="w-9 text-center font-black text-[#1E1813]">{quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => setQuantity((value) => value + 1)}
-                      className="flex h-8 w-8 items-center justify-center font-black text-[#163E2B]"
-                    >
-                      +
-                    </button>
-                  </div>
+              <div className="flex items-center justify-between rounded-2xl border border-[#EBE1D4] bg-[#FAF7F2] p-3">
+                <span className="text-xs font-bold text-[#1A1612]">Số lượng</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#D5C9B8] bg-white text-sm font-bold text-[#1A1612] transition hover:bg-[#F3EDE3] active:scale-95"
+                  >
+                    -
+                  </button>
+                  <span className="w-5 text-center text-xs font-bold text-[#1A1612]">
+                    {quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => q + 1)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#D5C9B8] bg-white text-sm font-bold text-[#1A1612] transition hover:bg-[#F3EDE3] active:scale-95"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-3 border-t border-[#E5DCD2] pt-4 text-xs">
-            <div>
-              <span className="font-bold text-[#163E2B] block mb-1.5">Các kích thước sẵn có:</span>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {product.variants.map((variant) => (
+          <div className="h-px w-full bg-[#EBE1D4]" />
+
+          <div className="space-y-2.5">
+            <label className="text-xs font-bold text-[#163D2C]">Các kích thước sẵn có:</label>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {product.variants.map((v) => {
+                const isSelected = selectedVariantId === v.id;
+                return (
                   <button
-                    key={variant.id}
+                    key={v.id}
                     type="button"
-                    onClick={() => setSelectedVariantId(variant.id)}
-                    className={`rounded-xl border px-3 py-2 text-left font-medium transition ${
-                      selectedVariantId === variant.id
-                        ? 'border-[#163E2B] bg-[#E8F1EC] text-[#163E2B]'
-                        : 'border-[#E5DCD2] bg-[#FAF6F2] text-[#4A3E36] hover:border-[#c9bcaf]'
+                    onClick={() => setSelectedVariantId(v.id)}
+                    className={`rounded-2xl border p-3 text-left transition ${
+                      isSelected
+                        ? 'border-[#163D2C] bg-[#F2F7F4] text-[#163D2C] ring-1 ring-[#163D2C]'
+                        : 'border-[#EBE1D4] bg-[#FAF7F2] text-[#5A4D43] hover:border-[#163D2C]'
                     }`}
                   >
-                    <span className="block font-black">Size {variant.size}</span>
-                    <span>{formatVnd(variant.price)} • Còn {variant.stock}</span>
+                    <div className="text-xs font-bold">Size {v.size}</div>
+                    <div className="text-[11px] font-medium opacity-80">
+                      {formatVnd(Number(v.price))} • Còn {v.stock}
+                    </div>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
+          </div>
 
-            {product.toppings.length > 0 && (
-              <div>
-                <span className="font-bold text-[#163E2B] block mb-1.5">Topping thêm:</span>
-                <div className="flex flex-wrap gap-2">
-                  {product.toppings.map((topping) => (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#163D2C]">Mức đường</label>
+              <select
+                value={sugarLevel ?? 'standard'}
+                onChange={(e) => setSugarLevel(e.target.value === 'standard' ? null : Number(e.target.value))}
+                className="w-full rounded-xl border border-[#EBE1D4] bg-[#FAF7F2] p-2.5 text-xs font-medium text-[#1A1612] focus:border-[#163D2C] focus:outline-none"
+              >
+                <option value="standard">Theo công thức chuẩn</option>
+                {[0, 25, 50, 75, 100].map((level) => (
+                  <option key={level} value={level}>{level}%</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#163D2C]">Mức đá</label>
+              <select
+                value={iceLevel ?? 'standard'}
+                onChange={(e) => setIceLevel(e.target.value === 'standard' ? null : Number(e.target.value))}
+                className="w-full rounded-xl border border-[#EBE1D4] bg-[#FAF7F2] p-2.5 text-xs font-medium text-[#1A1612] focus:border-[#163D2C] focus:outline-none"
+              >
+                <option value="standard">Theo công thức chuẩn</option>
+                {[0, 25, 50, 75, 100].map((level) => (
+                  <option key={level} value={level}>{level}%</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {availableToppings.length > 0 && (
+            <div className="space-y-2.5">
+              <label className="text-xs font-bold text-[#163D2C]">Topping thêm:</label>
+              <div className="flex flex-wrap gap-2">
+                {availableToppings.map((t) => {
+                  const isSelected = selectedToppingIds.includes(t.id);
+                  return (
                     <button
-                      key={topping.id}
+                      key={t.id}
                       type="button"
-                      disabled={!topping.available}
-                      onClick={() => toggleTopping(topping.id)}
-                      className={`rounded-xl border px-3 py-2 transition ${
-                        selectedToppingIds.includes(topping.id)
-                          ? 'border-[#163E2B] bg-[#E8F1EC] text-[#163E2B]'
-                          : 'border-[#E5DCD2] bg-[#FAF6F2] text-[#4A3E36] hover:border-[#c9bcaf]'
+                      disabled={!t.available}
+                      onClick={() => toggleTopping(t.id)}
+                      className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+                        isSelected
+                          ? 'border-[#163D2C] bg-[#163D2C] text-white shadow-sm'
+                          : 'border-[#EBE1D4] bg-[#FAF7F2] text-[#40352C] hover:border-[#163D2C]'
                       } disabled:cursor-not-allowed disabled:opacity-50`}
                     >
-                      + {topping.name} <strong>{formatVnd(topping.price)}</strong>
+                      + {t.name} {formatVnd(Number(t.price))}
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
+          )}
+
+          <div className="space-y-1.5 pb-2">
+            <label className="text-xs font-bold text-[#163D2C]">
+              Ghi chú cho món
+            </label>
+            <textarea
+              name="note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Ví dụ: để topping riêng"
+              className="mt-1 block w-full rounded-xl border border-[#EBE1D4] bg-[#FAF7F2] px-3 py-2 text-xs font-medium text-[#1A1612] focus:border-[#163D2C] focus:outline-none"
+            />
+            <div className="text-right text-[10px] text-[#A39282]">{note.length}/500</div>
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-[#E5DCD2] bg-white/95 p-4 backdrop-blur md:px-8">
+        <div className="shrink-0 border-t border-[#EBE1D4] bg-white p-4 sm:px-8">
           <button
             type="button"
             onClick={handleAddToCart}
             disabled={!selectedVariant}
-            className="flex w-full items-center justify-between rounded-full bg-[#163E2B] px-5 py-3 text-sm font-black text-white shadow-md transition hover:bg-[#1f4f38] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center justify-between rounded-full bg-[#163D2C] px-6 py-3.5 text-white shadow-md transition hover:bg-[#1f503a] active:scale-[0.99]"
           >
-            <span>Thêm vào giỏ</span>
-            <span className="font-mono">{formatVnd(itemTotal)}</span>
+            <span className="text-sm font-bold">
+              {editingItem ? 'Cập nhật giỏ' : 'Thêm vào giỏ'}
+            </span>
+            <span className="text-sm font-extrabold tracking-wide">
+              {formatVnd(itemTotal)}
+            </span>
           </button>
         </div>
       </div>
     </div>
   );
-}
+};
 
 function PercentageSelector({
   label,
@@ -397,19 +498,32 @@ function PercentageSelector({
 }: {
   label: string;
   value: number | null;
-  onChange: (value: number) => void;
+  onChange: (value: number | null) => void;
 }) {
+  const options = [0, 30, 50, 70, 100];
+  if (value !== null && !options.includes(value)) options.push(value);
+  options.sort((a, b) => a - b);
+
   return (
     <div className="space-y-3">
       <h3 className="text-lg font-black text-[#073F2B]">{label}</h3>
-      <div className="grid grid-cols-5 gap-2 rounded-2xl border border-[#E5DCD2] bg-[#FAF6F2] p-2">
-        {percentageOptions.map((option) => {
+      <button
+        type="button"
+        aria-pressed={value === null}
+        onClick={() => onChange(null)}
+        className={`rounded-xl border px-3 py-2 text-sm font-bold ${value === null ? 'border-[#073F2B] bg-[#E8F1EC] text-[#073F2B]' : 'border-[#E5DCD2] text-[#4A3E36]'}`}
+      >
+        Theo công thức chuẩn
+      </button>
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 rounded-2xl border border-[#E5DCD2] bg-[#FAF6F2] p-2">
+        {options.map((option) => {
           const selected = value === option;
 
           return (
             <button
               key={option}
               type="button"
+              aria-pressed={selected}
               onClick={() => onChange(option)}
               className={`flex min-h-12 items-center justify-center gap-2 rounded-xl px-2 text-sm font-black transition ${
                 selected

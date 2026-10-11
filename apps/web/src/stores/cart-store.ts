@@ -74,7 +74,7 @@ function formatCartItemId(
     toppingKey || 'plain',
     `sugar=${input.sugarLevel ?? 'standard'}`,
     `ice=${input.iceLevel ?? 'standard'}`,
-    `note=${input.note ?? ''}`,
+    `note=${JSON.stringify(input.note)}`,
   ].join(':');
 }
 

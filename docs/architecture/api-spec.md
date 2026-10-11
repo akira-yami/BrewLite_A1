@@ -57,7 +57,7 @@ Kết quả `201 Created`:
     "user": {
       "id": "uuid",
       "username": "customer01",
-      "role": "USER",
+      "role": "CUSTOMER",
       "loyaltyBalance": 0
     },
     "accessToken": "jwt",

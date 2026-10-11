@@ -23,7 +23,7 @@ export class UserRepository {
       data: {
         username: data.username,
         passwordHash: data.passwordHash,
-        role: data.role ?? UserRole.USER,
+        role: data.role ?? UserRole.CUSTOMER,
       },
     });
   }

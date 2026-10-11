@@ -124,6 +124,8 @@ jobs:
           cache-dependency-path: apps/api/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Compose requires a private JWT secret
+        run: node --test ../../scripts/compose-config.test.mjs
       # Validates Prisma, deploys migrations twice, checks status, then runs integration tests.
       - name: Migration smoke and integration tests
         run: npm run test:migration

@@ -17,7 +17,7 @@ Theo yêu cầu nghiệp vụ và kiến trúc hệ thống BrewLite:
    - Mật khẩu người dùng bắt buộc băm bằng **bcrypt** (salt rounds $\ge 10$), tuyệt đối không lưu plaintext.
    - Tuyệt đối không để lộ `passwordHash` trong response DTO, exception hay log hệ thống.
    - Chống tấn công dò danh tính người dùng (Username Enumeration): Khi đăng nhập sai tài khoản hoặc sai mật khẩu, backend đều trả về mã lỗi thống nhất `INVALID_CREDENTIALS` (401).
-   - Kiểm soát quyền chặt chẽ theo **RBAC** (`USER`, `ADMIN`) kết hợp xác thực phi trạng thái bằng **JWT Access Token**.
+   - Kiểm soát quyền chặt chẽ theo **RBAC** (`CUSTOMER`, `BARISTA`) kết hợp xác thực phi trạng thái bằng **JWT Access Token**.
 3. **Phân định rõ Happy Path & Error Paths:** Đảm bảo toàn bộ luồng lỗi ngoại lệ được chuẩn hóa theo envelope lỗi chung của BrewLite:
    ```json
    {
@@ -79,7 +79,7 @@ sequenceDiagram
                 UR-->>AS: null
                 AS->>BC: 9. hash(password, saltRounds = 10)
                 BC-->>AS: 10. passwordHash (chuỗi băm $2b$10$...)
-                AS->>UR: 11. create({ username, passwordHash, role: USER, isActive: true })
+                AS->>UR: 11. create({ username, passwordHash, role: CUSTOMER, isActive: true })
                 UR->>DB: 12. prisma.user.create(...)
                 DB-->>UR: 13. User record đã lưu
                 UR-->>AS: 14. User entity (đã map, tách biệt passwordHash)
@@ -115,7 +115,7 @@ sequenceDiagram
       "user": {
         "id": "e6a17b8f-3d4c-4e89-9a1b-123456789abc",
         "username": "customer01",
-        "role": "USER",
+        "role": "CUSTOMER",
         "loyaltyBalance": 0
       },
       "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -173,7 +173,7 @@ sequenceDiagram
         alt Tài khoản bị khóa (isActive == false) (403 Forbidden)
             AS-->>AC: 8a. throw ForbiddenException('ACCOUNT_INACTIVE')
             AC-->>FE: 8b. 403 Forbidden ({ error: { code: 'ACCOUNT_INACTIVE', message: 'Tài khoản đã bị tạm khóa.' } })
-            FE-->>U: 8c. Hiển thị thông báo tài khoản bị khóa, liên hệ Admin
+            FE-->>U: 8c. Hiển thị thông báo tài khoản bị khóa, liên hệ nhóm vận hành
         else Tài khoản ACTIVE
             AS->>BC: 9. compare(plainPassword, user.passwordHash)
             
@@ -199,8 +199,8 @@ sequenceDiagram
     %% Giai đoạn 2: Gọi Protected API & Phân quyền RBAC
     rect rgb(245, 255, 245)
     note right of U: Giai đoạn 2: Xác thực & Phân quyền RBAC trên từng Request
-    U->>FE: 17. Thực hiện thao tác bảo vệ (VD: xem báo cáo quản trị hệ thống)
-    FE->>SEC: 18. GET /api/v1/admin/reports (Header: "Authorization: Bearer <accessToken>")
+    U->>FE: 17. Thực hiện thao tác bảo vệ (VD: chuyển trạng thái đơn hàng theo UC-10)
+    FE->>SEC: 18. PATCH /api/v1/orders/:id/status (Header: "Authorization: Bearer <accessToken>")
     SEC->>JS: 19. Xác thực token (verify signature, expiration, issuer, audience)
     
     alt Token không hợp lệ hoặc đã hết hạn (401 Unauthorized)
@@ -208,19 +208,19 @@ sequenceDiagram
         SEC-->>FE: 20a. 401 Unauthorized ({ error: { code: 'UNAUTHORIZED', message: 'Token không hợp lệ hoặc đã hết hạn.' } })
         FE-->>U: 20b. Điều hướng người dùng về trang /login
     else Token hợp lệ
-        JS-->>SEC: TokenPayload { sub: "uuid", username: "admin01", role: "ADMIN" }
+        JS-->>SEC: TokenPayload { sub: "uuid", username: "barista01", role: "BARISTA" }
         SEC->>SEC: 21. Gắn user payload vào request: req.user = payload
-        SEC->>SEC: 22. RolesGuard kiểm tra @Roles(UserRole.ADMIN)
+        SEC->>SEC: 22. RolesGuard kiểm tra @Roles(UserRole.BARISTA)
         
         alt Quyền không thỏa mãn (403 Forbidden - RBAC Chặn)
             SEC-->>FE: 23a. 403 Forbidden ({ error: { code: 'FORBIDDEN_RESOURCE', message: 'Bạn không có quyền truy cập chức năng này.' } })
             FE-->>U: 23b. Điều hướng hoặc hiển thị trang 403 Access Denied
-        else Quyền hợp lệ (User có role ADMIN)
+        else Quyền hợp lệ (User có role BARISTA)
             SEC->>OC: 24. Cho phép request đi qua Controller & Service
-            OC->>DB: 25. Truy vấn dữ liệu quản trị
-            DB-->>OC: Dữ liệu báo cáo
+            OC->>DB: 25. Cập nhật trạng thái đơn hàng
+            DB-->>OC: Đơn hàng đã cập nhật
             OC-->>FE: 26. 200 OK ({ data: [...] })
-            FE-->>U: 27. Hiển thị báo cáo quản trị cho Admin
+            FE-->>U: 27. Hiển thị trạng thái đơn hàng cho Barista
         end
     end
     end
@@ -243,7 +243,7 @@ sequenceDiagram
       "user": {
         "id": "e6a17b8f-3d4c-4e89-9a1b-123456789abc",
         "username": "customer01",
-        "role": "USER",
+        "role": "CUSTOMER",
         "loyaltyBalance": 0
       },
       "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -259,7 +259,7 @@ sequenceDiagram
   {
     "sub": "e6a17b8f-3d4c-4e89-9a1b-123456789abc",
     "username": "customer01",
-    "role": "USER",
+    "role": "CUSTOMER",
     "iat": 1727913600,
     "exp": 1727914500,
     "iss": "brewlite-api",
@@ -268,7 +268,7 @@ sequenceDiagram
   ```
 - **Bảo vệ Endpoint & Phân quyền RBAC:**
   - `@UseGuards(JwtAuthGuard, RolesGuard)`: Gắn tại Controller hoặc Method.
-  - `@Roles(UserRole.ADMIN)`: Khai báo danh sách vai trò được phép truy cập.
+  - `@Roles(UserRole.BARISTA)`: Khai báo danh sách vai trò được phép truy cập.
   - `@CurrentUser()`: Custom Decorator trích xuất thông tin người dùng từ `req.user` để kiểm tra ownership (ví dụ `user.id === order.userId`).
 
 ---
@@ -328,7 +328,7 @@ activate BC
 BC --> AS: passwordHash
 deactivate BC
 
-AS -> UR: 9. create({ username, passwordHash, role: USER })
+AS -> UR: 9. create({ username, passwordHash, role: CUSTOMER })
 activate UR
 UR -> DB: 10. prisma.user.create(...)
 activate DB
@@ -337,7 +337,7 @@ deactivate DB
 UR --> AS: UserEntity (đã loại bỏ passwordHash)
 deactivate UR
 
-AS -> JWT: 11. signAsync({ sub: id, username, role: USER })
+AS -> JWT: 11. signAsync({ sub: id, username, role: CUSTOMER })
 activate JWT
 JWT --> AS: accessToken (JWT)
 deactivate JWT
@@ -361,7 +361,7 @@ autonumber
 skinparam responseMessageBelowArrow true
 skinparam BoxPadding 10
 
-actor "Người dùng\n(User / Admin)" as User
+actor "Người dùng\n(Customer / Barista)" as User
 
 box "Frontend (apps/web)" #F8F9FA
     participant "LoginForm\n(features/auth)" as FE
@@ -426,7 +426,7 @@ else Người dùng tồn tại
             AC --> FE: 9. 200 OK (AuthResultDto)
             deactivate AC
             
-            FE -> FE: 10. Lưu accessToken, phân luồng điều hướng theo Role\n(USER -> /menu, ADMIN -> /admin)
+            FE -> FE: 10. Lưu accessToken, phân luồng điều hướng theo Role\n(CUSTOMER -> /menu, BARISTA -> màn hình vận hành UC-10 khi triển khai)
             FE --> User: 11. Chuyển hướng thành công
             deactivate FE
         end
@@ -447,7 +447,7 @@ Trước khi chuyển sang giai đoạn code (Implementation), tài liệu thi�
 | 2 | **Không rò rỉ Password Hash** | Cắt bỏ `passwordHash` tại Repository Mapper và DTO trước khi trả về Controller | [x] |
 | 3 | **Chống Username Enumeration** | Cả 2 trường hợp sai username hoặc sai password đều trả về `INVALID_CREDENTIALS` (401) | [x] |
 | 4 | **Validate chặt chẽ đầu vào** | `ValidationPipe` whitelist strict, chặn payload thừa và kiểm tra username 3-50 / password >= 6 | [x] |
-| 5 | **RBAC & JWT chuẩn mực** | Phân quyền 2 role thống nhất (`USER`, `ADMIN`), từ chối 403 khi thiếu role | [x] |
+| 5 | **RBAC & JWT chuẩn mực** | Phân quyền 2 role thống nhất (`CUSTOMER`, `BARISTA`), từ chối 403 khi thiếu role | [x] |
 | 6 | **Xử lý tài khoản khóa** | Kiểm tra `isActive === false` và trả `ACCOUNT_INACTIVE` (403) ngay tại bước login | [x] |
 | 7 | **Khớp nối Đặc tả Use Case** | Tương ứng 1:1 với `UC-01` (Đăng ký) và `UC-02` (Đăng nhập & RBAC) | [x] |
 

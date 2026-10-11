@@ -38,15 +38,15 @@ describe('RolesGuard (Unit Test - TDD)', () => {
   });
 
   it('should allow access if user has the required role', () => {
-    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN]);
-    const context = createMockContext({ role: UserRole.ADMIN });
+    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.BARISTA]);
+    const context = createMockContext({ role: UserRole.BARISTA });
 
     expect(guard.canActivate(context)).toBe(true);
   });
 
   it('should throw ForbiddenException with FORBIDDEN_RESOURCE if user has insufficient role', () => {
-    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN]);
-    const context = createMockContext({ role: UserRole.USER });
+    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.BARISTA]);
+    const context = createMockContext({ role: UserRole.CUSTOMER });
 
     try {
       guard.canActivate(context);
@@ -60,7 +60,7 @@ describe('RolesGuard (Unit Test - TDD)', () => {
   });
 
   it('should throw ForbiddenException if request has no authenticated user', () => {
-    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.ADMIN]);
+    vi.spyOn(reflector, 'getAllAndOverride').mockReturnValue([UserRole.BARISTA]);
     const context = createMockContext(undefined);
 
     try {

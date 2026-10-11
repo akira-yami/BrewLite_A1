@@ -1,7 +1,7 @@
 export interface User {
   id: string;
   username: string;
-  role: 'USER' | 'ADMIN';
+  role: 'CUSTOMER' | 'BARISTA';
   loyaltyBalance: number;
   isActive: boolean;
   createdAt: string;

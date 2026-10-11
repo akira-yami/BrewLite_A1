@@ -38,19 +38,21 @@ POSTGRES_PASSWORD=change_me_local_only
 DATABASE_URL=postgresql://brewlite:change_me_local_only@postgres:5432/brewlite?schema=public
 JWT_ISSUER=brewlite-api
 JWT_AUDIENCE=brewlite-web
-JWT_SECRET=replace_with_a_long_random_secret
+JWT_SECRET=
 JWT_EXPIRES_IN=15m
 MOCK_PAYMENT_MODE=deterministic
 ORDER_RESERVATION_TTL_MINUTES=15
 ```
 
-Không commit file `.env` thật. Secret cho môi trường chia sẻ phải cấp qua CI/secret store.
+`JWT_SECRET` bắt buộc và không có fallback. Tạo secret riêng cho từng môi trường bằng `node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"`, rồi điền vào `.env` hoặc cấp qua môi trường/secret store. Compose dừng nếu biến thiếu hoặc rỗng. Không commit file `.env` thật.
 
 ## 3. Quy trình khởi động
 
 Khởi động stack hiện tại:
 
 ```bash
+cp .env.example .env
+# Điền JWT_SECRET riêng trước khi chạy.
 docker compose up --build
 ```
 
@@ -75,7 +77,7 @@ Service `migrate` dùng target `migration` trong Dockerfile API và chạy `npm 
 
 ## 6. Kiểm tra bàn giao Task 9
 
-1. Clone repository mới và copy `.env.example` thành `.env`.
+1. Clone repository mới, copy `.env.example` thành `.env` và điền `JWT_SECRET` riêng.
 2. Chạy một lệnh `docker compose up --build` hoặc theo đúng README.
 3. Healthcheck của ba service đạt trạng thái healthy.
 4. Migration/seed thành công từ volume rỗng.

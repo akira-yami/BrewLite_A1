@@ -25,7 +25,7 @@ describe('UserRepository (Unit Test - TDD)', () => {
 
   describe('findByUsername', () => {
     it('should query prisma.user.findUnique with username', async () => {
-      const mockUser = { id: 'uuid-1', username: 'john_doe', role: UserRole.USER };
+      const mockUser = { id: 'uuid-1', username: 'john_doe', role: UserRole.CUSTOMER };
       prismaMock.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await repository.findByUsername('john_doe');
@@ -39,7 +39,7 @@ describe('UserRepository (Unit Test - TDD)', () => {
 
   describe('findById', () => {
     it('should query prisma.user.findUnique with id', async () => {
-      const mockUser = { id: 'uuid-1', username: 'john_doe', role: UserRole.USER };
+      const mockUser = { id: 'uuid-1', username: 'john_doe', role: UserRole.CUSTOMER };
       prismaMock.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await repository.findById('uuid-1');
@@ -52,12 +52,12 @@ describe('UserRepository (Unit Test - TDD)', () => {
   });
 
   describe('create', () => {
-    it('should create user with default USER role if role is not provided', async () => {
+    it('should create user with default CUSTOMER role if role is not provided', async () => {
       const createdUser = {
         id: 'uuid-1',
         username: 'john_doe',
         passwordHash: 'hashed_pwd',
-        role: UserRole.USER,
+        role: UserRole.CUSTOMER,
       };
       prismaMock.user.create.mockResolvedValue(createdUser);
 
@@ -70,7 +70,7 @@ describe('UserRepository (Unit Test - TDD)', () => {
         data: {
           username: 'john_doe',
           passwordHash: 'hashed_pwd',
-          role: UserRole.USER,
+          role: UserRole.CUSTOMER,
         },
       });
       expect(result).toEqual(createdUser);
@@ -81,21 +81,21 @@ describe('UserRepository (Unit Test - TDD)', () => {
         id: 'uuid-2',
         username: 'admin_user',
         passwordHash: 'hashed_pwd',
-        role: UserRole.ADMIN,
+        role: UserRole.BARISTA,
       };
       prismaMock.user.create.mockResolvedValue(createdAdmin);
 
       const result = await repository.create({
         username: 'admin_user',
         passwordHash: 'hashed_pwd',
-        role: UserRole.ADMIN,
+        role: UserRole.BARISTA,
       });
 
       expect(prismaMock.user.create).toHaveBeenCalledWith({
         data: {
           username: 'admin_user',
           passwordHash: 'hashed_pwd',
-          role: UserRole.ADMIN,
+          role: UserRole.BARISTA,
         },
       });
       expect(result).toEqual(createdAdmin);

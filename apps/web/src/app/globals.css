@@ -1,31 +1,29 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: "Cascadia Code", "Courier New", monospace;
+  --color-background: #F7F3ED;
+  --color-foreground: #1E1915;
+  --font-sans: var(--font-sans), Arial, Helvetica, sans-serif;
+  --font-serif: var(--font-serif), Georgia, serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --background: #F7F3ED;
+  --foreground: #1E1915;
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
-/* Hiệu ứng băng chuyền cho thẻ HeroBanner */
+/* Áp dụng font có chân (Serif) sang trọng cho tất cả tiêu đề */
+h1, h2, h3, .font-serif {
+  font-family: var(--font-serif);
+}
+
+/* Hiệu ứng băng chuyền cho thẻ HeroBanner nếu cần dùng */
 @keyframes smoothMarquee {
   0% {
     transform: translateX(0);

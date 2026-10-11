@@ -41,7 +41,7 @@ export class AuthService {
   /**
    * Đăng ký tài khoản người dùng mới.
    * Mật khẩu được băm qua bcrypt với cost factor 10.
-   * Role mặc định là USER theo quy ước đã chốt.
+   * Role mặc định là CUSTOMER theo quy ước đã chốt.
    */
   async register(dto: RegisterDto): Promise<AuthResult> {
     const existing = await this.userRepository.findByUsername(dto.username);
@@ -60,7 +60,7 @@ export class AuthService {
     const user = await this.userRepository.create({
       username: dto.username,
       passwordHash,
-      role: UserRole.USER,
+      role: UserRole.CUSTOMER,
     });
 
     const accessToken = await this.generateToken(user.id, user.username, user.role);

@@ -1,7 +1,8 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { Product, ProductSize, Topping } from '@/features/catalog/types';
+import type { Product, ProductSize, Topping } from '@/features/catalog/types';
+import type { CreateOrderItemInput } from '@/features/orders/types';
 
 export interface CartItem {
   id: string;
@@ -13,6 +14,9 @@ export interface CartItem {
   size: ProductSize;
   unitPrice: number;
   quantity: number;
+  sugarLevel: number | null;
+  iceLevel: number | null;
+  note: string | null;
   toppings: Array<Pick<Topping, 'id' | 'name' | 'price'>>;
   lineTotal: number;
 }
@@ -23,6 +27,9 @@ export interface AddCartItemInput {
   size: ProductSize;
   unitPrice: number;
   quantity: number;
+  sugarLevel?: number | null;
+  iceLevel?: number | null;
+  note?: string | null;
   toppings: Array<Pick<Topping, 'id' | 'name' | 'price'>>;
 }
 
@@ -43,22 +50,39 @@ let currentSnapshot = emptySnapshot;
 let hydrated = false;
 const listeners = new Set<() => void>();
 
-function formatCartItemId(input: AddCartItemInput) {
+function normalizeLevel(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100
+    ? value
+    : null;
+}
+
+function normalizeNote(value: unknown): string | null {
+  return typeof value === 'string' ? value.trim() || null : null;
+}
+
+function formatCartItemId(input: Pick<CartItem, 'productId' | 'variantId' | 'toppings' | 'sugarLevel' | 'iceLevel' | 'note'>) {
   const toppingKey = input.toppings
     .map((topping) => topping.id)
     .sort()
     .join('.');
 
-  return `${input.product.id}:${input.variantId}:${toppingKey || 'plain'}`;
+  return `${input.productId}:${input.variantId}:${toppingKey || 'plain'}:sugar=${input.sugarLevel ?? 'standard'}:ice=${input.iceLevel ?? 'standard'}:note=${JSON.stringify(input.note)}`;
 }
 
 function calculateSnapshot(items: CartItem[]): CartSnapshot {
   const normalizedItems = items.map((item) => {
+    const sugarLevel = normalizeLevel(item.sugarLevel);
+    const iceLevel = normalizeLevel(item.iceLevel);
+    const note = normalizeNote(item.note);
     const toppingsTotal = item.toppings.reduce((sum, topping) => sum + topping.price, 0);
     const lineTotal = (item.unitPrice + toppingsTotal) * item.quantity;
 
     return {
       ...item,
+      id: formatCartItemId({ ...item, sugarLevel, iceLevel, note }),
+      sugarLevel,
+      iceLevel,
+      note,
       lineTotal,
     };
   });
@@ -123,8 +147,24 @@ export function useCartStore() {
 }
 
 export const cartStore = {
+  getOrderItems(): CreateOrderItemInput[] {
+    hydrateCart();
+    return currentSnapshot.items.map((item) => ({
+      productVariantId: item.variantId,
+      quantity: item.quantity,
+      toppingIds: item.toppings.map((topping) => topping.id),
+      sugarLevel: item.sugarLevel,
+      iceLevel: item.iceLevel,
+      note: item.note,
+    }));
+  },
+
   addItem(input: AddCartItemInput) {
-    const id = formatCartItemId(input);
+    hydrateCart();
+    const sugarLevel = normalizeLevel(input.sugarLevel);
+    const iceLevel = normalizeLevel(input.iceLevel);
+    const note = normalizeNote(input.note);
+    const id = formatCartItemId({ ...input, productId: input.product.id, sugarLevel, iceLevel, note });
     const existing = currentSnapshot.items.find((item) => item.id === id);
 
     if (existing) {
@@ -147,6 +187,9 @@ export const cartStore = {
       size: input.size,
       unitPrice: input.unitPrice,
       quantity: input.quantity,
+      sugarLevel,
+      iceLevel,
+      note,
       toppings: input.toppings,
       lineTotal: (input.unitPrice + toppingsTotal) * input.quantity,
     };
@@ -189,6 +232,7 @@ export const cartStore = {
   },
 
   updateQuantity(id: string, quantity: number) {
+    hydrateCart();
     if (quantity <= 0) {
       this.removeItem(id);
       return;
@@ -202,10 +246,12 @@ export const cartStore = {
   },
 
   removeItem(id: string) {
+    hydrateCart();
     emit(currentSnapshot.items.filter((item) => item.id !== id));
   },
 
   clearCart() {
+    hydrateCart();
     emit([]);
   },
 };

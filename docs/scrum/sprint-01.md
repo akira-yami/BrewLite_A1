@@ -13,7 +13,7 @@ Nền tảng dự án chạy được và người dùng xem/chọn được s�
 | Task 1 | Khởi tạo dự án và cấu trúc | _Điền tên_ | TODO | Theo `product-backlog.md` |
 | Task 2 | API danh sách sản phẩm | _Điền tên_ | TODO | Theo `product-backlog.md` |
 | Task 3 | Trang Menu tích hợp API | _Điền tên_ | TODO | Theo `product-backlog.md` |
-| Task 4 | Chi tiết sản phẩm, size/topping | _Điền tên_ | TODO | Theo `product-backlog.md` |
+| Task 4 | Chi tiết sản phẩm, size/topping/đường/đá/ghi chú | _Điền tên_ | TODO | Theo `product-backlog.md` |
 
 Trạng thái dùng thống nhất: `TODO -> IN_PROGRESS -> REVIEW -> DONE`. Chỉ chuyển `DONE` khi đạt [Definition of Done](./definition-of-done.md).
 

@@ -52,7 +52,7 @@ export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
             </div>
             <h3 className="text-base font-black text-[#163E2B]">Giỏ hàng đang trống</h3>
             <p className="mt-2 text-sm leading-6 text-[#756A63]">
-              Chọn một món trong menu, tùy biến size hoặc topping rồi thêm vào giỏ để tiếp tục đặt hàng.
+              Chọn một món trong menu, tùy biến size, topping, đường và đá rồi thêm vào giỏ để tiếp tục đặt hàng.
             </p>
             <button
               type="button"
@@ -102,15 +102,22 @@ export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
                         </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => onEditOptions(item)}
-                        className="inline-flex w-fit items-center gap-2 rounded-full bg-[#E8F1EC] px-3 py-1.5 text-[11px] font-black text-[#163E2B] transition hover:bg-[#dcebe3]"
-                      >
-                        <span aria-hidden="true">⚙</span>
-                        <span>Sửa tùy chọn</span>
-                        <span aria-hidden="true">›</span>
-                      </button>
+                      <p className="text-[11px] leading-5 text-[#756A63]">
+                        Đường: {item.sugarLevel === null ? 'Theo công thức chuẩn' : `${item.sugarLevel}%`}
+                        {' • '}Đá: {item.iceLevel === null ? 'Theo công thức chuẩn' : `${item.iceLevel}%`}
+                      </p>
+
+                      {item.note !== null && (
+                        <p className="whitespace-pre-wrap break-words text-[11px] leading-5 text-[#756A63]">
+                          Ghi chú: {item.note}
+                        </p>
+                      )}
+
+                      {item.toppings.length > 0 && (
+                        <p className="line-clamp-2 text-[11px] leading-5 text-[#756A63]">
+                          Topping: {item.toppings.map((topping) => topping.name).join(', ')}
+                        </p>
+                      )}
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center rounded-full border border-[#E5DCD2] bg-white">

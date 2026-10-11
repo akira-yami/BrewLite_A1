@@ -38,18 +38,18 @@ describe('Foundation on migrated PostgreSQL', () => {
   });
   afterAll(async () => { await prisma.$disconnect(); });
 
-  it('supports only customer and barista accounts; the gateway is not an account role', async () => {
+  it('supports only user and admin accounts; the gateway is not an account role', async () => {
     const roles = await prisma.$queryRaw<Array<{ role: string }>>`
       SELECT e.enumlabel AS role FROM pg_enum e
       JOIN pg_type t ON t.oid = e.enumtypid
       WHERE t.typname = 'UserRole' ORDER BY e.enumsortorder
     `;
-    expect(roles.map(row => row.role)).toEqual(['CUSTOMER', 'BARISTA']);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).role).toBe('CUSTOMER');
-    const barista = await prisma.user.create({ data: {
-      username: `barista-${randomUUID()}`, passwordHash: 'test-hash', role: 'BARISTA',
+    expect(roles.map(row => row.role)).toEqual(['USER', 'ADMIN']);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).role).toBe('USER');
+    const admin = await prisma.user.create({ data: {
+      username: `admin-${randomUUID()}`, passwordHash: 'test-hash', role: 'ADMIN',
     } });
-    expect(barista.role).toBe('BARISTA');
+    expect(admin.role).toBe('ADMIN');
   });
 
   it('has all 14 domain tables and the default stock version', async () => {
@@ -67,6 +67,34 @@ describe('Foundation on migrated PostgreSQL', () => {
     await expect(prisma.order.update({ where: { id: orderId }, data: { total: 1n } })).rejects.toThrow();
     await expect(prisma.orderItem.updateMany({ where: { orderId }, data: { quantity: 0 } })).rejects.toThrow();
     expect((await prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } })).stock).toBe(2);
+  });
+
+  it('preserves nullable preferences and stores both percentage boundaries', async () => {
+    const items = await prisma.orderItem.findMany({ where: { orderId } });
+    expect(items[0]).toMatchObject({ sugarLevel: null, iceLevel: null });
+    for (const levels of [{ sugarLevel: 0, iceLevel: 100 }, { sugarLevel: 100, iceLevel: 0 }]) {
+      await prisma.orderItem.updateMany({ where: { orderId }, data: levels });
+      expect((await prisma.orderItem.findMany({ where: { orderId } }))[0]).toMatchObject(levels);
+    }
+    await prisma.orderItem.updateMany({ where: { orderId }, data: { sugarLevel: null, iceLevel: null } });
+  });
+
+  it('rejects sugar/ice levels outside 0..100 at the database layer', async () => {
+    for (const field of ['sugarLevel', 'iceLevel'] as const) {
+      for (const value of [-1, 101]) {
+        await expect(prisma.orderItem.updateMany({ where: { orderId }, data: { [field]: value } })).rejects.toThrow();
+      }
+    }
+  });
+
+  it('stores optional notes and rejects more than 500 characters', async () => {
+    expect((await prisma.orderItem.findMany({ where: { orderId } }))[0].note).toBeNull();
+    for (const note of ['Để topping riêng', 'a'.repeat(500)]) {
+      await prisma.orderItem.updateMany({ where: { orderId }, data: { note } });
+      expect((await prisma.orderItem.findMany({ where: { orderId } }))[0].note).toBe(note);
+    }
+    await expect(prisma.orderItem.updateMany({ where: { orderId }, data: { note: 'a'.repeat(501) } })).rejects.toThrow();
+    await prisma.orderItem.updateMany({ where: { orderId }, data: { note: null } });
   });
 
   it('rejects invalid coupon percentage and time window', async () => {

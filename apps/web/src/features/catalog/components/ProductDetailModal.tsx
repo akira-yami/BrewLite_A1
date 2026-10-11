@@ -43,13 +43,12 @@ function ProductDetailModalContent({
   editingItem?: CartItem | null;
 }) {
   const defaultVariant = product.variants.find((variant) => variant.size === 'M') ?? product.variants[0];
-  const [selectedVariantId, setSelectedVariantId] = useState(
-    editingItem?.variantId ?? defaultVariant?.id ?? '',
-  );
-  const [selectedToppingIds, setSelectedToppingIds] = useState<string[]>(
-    editingItem?.toppings.map((topping) => topping.id) ?? [],
-  );
-  const [quantity, setQuantity] = useState(editingItem?.quantity ?? 1);
+  const [selectedVariantId, setSelectedVariantId] = useState(defaultVariant?.id ?? '');
+  const [selectedToppingIds, setSelectedToppingIds] = useState<string[]>([]);
+  const [quantity, setQuantity] = useState(1);
+  const [sugarLevel, setSugarLevel] = useState<number | null>(null);
+  const [iceLevel, setIceLevel] = useState<number | null>(null);
+  const [note, setNote] = useState('');
 
   const selectedVariant = product.variants.find((variant) => variant.id === selectedVariantId);
   const selectedToppings = product.toppings.filter((topping) =>
@@ -77,6 +76,9 @@ function ProductDetailModalContent({
       size: selectedVariant.size as ProductSize,
       unitPrice: selectedVariant.price,
       quantity,
+      sugarLevel,
+      iceLevel,
+      note,
       toppings: selectedToppings.map((topping) => ({
         id: topping.id,
         name: topping.name,
@@ -159,8 +161,45 @@ function ProductDetailModalContent({
             </div>
           </div>
 
-          {/* Danh sách kích thước & topping thực tế từ Database */}
-          <div className="space-y-3 border-t border-[#E5DCD2] pt-4 text-xs">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {[
+              { name: 'sugarLevel', label: 'Mức đường', value: sugarLevel, setValue: setSugarLevel },
+              { name: 'iceLevel', label: 'Mức đá', value: iceLevel, setValue: setIceLevel },
+            ].map((option) => (
+              <label key={option.name} className="block font-bold text-[#163E2B]">
+                {option.label}
+                <select
+                  name={option.name}
+                  value={option.value ?? 'standard'}
+                  onChange={(event) => option.setValue(
+                    event.target.value === 'standard' ? null : Number(event.target.value),
+                  )}
+                  className="mt-1.5 block w-full rounded-xl border border-[#E5DCD2] bg-[#FAF6F2] px-3 py-2 text-[#4A3E36]"
+                >
+                  <option value="standard">Theo công thức chuẩn</option>
+                  {[0, 25, 50, 75, 100].map((level) => (
+                    <option key={level} value={level}>{level}%</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+
+          <label className="block font-bold text-[#163E2B]">
+            Ghi chú cho món
+            <textarea
+              name="note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Ví dụ: để topping riêng"
+              className="mt-1.5 block w-full rounded-xl border border-[#E5DCD2] bg-[#FAF6F2] px-3 py-2 font-normal text-[#4A3E36]"
+            />
+            <span className="mt-1 block text-right font-normal text-[#756A63]">{note.length}/500</span>
+          </label>
+
+          {product.toppings.length > 0 && (
             <div>
               <span className="font-bold text-[#163E2B] block mb-1.5">Các kích thước sẵn có:</span>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

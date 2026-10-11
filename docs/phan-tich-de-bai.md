@@ -2,7 +2,7 @@
 
 ## 1. Mục tiêu sản phẩm
 
-BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt. Giá trị cốt lõi là rút ngắn thời gian xếp hàng: khách chọn món, tùy chọn size/topping, thanh toán và nhận mã đơn trước khi đến quầy.
+BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt. Giá trị cốt lõi là rút ngắn thời gian xếp hàng: khách chọn món, tùy chọn size/topping/đường/đá, thanh toán và nhận mã đơn trước khi đến quầy.
 
 Công nghệ bắt buộc từ đề bài:
 
@@ -19,7 +19,7 @@ Công nghệ bắt buộc từ đề bài:
 ### Trong phạm vi
 
 - Xem menu và chi tiết sản phẩm.
-- Chọn biến thể kích thước và topping.
+- Chọn biến thể kích thước, topping, mức đường và đá.
 - Quản lý giỏ hàng phía client, tự hiển thị tổng tạm tính.
 - Đăng ký, đăng nhập và gọi API được bảo vệ bằng JWT.
 - Tạo đơn ở trạng thái `PENDING`; backend kiểm tra lại giá và tồn kho.
@@ -53,7 +53,7 @@ Các mục ngoài phạm vi có thể bổ sung sau mà không đổi cấu trú
 |---|---|---|
 | FR-01 | Xem menu | Có loading, empty và error state |
 | FR-02 | Xem chi tiết | Chỉ hiển thị sản phẩm/biến thể đang hoạt động |
-| FR-03 | Tùy chọn món | Chọn đúng một size và nhiều topping hợp lệ |
+| FR-03 | Tùy chọn món | Chọn đúng một size và nhiều topping hợp lệ; đường/đá theo công thức chuẩn hoặc 0/25/50/75/100% |
 | FR-04 | Quản lý giỏ | Thêm, đổi số lượng, xóa; giỏ lưu local |
 | FR-05 | Đăng ký/đăng nhập | Username duy nhất theo API/schema hiện hành; cấp access token JWT |
 | FR-06 | Tạo đơn | Backend tính lại toàn bộ giá, giữ tồn kho, tạo mã đơn |
@@ -77,10 +77,11 @@ Các mục ngoài phạm vi có thể bổ sung sau mà không đổi cấu trú
 
 ## 6. Quy tắc nghiệp vụ quan trọng
 
-1. Frontend chỉ gửi `productVariantId`, `toppingIds`, `quantity` và coupon; mọi giá trị tiền được backend tra lại.
+1. Frontend chỉ gửi `productVariantId`, `toppingIds`, `quantity`, `sugarLevel`, `iceLevel` và coupon; mọi giá trị tiền được backend tra lại. Đường/đá nhận phần trăm nguyên 0..100 hoặc null; thiếu trường là null, 0 là không đường/đá và không đổi giá.
 2. Một đơn phải có ít nhất một item, số lượng mỗi item nằm trong giới hạn cấu hình.
 3. Tổng tiền: `subtotal - discountAmount = total`; `total >= 0`.
-4. Giá/tên món, biến thể và topping được snapshot vào dòng đơn để lịch sử không đổi khi menu được cập nhật.
+4. Giá/tên món, biến thể, topping và mức đường/đá được snapshot vào dòng đơn để lịch sử không đổi khi menu được cập nhật. Dòng khác đường/đá giữ riêng; reservation tổng hợp quantity theo variant.
+   Ghi chú `note` cũng được gửi/lưu theo từng dòng: chuỗi tối đa 500 ký tự sau trim, thiếu/trắng thành null; khác ghi chú giữ dòng riêng, không đổi giá.
 5. `Idempotency-Key` là bắt buộc cho `POST /payments`, unique toàn hệ thống và gắn với hash của request. Dùng lại cùng key nhưng khác payload bị từ chối.
 6. Tồn kho được giữ trong transaction tạo đơn. Khi thanh toán thành công, reservation chuyển thành `CONSUMED`; khi hủy/hết hạn/thanh toán thất bại cuối cùng, tồn kho được hoàn lại đúng một lần.
 7. Điểm thưởng được ghi bằng ledger `LoyaltyTransaction`, không chỉ cập nhật một con số. Mỗi đơn chỉ có tối đa một giao dịch cộng điểm.
@@ -113,7 +114,7 @@ stateDiagram-v2
 | 1 | Monorepo, env mẫu, chạy được frontend/backend | Kiến trúc hệ thống, Docker |
 | 2 | `GET /products` | API, Product/ProductVariant/Topping |
 | 3 | Trang menu | Kiến trúc frontend |
-| 4 | Chi tiết, size, topping | ERD và quy tắc định giá |
+| 4 | Chi tiết, size, topping, đường/đá | ERD và quy tắc định giá |
 | 5 | Giỏ hàng client | Kiến trúc frontend; backend không tin giá client |
 | 6 | `POST /orders` | Order, OrderItem, reservation, transaction |
 | 7 | Auth JWT | API và tài liệu bảo mật |

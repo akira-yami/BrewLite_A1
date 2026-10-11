@@ -2,6 +2,10 @@
 
 Thư mục này mô tả kiến trúc đích của BrewLite dựa trên đề bài phiên bản 1.0. Repository có scaffold Next.js/NestJS, Prisma/PostgreSQL và Docker; các tài liệu là đường cơ sở để nhóm triển khai module nghiệp vụ theo từng Sprint.
 
+Cập nhật 10/10/2026: thêm `OrderItem.sugarLevel`/`iceLevel` nullable 0..100 vào schema, migration, contract và giỏ. Quy ước null/0%, snapshot, tách dòng và tổng hợp tồn nằm trong [entity](./architecture/entities.md), [database](./architecture/database-design.md) và [API](./architecture/api-spec.md). PDF đề bài và ảnh ERD gốc giữ làm tài liệu tham chiếu; Mermaid ERD là mô hình đã cập nhật.
+
+Bổ sung `OrderItem.note` nullable tối đa 500 ký tự: schema/migration, DTO/mapper, UI/giỏ và các tài liệu thiết kế đã đồng bộ. Quy tắc ghi chú, tách dòng và response xem [entity](./architecture/entities.md) và [API](./architecture/api-spec.md).
+
 ## Bàn giao Khang tuần 1
 
 - [SD-01 — Use Case tổng quan](./architecture/use-case-overview.md)
@@ -19,10 +23,15 @@ Thư mục này mô tả kiến trúc đích của BrewLite dựa trên đề b�
 5. [Thiết kế cơ sở dữ liệu](./architecture/database-design.md): ràng buộc, index, transaction và chiến lược tồn kho.
 6. [Đặc tả REST API](./architecture/api-spec.md): hợp đồng API tối thiểu và API hỗ trợ Task 10.
 7. [Thiết kế bảo mật](./architecture/security.md): xác thực, phân quyền và biện pháp bảo vệ API.
-8. [Các quyết định kiến trúc](./decisions/ADR-001-project-architecture.md): ADR giải thích các lựa chọn chính.
-9. [Hướng dẫn Docker](./deployment/docker-guide.md): topology chạy local và nguyên tắc cấu hình.
-10. [Tài liệu Scrum](./scrum/product-backlog.md): backlog, user story, vai trò, kế hoạch Sprint và Definition of Done.
-11. [Chiến lược kiểm thử](./testing/test-strategy.md): cách kiểm chứng acceptance criteria và ba yêu cầu bắt buộc của Task 10.
+8. [Thiết kế Sequence Diagram (SD-05, SD-06)](./architecture/sequence-diagrams-auth.md): luồng đăng ký, đăng nhập và phân quyền JWT/RBAC chi tiết.
+9. [Đặc tả Use Case chi tiết](./use-cases/):
+   - [UC-01: Đăng ký tài khoản](./use-cases/UC-01-dang-ky-tai-khoan.md)
+   - [UC-02: Đăng nhập & Xác thực JWT/RBAC](./use-cases/UC-02-dang-nhap-xac-thuc-jwt.md)
+   - [UC-08: Thực hiện thanh toán (Mock Gateway & Idempotency)](./use-cases/UC-08-thuc-hien-thanh-toan.md)
+10. [Các quyết định kiến trúc](./decisions/ADR-001-project-architecture.md): ADR giải thích các lựa chọn chính.
+11. [Hướng dẫn Docker](./deployment/docker-guide.md): topology chạy local và nguyên tắc cấu hình.
+12. [Tài liệu Scrum](./scrum/product-backlog.md): backlog, user story, vai trò, kế hoạch Sprint và Definition of Done.
+13. [Chiến lược kiểm thử](./testing/test-strategy.md): cách kiểm chứng acceptance criteria và ba yêu cầu bắt buộc của Task 10.
 
 ## Quy ước chung
 

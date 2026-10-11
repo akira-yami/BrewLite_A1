@@ -21,7 +21,7 @@ export interface CartItem {
   lineTotal: number;
 }
 
-interface AddCartItemInput {
+export interface AddCartItemInput {
   product: Product;
   variantId: string;
   size: ProductSize;
@@ -195,6 +195,40 @@ export const cartStore = {
     };
 
     emit([...currentSnapshot.items, nextItem]);
+  },
+
+  replaceItem(idToReplace: string, input: AddCartItemInput) {
+    const nextId = formatCartItemId(input);
+    const toppingsTotal = input.toppings.reduce((sum, topping) => sum + topping.price, 0);
+    const replacement: CartItem = {
+      id: nextId,
+      productId: input.product.id,
+      variantId: input.variantId,
+      sku: input.product.sku,
+      name: input.product.name,
+      imageUrl: input.product.imageUrl,
+      size: input.size,
+      unitPrice: input.unitPrice,
+      quantity: input.quantity,
+      toppings: input.toppings,
+      lineTotal: (input.unitPrice + toppingsTotal) * input.quantity,
+    };
+
+    const withoutOriginal = currentSnapshot.items.filter((item) => item.id !== idToReplace);
+    const sameConfiguration = withoutOriginal.find((item) => item.id === nextId);
+
+    if (sameConfiguration) {
+      emit(
+        withoutOriginal.map((item) =>
+          item.id === nextId
+            ? { ...item, quantity: item.quantity + replacement.quantity }
+            : item,
+        ),
+      );
+      return;
+    }
+
+    emit([...withoutOriginal, replacement]);
   },
 
   updateQuantity(id: string, quantity: number) {

@@ -8,12 +8,13 @@ import { ProductCard } from '@/features/catalog/components/ProductCard';
 import { ProductCardSkeleton } from '@/features/catalog/components/ProductCardSkeleton';
 import { ProductDetailModal } from '@/features/catalog/components/ProductDetailModal';
 import { CartDrawer } from '@/features/cart/components/CartDrawer';
-import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 
 export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewingProduct, setPreviewingProduct] = useState<Product | null>(null);
+  const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const cart = useCartStore();
 
@@ -104,7 +105,10 @@ export default function MenuPage() {
         {!isLoading && !isError && products.length > 0 && (
           <HeroBanner
             products={products}
-            onSelectProduct={(p) => setPreviewingProduct(p)}
+            onSelectProduct={(p) => {
+              setEditingCartItem(null);
+              setPreviewingProduct(p);
+            }}
           />
         )}
 
@@ -214,8 +218,12 @@ export default function MenuPage() {
               <ProductCard
                 key={p.id}
                 product={p}
-                onPreview={(item) => setPreviewingProduct(item)}
+                onPreview={(item) => {
+                  setEditingCartItem(null);
+                  setPreviewingProduct(item);
+                }}
                 onCustomize={(item) => {
+                  setEditingCartItem(null);
                   setPreviewingProduct(item);
                 }}
                 onQuickAdd={handleQuickAdd}
@@ -229,7 +237,11 @@ export default function MenuPage() {
       {/* Modal chi tiết sản phẩm */}
       <ProductDetailModal
         product={previewingProduct}
-        onClose={() => setPreviewingProduct(null)}
+        editingItem={editingCartItem}
+        onClose={() => {
+          setPreviewingProduct(null);
+          setEditingCartItem(null);
+        }}
         onAddedToCart={() => setIsCartOpen(true)}
       />
 
@@ -244,7 +256,18 @@ export default function MenuPage() {
         </button>
       )}
 
-      <CartDrawer open={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      <CartDrawer
+        open={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        onEditOptions={(item) => {
+          const product = products.find((candidate) => candidate.id === item.productId);
+          if (!product) return;
+
+          setEditingCartItem(item);
+          setPreviewingProduct(product);
+          setIsCartOpen(false);
+        }}
+      />
     </main>
   );
 }

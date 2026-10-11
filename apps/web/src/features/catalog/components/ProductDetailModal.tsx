@@ -37,9 +37,10 @@ export const ProductDetailModal = ({
 
   useEffect(() => {
     if (product && product.variants.length > 0) {
-      const defaultVariant =
-        product.variants.find((v) => v.size === 'M') || product.variants[0];
-      setSelectedVariant(defaultVariant);
+      const defaultVariant = product.variants.find((v) => v.size === 'M') || product.variants[0];
+
+// eslint-disable-next-line react-hooks/set-state-in-effect
+setSelectedVariant(defaultVariant);
       setQuantity(1);
       setSelectedToppings([]);
       setSugarLevel('Theo công thức chuẩn');

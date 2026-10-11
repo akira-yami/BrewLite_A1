@@ -14,7 +14,6 @@ export const ProductCard = ({
   product,
   onPreview,
   onCustomize,
-  onQuickAdd,
 }: ProductCardProps) => {
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-[#E8DFC8] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md">

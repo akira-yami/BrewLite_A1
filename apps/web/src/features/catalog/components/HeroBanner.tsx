@@ -101,7 +101,19 @@ export const HeroBanner = ({ onExploreClick }: HeroBannerProps) => {
 
         {/* 5. BADGE GÓC PHẢI DƯỚI */}
         <div className="absolute right-5 bottom-4 z-20 flex items-center gap-1.5 rounded-full border border-black/10 bg-white/95 px-3.5 py-1 text-[11px] font-bold text-[#1C1712] shadow-lg backdrop-blur-sm">
-          <span className="text-amber-800">🌱</span>
+          <svg
+            aria-hidden="true"
+            className="h-3.5 w-3.5 shrink-0 text-[#7C3A1D]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <ellipse cx="12" cy="12" rx="6.5" ry="9" transform="rotate(-30 12 12)" />
+            <path d="M9.5 5.5C11 9 9 14.5 14.5 18.5" />
+          </svg>
           <span>Rang mộc · Pha tươi mỗi ngày</span>
         </div>
       </section>

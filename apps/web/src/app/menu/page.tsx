@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Product } from '@/features/catalog/types';
 import { useMenuProducts } from '@/features/catalog/hooks/useMenuProducts';
+import { useScrollHeader } from '@/features/catalog/hooks/useScrollHeader';
 import { HeroBanner } from '@/features/catalog/components/HeroBanner';
 import { ProductCard } from '@/features/catalog/components/ProductCard';
 import { ProductCardSkeleton } from '@/features/catalog/components/ProductCardSkeleton';
@@ -20,6 +21,8 @@ export default function MenuPage() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const cart = useCartStore();
   const menuSectionRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const isHeaderVisible = useScrollHeader(headerRef);
 
   const { data: products = [], isLoading, isError, error, refetch } = useMenuProducts();
 
@@ -91,27 +94,33 @@ export default function MenuPage() {
         />
       </div>
 
-      {/* ==================== CONTAINER NỘI DUNG CHÍNH ==================== */}
-      <div className="relative z-10 mx-auto max-w-[1200px] px-4 py-4 sm:px-6 space-y-6">
-
-        {/* 1. TOP NAVBAR (Kích thước to, rõ nét, cân đối) */}
-        <header className="flex items-center justify-between border-b border-[#E8DFC8]/70 pb-4 pt-2">
-          {/* Logo phóng to nổi bật */}
-<Link 
-  href="/menu" 
-  className="relative block h-16 w-60 sm:h-20 sm:w-72 md:h-24 md:w-80 transition-transform hover:opacity-90"
->
-  <Image
-    src="/logo.png"
-    alt="BrewLite Cà Phê Trà"
-    fill
-    priority
-    className="object-contain object-left scale-125 origin-left"
-    sizes="360px"
-  />
-</Link>
-{/* Menu chính ở giữa: Cỡ 14px vừa vặn, giãn cách gap-8 */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-[#2C2117]">
+      {/* 1. TOP NAVBAR */}
+      <header
+        ref={headerRef}
+        aria-hidden={!isHeaderVisible}
+        inert={!isHeaderVisible}
+        className={`fixed inset-x-0 top-0 z-30 bg-[#FBF8F3]/95 backdrop-blur-md transition-[transform,translate,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:duration-150 ${
+          isHeaderVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="mx-auto max-w-[1200px] px-4 sm:px-6">
+          <div className="flex h-16 items-center justify-between border-b border-[#E8DFC8]/70 sm:h-18 md:h-20">
+            {/* Logo */}
+            <Link
+              href="/menu"
+              className="relative block h-12 w-36 shrink-0 sm:h-14 sm:w-56 md:h-16 lg:w-80 transition-transform hover:opacity-90"
+            >
+              <Image
+                src="/logo.png"
+                alt="BrewLite Cà Phê Trà"
+                fill
+                priority
+                className="object-contain object-left sm:scale-125 origin-left"
+                sizes="360px"
+              />
+            </Link>
+            {/* Menu chính ở giữa */}
+          <nav className="hidden md:flex items-center gap-4 lg:gap-8 text-base font-semibold text-[#2C2117]">
             <button
               type="button"
               onClick={scrollToMenu}
@@ -136,7 +145,7 @@ export default function MenuPage() {
           {/* Cụm bên phải: SGU Campus + Nút Giỏ hàng chuẩn vừa mắt */}
           <div className="flex items-center gap-5">
             {/* Địa điểm SGU Campus: Chữ 13px, icon h-4.5 w-4.5 */}
-            <div className="hidden sm:flex items-center gap-1.5 text-[13px] font-semibold text-[#3D2E24]">
+            <div className="hidden lg:flex items-center gap-1.5 text-[13px] font-semibold text-[#3D2E24]">
               <svg
                 className="h-4.5 w-4.5 text-[#8B4513]"
                 xmlns="http://www.w3.org/2000/svg"
@@ -180,13 +189,19 @@ export default function MenuPage() {
               </span>
             </button>
           </div>
-        </header>
+          </div>
+        </div>
+      </header>
+
+      {/* ==================== CONTAINER NỘI DUNG CHÍNH ==================== */}
+      <div className="relative z-10 mx-auto max-w-[1200px] px-4 py-4 sm:px-6 space-y-6">
+        <div aria-hidden="true" className="h-12 sm:h-14 md:h-16" />
 
         {/* 2. HERO BANNER + 3 CAM KẾT */}
         <HeroBanner onExploreClick={scrollToMenu} />
 
         {/* 3. MENU SECTION */}
-        <section ref={menuSectionRef} className="space-y-4 pt-1">
+        <section ref={menuSectionRef} className="scroll-mt-28 space-y-4 pt-1">
           {/* Tiêu đề & Ô tìm kiếm */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="space-y-1.5">

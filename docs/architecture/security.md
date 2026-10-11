@@ -15,6 +15,7 @@
 - Claim tối thiểu: `sub`, `role`, `iat`, `exp`, `iss`, `aud`, `jti`.
 - Xác minh đầy đủ signature, issuer, audience và expiration; không chấp nhận thuật toán từ header một cách tùy ý.
 - Nếu có refresh token: lưu trong cookie `HttpOnly`, `Secure`, `SameSite=Lax/Strict`; lưu hash refresh token ở server, rotate sau mỗi lần dùng và thu hồi cả token family khi phát hiện reuse.
+- Chi tiết biểu đồ luồng thực thi: xem [SD-05 & SD-06 Sequence Diagrams](./sequence-diagrams-auth.md).
 - Thông báo login sai dùng chung `INVALID_CREDENTIALS` để không lộ username tồn tại.
 
 ## 3. Phân quyền

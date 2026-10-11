@@ -118,7 +118,7 @@ async function main() {
 
     // Gán topping cho tất cả đồ uống
     if (!prod.sku.startsWith('PASTRY')) {
-   await prisma.productTopping.createMany({
+      await prisma.productTopping.createMany({
         data: createdToppings.map((t: any) => ({
           productId: createdProduct.id,
           toppingId: t.id,

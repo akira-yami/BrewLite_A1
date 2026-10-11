@@ -198,7 +198,11 @@ export const cartStore = {
   },
 
   replaceItem(idToReplace: string, input: AddCartItemInput) {
-    const nextId = formatCartItemId(input);
+    hydrateCart();
+    const sugarLevel = normalizeLevel(input.sugarLevel);
+    const iceLevel = normalizeLevel(input.iceLevel);
+    const note = normalizeNote(input.note);
+    const nextId = formatCartItemId({ ...input, productId: input.product.id, sugarLevel, iceLevel, note });
     const toppingsTotal = input.toppings.reduce((sum, topping) => sum + topping.price, 0);
     const replacement: CartItem = {
       id: nextId,
@@ -210,6 +214,9 @@ export const cartStore = {
       size: input.size,
       unitPrice: input.unitPrice,
       quantity: input.quantity,
+      sugarLevel,
+      iceLevel,
+      note,
       toppings: input.toppings,
       lineTotal: (input.unitPrice + toppingsTotal) * input.quantity,
     };

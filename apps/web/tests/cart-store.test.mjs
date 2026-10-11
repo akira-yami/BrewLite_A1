@@ -119,3 +119,36 @@ test('arbitrary note text can be persisted without breaking cart identity', asyn
   cartStore.addItem({ ...input, note });
   assert.equal(read()[0].note, note);
 });
+
+test('replacing a persisted item preserves preferences, note and price after reload', async () => {
+  const first = await setup();
+  first.cartStore.addItem(input);
+  const storedItems = first.read();
+  const edited = await setup(storedItems);
+  edited.cartStore.replaceItem(storedItems[0].id, {
+    ...input, quantity: 3, sugarLevel: 0, iceLevel: 25, note: '  Để topping riêng  ',
+  });
+  assert.equal(edited.read().length, 1);
+  assert.equal(edited.read()[0].quantity, 3);
+  assert.equal(edited.read()[0].lineTotal, 135000);
+  const reloaded = await setup(edited.read());
+  assert.deepEqual(reloaded.cartStore.getOrderItems()[0], {
+    productVariantId: 'variant', quantity: 3, toppingIds: ['pearl'],
+    sugarLevel: 0, iceLevel: 25, note: 'Để topping riêng',
+  });
+});
+
+test('replacement merges with matching normalized options and keeps different options separate', async () => {
+  const { cartStore, read } = await setup();
+  cartStore.addItem(input);
+  cartStore.addItem({ ...input, quantity: 2, sugarLevel: 0, iceLevel: 50, note: 'Riêng' });
+  cartStore.addItem({ ...input, sugarLevel: 100, iceLevel: 50, note: 'Riêng' });
+  cartStore.replaceItem(read()[0].id, {
+    ...input, quantity: 3, sugarLevel: 0, iceLevel: 50, note: '  Riêng  ',
+  });
+  assert.equal(read().length, 2);
+  assert.equal(read()[0].quantity, 5);
+  assert.equal(read()[0].lineTotal, 225000);
+  assert.equal(read()[1].sugarLevel, 100);
+  assert.equal(read()[1].quantity, 1);
+});

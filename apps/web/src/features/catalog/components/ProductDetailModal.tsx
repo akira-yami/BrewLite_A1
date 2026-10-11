@@ -49,15 +49,9 @@ const ProductDetailModalContent = ({
   );
   const [quantity, setQuantity] = useState(editingItem?.quantity ?? 1);
   
-  const [sugarLevel, setSugarLevel] = useState<string>(
-    editingItem?.sugarLevel === 0 ? 'Không đường (0%)' :
-    editingItem?.sugarLevel === 50 ? 'Ít đường (50%)' : 'Theo công thức chuẩn'
-  );
-  const [iceLevel, setIceLevel] = useState<string>(
-    editingItem?.iceLevel === 0 ? 'Không đá' :
-    editingItem?.iceLevel === 50 ? 'Ít đá (50%)' : 'Theo công thức chuẩn'
-  );
-  
+  const [sugarLevel, setSugarLevel] = useState<number | null>(editingItem?.sugarLevel ?? null);
+  const [iceLevel, setIceLevel] = useState<number | null>(editingItem?.iceLevel ?? null);
+
   const [selectedToppingIds, setSelectedToppingIds] = useState<string[]>(
     editingItem?.toppings?.map((t) => t.id) ?? []
   );
@@ -85,24 +79,14 @@ const ProductDetailModalContent = ({
   const handleAddToCart = () => {
     if (!selectedVariant) return;
 
-    let sugarVal: number | null = null;
-    if (sugarLevel === 'Không đường (0%)') sugarVal = 0;
-    else if (sugarLevel === 'Ít đường (50%)') sugarVal = 50;
-    else if (sugarLevel === 'Theo công thức chuẩn') sugarVal = 100;
-
-    let iceVal: number | null = null;
-    if (iceLevel === 'Không đá') iceVal = 0;
-    else if (iceLevel === 'Ít đá (50%)') iceVal = 50;
-    else if (iceLevel === 'Theo công thức chuẩn') iceVal = 100;
-
     const cartInput = {
       product,
       variantId: selectedVariant.id,
       size: selectedVariant.size,
       unitPrice: Number(selectedVariant.price),
       quantity,
-      sugarLevel: sugarVal,
-      iceLevel: iceVal,
+      sugarLevel,
+      iceLevel,
       note,
       toppings: selectedToppingIds
         .map((id) => product.toppings?.find((t) => t.id === id))
@@ -236,25 +220,27 @@ const ProductDetailModalContent = ({
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[#163D2C]">Mức đường</label>
               <select
-                value={sugarLevel}
-                onChange={(e) => setSugarLevel(e.target.value)}
+                value={sugarLevel ?? 'standard'}
+                onChange={(e) => setSugarLevel(e.target.value === 'standard' ? null : Number(e.target.value))}
                 className="w-full rounded-xl border border-[#EBE1D4] bg-[#FAF7F2] p-2.5 text-xs font-medium text-[#1A1612] focus:border-[#163D2C] focus:outline-none"
               >
-                <option>Theo công thức chuẩn</option>
-                <option>Ít đường (50%)</option>
-                <option>Không đường (0%)</option>
+                <option value="standard">Theo công thức chuẩn</option>
+                {[0, 25, 50, 75, 100].map((level) => (
+                  <option key={level} value={level}>{level}%</option>
+                ))}
               </select>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[#163D2C]">Mức đá</label>
               <select
-                value={iceLevel}
-                onChange={(e) => setIceLevel(e.target.value)}
+                value={iceLevel ?? 'standard'}
+                onChange={(e) => setIceLevel(e.target.value === 'standard' ? null : Number(e.target.value))}
                 className="w-full rounded-xl border border-[#EBE1D4] bg-[#FAF7F2] p-2.5 text-xs font-medium text-[#1A1612] focus:border-[#163D2C] focus:outline-none"
               >
-                <option>Theo công thức chuẩn</option>
-                <option>Ít đá (50%)</option>
-                <option>Không đá</option>
+                <option value="standard">Theo công thức chuẩn</option>
+                {[0, 25, 50, 75, 100].map((level) => (
+                  <option key={level} value={level}>{level}%</option>
+                ))}
               </select>
             </div>
           </div>
@@ -306,6 +292,7 @@ const ProductDetailModalContent = ({
           <button
             type="button"
             onClick={handleAddToCart}
+            disabled={!selectedVariant}
             className="flex w-full items-center justify-between rounded-full bg-[#163D2C] px-6 py-3.5 text-white shadow-md transition hover:bg-[#1f503a] active:scale-[0.99]"
           >
             <span className="text-sm font-bold">

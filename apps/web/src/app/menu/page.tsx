@@ -55,6 +55,7 @@ export default function MenuPage() {
   const handleQuickAdd = (product: Product) => {
     const variant = product.variants.find((item) => item.size === 'M') ?? product.variants[0];
     if (!variant) {
+      setEditingCartItem(null);
       setPreviewingProduct(product);
       return;
     }
@@ -65,8 +66,8 @@ export default function MenuPage() {
       size: variant.size,
       unitPrice: Number(variant.price),
       quantity: 1,
-      sugarLevel: 100,
-      iceLevel: 100,
+      sugarLevel: null,
+      iceLevel: null,
       toppings: [],
     });
   };

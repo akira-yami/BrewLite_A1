@@ -140,9 +140,6 @@ const ProductDetailModalContent = ({
                 className="object-cover"
                 sizes="(max-width: 640px) 100vw, 50vw"
               />
-              <span className="absolute left-3 top-3 rounded-md bg-[#163D2C] px-2.5 py-1 text-[10px] font-bold tracking-wider text-white">
-                {product.sku}
-              </span>
             </div>
 
             <div className="flex flex-col justify-between space-y-4">

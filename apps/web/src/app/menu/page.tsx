@@ -344,13 +344,13 @@ export default function MenuPage() {
         {/* 4. FOOTER */}
         <footer className="mt-12 flex flex-col sm:flex-row items-center justify-between border-t border-[#E8DFC8]/70 py-6 text-xs text-[#7A6C60] gap-4">
           <div className="flex items-center gap-3">
-            <div className="relative h-6 w-20">
+            <div className="relative h-8 w-28 shrink-0">
               <Image
                 src="/logo.png"
                 alt="BrewLite"
                 fill
                 className="object-contain object-left"
-                sizes="80px"
+                sizes="112px"
               />
             </div>
             <span>·</span>

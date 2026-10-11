@@ -31,6 +31,12 @@ JWT_AUDIENCE=brewlite-web
 
 `JWT_SECRET` bắt buộc để ký và xác thực JWT. API dừng khi thiếu biến này. File `.env` dùng cho local được Git bỏ qua; không ghi secret thật vào `.env.example`.
 
+## Seed Catalog
+
+Sau khi migrate, chạy `npm run db:seed` để bổ sung catalog mẫu. Seed chỉ thêm sản phẩm, size, topping và liên kết còn thiếu theo SKU/code/khóa liên kết; có thể chạy nhiều lần mà không tạo bản ghi trùng.
+
+Seed giữ nguyên ID, giá, tồn kho, version, trạng thái và nội dung đã chỉnh sửa của bản ghi hiện có. Không xóa đơn hàng, chi tiết đơn, topping của đơn hoặc giữ chỗ tồn kho. Toàn bộ seed chạy trong một transaction: nếu gặp lỗi, dữ liệu vừa thêm được rollback và lệnh trả mã lỗi.
+
 ## Kiểm tra
 
 ```bash

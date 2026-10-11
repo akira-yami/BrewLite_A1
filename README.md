@@ -135,10 +135,14 @@ Chạy toàn bộ stack bằng:
 
 ```bash
 cp .env.example .env
+node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
+# Điền secret vừa tạo vào JWT_SECRET trong .env trước khi chạy Compose.
 docker compose up --build
 ```
 
 Compose chạy service `migrate` trước backend. Kiểm tra trạng thái bằng `docker compose ps -a`; `migrate` phải exit 0, các service còn lại healthy. Frontend chạy tại `http://localhost:3000`, backend tại `http://localhost:3001/api/v1` và health endpoint là `http://localhost:3001/api/v1/health`.
+
+`JWT_SECRET` bắt buộc và không có giá trị mặc định. Compose dừng ngay nếu biến thiếu hoặc rỗng; mỗi môi trường cần secret riêng. Không commit file `.env` thật.
 
 Khi chạy trực tiếp trên host, tạo database PostgreSQL rồi làm theo [README API](./apps/api/README.md): dùng `apps/api/.env.example` với hostname `localhost`, chạy migrate trước start. Root `.env.example` dùng hostname `postgres` cho Compose.
 

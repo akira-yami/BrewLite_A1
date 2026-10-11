@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { UserRole } from '../../generated/prisma/client.js';
-import { UserRepository } from './repositories/user.repository.js';
-import { LoginDto } from './dto/login.dto.js';
-import { RegisterDto } from './dto/register.dto.js';
+import { UserRole } from '../../../generated/prisma/client.js';
+import { UserRepository } from '../repositories/user.repository.js';
+import { LoginDto } from '../dto/login.dto.js';
+import { RegisterDto } from '../dto/register.dto.js';
 
 export interface SafeUser {
   id: string;

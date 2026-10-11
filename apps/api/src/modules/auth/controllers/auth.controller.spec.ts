@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { AuthController } from './auth.controller.js';
-import { AuthService } from './auth.service.js';
-import { UserRole } from '../../generated/prisma/client.js';
+import { AuthService } from '../services/auth.service.js';
+import { UserRole } from '../../../generated/prisma/client.js';
 
 describe('AuthController (Unit Test - TDD)', () => {
   let controller: AuthController;

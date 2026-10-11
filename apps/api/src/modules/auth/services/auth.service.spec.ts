@@ -3,8 +3,8 @@ import { JwtService } from '@nestjs/jwt';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service.js';
-import { UserRepository } from './repositories/user.repository.js';
-import { UserRole } from '../../generated/prisma/client.js';
+import { UserRepository } from '../repositories/user.repository.js';
+import { UserRole } from '../../../generated/prisma/client.js';
 
 describe('AuthService (Unit Test - TDD)', () => {
   let authService: AuthService;

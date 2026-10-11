@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
+import { useCurrentUser, logoutUser } from '@/features/auth/hooks';
 import { Product } from '@/features/catalog/types';
 import { useMenuProducts } from '@/features/catalog/hooks/useMenuProducts';
 import { HeroBanner } from '@/features/catalog/components/HeroBanner';
@@ -11,11 +13,16 @@ import { CartDrawer } from '@/features/cart/components/CartDrawer';
 import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 
 export default function MenuPage() {
+  const currentUser = useCurrentUser();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewingProduct, setPreviewingProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const cart = useCartStore();
+
+  const handleLogout = () => {
+    logoutUser();
+  };
 
   // 1. Fetch dữ liệu thật từ API NestJS qua TanStack Query
   const { data: products = [], isLoading, isError, error, refetch } = useMenuProducts();
@@ -83,9 +90,30 @@ export default function MenuPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden text-[11px] font-semibold text-[#163E2B] sm:inline">
+            <span className="hidden text-[11px] font-semibold text-[#163E2B] lg:inline">
               Ủ nóng 70°C • Chiết xuất tươi
             </span>
+            {currentUser ? (
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="max-w-[100px] truncate text-xs font-bold text-[#163E2B] sm:max-w-none">
+                  👤 {currentUser.username}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="rounded-full border border-[#E5DCD2] bg-white px-2.5 py-1 text-xs font-medium text-[#756A63] transition hover:border-[#163E2B] hover:text-[#163E2B]"
+                >
+                  Đăng xuất
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="rounded-full border border-[#163E2B] px-3 py-1.5 text-xs font-bold text-[#163E2B] transition hover:bg-[#163E2B] hover:text-white"
+              >
+                Đăng nhập
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => setIsCartOpen(true)}

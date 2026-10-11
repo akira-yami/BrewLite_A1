@@ -1,14 +1,15 @@
 'use client';
 
 import Image from 'next/image';
-import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 
 interface CartDrawerProps {
   open: boolean;
   onClose: () => void;
+  onEditOptions: (item: CartItem) => void;
 }
 
-export function CartDrawer({ open, onClose }: CartDrawerProps) {
+export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
   const { items, subtotal, totalQuantity } = useCartStore();
 
   return (
@@ -70,9 +71,9 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                 return (
                   <article
                     key={item.id}
-                    className="grid grid-cols-[72px_1fr] gap-3 rounded-2xl border border-[#E5DCD2] bg-[#FAF6F2] p-3"
+                    className="grid grid-cols-[88px_1fr] gap-3 rounded-2xl border border-[#E5DCD2] bg-[#FAF6F2] p-3 shadow-sm"
                   >
-                    <div className="relative h-[72px] overflow-hidden rounded-xl bg-white">
+                    <div className="relative h-[88px] overflow-hidden rounded-xl bg-white">
                       <Image
                         src={item.imageUrl}
                         alt={item.name}
@@ -95,17 +96,21 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
                         <button
                           type="button"
                           onClick={() => cartStore.removeItem(item.id)}
-                          className="text-[11px] font-bold text-[#9f3f2f] hover:underline"
+                          className="shrink-0 text-[11px] font-bold text-[#9f3f2f] hover:underline"
                         >
                           Xóa
                         </button>
                       </div>
 
-                      {item.toppings.length > 0 && (
-                        <p className="line-clamp-2 text-[11px] leading-5 text-[#756A63]">
-                          Topping: {item.toppings.map((topping) => topping.name).join(', ')}
-                        </p>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => onEditOptions(item)}
+                        className="inline-flex w-fit items-center gap-2 rounded-full bg-[#E8F1EC] px-3 py-1.5 text-[11px] font-black text-[#163E2B] transition hover:bg-[#dcebe3]"
+                      >
+                        <span aria-hidden="true">⚙</span>
+                        <span>Sửa tùy chọn</span>
+                        <span aria-hidden="true">›</span>
+                      </button>
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center rounded-full border border-[#E5DCD2] bg-white">

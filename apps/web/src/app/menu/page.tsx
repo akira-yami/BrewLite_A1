@@ -10,12 +10,13 @@ import { ProductCard } from '@/features/catalog/components/ProductCard';
 import { ProductCardSkeleton } from '@/features/catalog/components/ProductCardSkeleton';
 import { ProductDetailModal } from '@/features/catalog/components/ProductDetailModal';
 import { CartDrawer } from '@/features/cart/components/CartDrawer';
-import { cartStore, useCartStore } from '@/stores/cart-store';
+import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 
 export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewingProduct, setPreviewingProduct] = useState<Product | null>(null);
+  const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const cart = useCartStore();
   const menuSectionRef = useRef<HTMLDivElement>(null);
@@ -297,7 +298,7 @@ export default function MenuPage() {
                 }}
                 className="mt-2 text-xs font-bold text-[#153D2C] hover:underline"
               >
-                Xem tất cả món
+                Xóa bộ lọc & xem tất cả món
               </button>
             </div>
           )}
@@ -309,8 +310,14 @@ export default function MenuPage() {
                 <ProductCard
                   key={p.id}
                   product={p}
-                  onPreview={(item) => setPreviewingProduct(item)}
-                  onCustomize={(item) => setPreviewingProduct(item)}
+                  onPreview={(item) => {
+                    setEditingCartItem(null);
+                    setPreviewingProduct(item);
+                  }}
+                  onCustomize={(item) => {
+                    setEditingCartItem(null);
+                    setPreviewingProduct(item);
+                  }}
                   onQuickAdd={handleQuickAdd}
                 />
               ))}
@@ -351,11 +358,37 @@ export default function MenuPage() {
 
       <ProductDetailModal
         product={previewingProduct}
-        onClose={() => setPreviewingProduct(null)}
+        editingItem={editingCartItem}
+        onClose={() => {
+          setPreviewingProduct(null);
+          setEditingCartItem(null);
+        }}
         onAddedToCart={() => setIsCartOpen(true)}
       />
 
-      <CartDrawer open={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      {cart.totalQuantity > 0 && (
+        <button
+          type="button"
+          onClick={() => setIsCartOpen(true)}
+          className="fixed bottom-4 left-1/2 z-30 flex w-[calc(100%-24px)] max-w-xl -translate-x-1/2 items-center justify-between rounded-full border border-[#E5DCD2] bg-[#163E2B] px-4 py-3 text-sm font-black text-white shadow-2xl transition hover:bg-[#1f4f38] md:hidden"
+        >
+          <span>{cart.totalQuantity} món trong giỏ</span>
+          <span className="font-mono">{formatVnd(cart.subtotal)}</span>
+        </button>
+      )}
+
+      <CartDrawer
+        open={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        onEditOptions={(item) => {
+          const product = products.find((candidate) => candidate.id === item.productId);
+          if (!product) return;
+
+          setEditingCartItem(item);
+          setPreviewingProduct(product);
+          setIsCartOpen(false);
+        }}
+      />
     </div>
   );
 }

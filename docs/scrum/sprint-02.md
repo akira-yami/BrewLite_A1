@@ -8,6 +8,8 @@ Hoàn thiện giỏ hàng, xác thực và tạo đơn PENDING từ dữ liệu 
 
 ## Sprint Backlog
 
+Ghi chú `OrderItem.note` tối đa 500 ký tự sau trim, nullable; giỏ persist/tách dòng theo ghi chú và checkout lưu cùng snapshot.
+
 | Backlog item | Nội dung | Assignee | Trạng thái | Acceptance Criteria |
 |---|---|---|---|---|
 | Task 5 | Giỏ hàng | _Điền tên_ | TODO | Theo `product-backlog.md` |

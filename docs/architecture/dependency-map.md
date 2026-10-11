@@ -35,7 +35,7 @@ loyalty
 | `users` | Quản lý thông tin người dùng |
 | `catalog` | Product, ProductVariant, Topping |
 | `inventory` | Kiểm soát tồn kho, reservation |
-| `orders` | Order, OrderItem (snapshot đường/đá nullable 0..100), Order State Machine |
+| `orders` | Order, OrderItem (snapshot đường/đá nullable 0..100 và note nullable tối đa 500 ký tự), Order State Machine |
 | `payments` | Thanh toán, idempotency, mock payment gateway |
 | `promotions` | Coupon, kiểm tra điều kiện áp mã |
 | `loyalty` | Cộng/trừ điểm thưởng và lịch sử điểm |

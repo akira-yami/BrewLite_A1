@@ -1,69 +1,86 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
-import { Product, ProductVariant } from '../types';
-import { cartStore } from '@/stores/cart-store';
+import { CartItem, cartStore, formatVnd } from '@/stores/cart-store';
+import { Product } from '../types';
 
 interface ProductDetailModalProps {
   product: Product | null;
   onClose: () => void;
   onAddedToCart?: () => void;
+  editingItem?: CartItem | null;
 }
-
-interface ToppingOption {
-  id: string;
-  name: string;
-  price: number;
-}
-
-const AVAILABLE_TOPPINGS: ToppingOption[] = [
-  { id: 'top-1', name: 'Trân châu trắng tuyết hoa', price: 8000 },
-  { id: 'top-2', name: 'Kem cheese mật ong béo ngậy', price: 10000 },
-  { id: 'top-3', name: 'Extra Shot Espresso Cầu Đất', price: 12000 },
-  { id: 'top-4', name: 'Thạch sương sáo thảo mộc', price: 6000 },
-];
 
 export const ProductDetailModal = ({
   product,
   onClose,
   onAddedToCart,
+  editingItem,
 }: ProductDetailModalProps) => {
-  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [sugarLevel, setSugarLevel] = useState('Theo công thức chuẩn');
-  const [iceLevel, setIceLevel] = useState('Theo công thức chuẩn');
-  const [selectedToppings, setSelectedToppings] = useState<ToppingOption[]>([]);
+  if (!product) return null;
 
-  useEffect(() => {
-    if (product && product.variants.length > 0) {
-      const defaultVariant = product.variants.find((v) => v.size === 'M') || product.variants[0];
+  return (
+    <ProductDetailModalContent
+      key={`${product.id}:${editingItem?.id ?? 'new'}`}
+      product={product}
+      onClose={onClose}
+      onAddedToCart={onAddedToCart}
+      editingItem={editingItem}
+    />
+  );
+};
 
-// eslint-disable-next-line react-hooks/set-state-in-effect
-setSelectedVariant(defaultVariant);
-      setQuantity(1);
-      setSelectedToppings([]);
-      setSugarLevel('Theo công thức chuẩn');
-      setIceLevel('Theo công thức chuẩn');
-    }
-  }, [product]);
+const ProductDetailModalContent = ({
+  product,
+  onClose,
+  onAddedToCart,
+  editingItem,
+}: {
+  product: Product;
+  onClose: () => void;
+  onAddedToCart?: () => void;
+  editingItem?: CartItem | null;
+}) => {
+  const defaultVariant = product.variants.find((v) => v.size === 'M') || product.variants[0];
 
-  const toggleTopping = (topping: ToppingOption) => {
-    setSelectedToppings((prev) =>
-      prev.some((t) => t.id === topping.id)
-        ? prev.filter((t) => t.id !== topping.id)
-        : [...prev, topping]
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(
+    editingItem?.variantId ?? defaultVariant?.id ?? ''
+  );
+  const [quantity, setQuantity] = useState(editingItem?.quantity ?? 1);
+  
+  const [sugarLevel, setSugarLevel] = useState<string>(
+    editingItem?.sugarLevel === 0 ? 'Không đường (0%)' :
+    editingItem?.sugarLevel === 50 ? 'Ít đường (50%)' : 'Theo công thức chuẩn'
+  );
+  const [iceLevel, setIceLevel] = useState<string>(
+    editingItem?.iceLevel === 0 ? 'Không đá' :
+    editingItem?.iceLevel === 50 ? 'Ít đá (50%)' : 'Theo công thức chuẩn'
+  );
+  
+  const [selectedToppingIds, setSelectedToppingIds] = useState<string[]>(
+    editingItem?.toppings?.map((t) => t.id) ?? []
+  );
+  const [note, setNote] = useState(editingItem?.note ?? '');
+
+  const toggleTopping = (toppingId: string) => {
+    setSelectedToppingIds((prev) =>
+      prev.includes(toppingId)
+        ? prev.filter((id) => id !== toppingId)
+        : [...prev, toppingId]
     );
   };
 
-  const totalPrice = useMemo(() => {
-    if (!selectedVariant) return 0;
-    const base = Number(selectedVariant.price);
-    const toppingsSum = selectedToppings.reduce((acc, t) => acc + t.price, 0);
-    return (base + toppingsSum) * quantity;
-  }, [selectedVariant, selectedToppings, quantity]);
+  const selectedVariant = product.variants.find((v) => v.id === selectedVariantId) || defaultVariant;
 
-  if (!product) return null;
+  const itemTotal = useMemo(() => {
+    const base = selectedVariant ? Number(selectedVariant.price) : product.basePrice;
+    const toppingsSum = selectedToppingIds.reduce((acc, id) => {
+      const t = product.toppings?.find((top) => top.id === id);
+      return acc + (t ? Number(t.price) : 0);
+    }, 0);
+    return (base + toppingsSum) * quantity;
+  }, [selectedVariant, selectedToppingIds, quantity, product]);
 
   const handleAddToCart = () => {
     if (!selectedVariant) return;
@@ -78,7 +95,7 @@ setSelectedVariant(defaultVariant);
     else if (iceLevel === 'Ít đá (50%)') iceVal = 50;
     else if (iceLevel === 'Theo công thức chuẩn') iceVal = 100;
 
-    cartStore.addItem({
+    const cartInput = {
       product,
       variantId: selectedVariant.id,
       size: selectedVariant.size,
@@ -86,12 +103,22 @@ setSelectedVariant(defaultVariant);
       quantity,
       sugarLevel: sugarVal,
       iceLevel: iceVal,
-      toppings: selectedToppings.map((t) => ({
-        id: t.id,
-        name: t.name,
-        price: t.price,
-      })),
-    });
+      note,
+      toppings: selectedToppingIds
+        .map((id) => product.toppings?.find((t) => t.id === id))
+        .filter((t): t is NonNullable<typeof t> => t !== undefined)
+        .map((t) => ({
+          id: t.id,
+          name: t.name,
+          price: Number(t.price),
+        })),
+    };
+
+    if (editingItem) {
+      cartStore.replaceItem(editingItem.id, cartInput);
+    } else {
+      cartStore.addItem(cartInput);
+    }
 
     onClose();
     if (onAddedToCart) {
@@ -99,18 +126,16 @@ setSelectedVariant(defaultVariant);
     }
   };
 
+  const availableToppings = product.toppings || [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
-      {/* Lớp nền làm mờ phía sau */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
-
-      {/* Cửa sổ Modal */}
       <div className="relative z-10 flex h-[88vh] max-h-[700px] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Nút đóng (X) */}
         <button
           type="button"
           onClick={onClose}
@@ -120,9 +145,7 @@ setSelectedVariant(defaultVariant);
           ✕
         </button>
 
-        {/* 1. KHU VỰC NỘI DUNG CUỘN ĐỘC LẬP */}
         <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-8 space-y-6">
-          {/* Ảnh & Thông tin món */}
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div className="relative h-52 sm:h-56 w-full overflow-hidden rounded-2xl bg-[#F7F3ED]">
               <Image
@@ -148,15 +171,14 @@ setSelectedVariant(defaultVariant);
                 </h3>
                 <p className="mt-1 text-lg font-bold text-[#1A1612]">
                   {selectedVariant
-                    ? `${Number(selectedVariant.price).toLocaleString('vi-VN')} đ`
-                    : `${product.basePrice.toLocaleString('vi-VN')} đ`}
+                    ? formatVnd(Number(selectedVariant.price))
+                    : formatVnd(product.basePrice)}
                 </p>
                 <p className="mt-2 text-xs text-[#5A4D43] leading-relaxed">
                   {product.description || 'Hương vị tự nhiên, pha chế tươi mới mỗi ngày.'}
                 </p>
               </div>
 
-              {/* Bộ đếm số lượng */}
               <div className="flex items-center justify-between rounded-2xl border border-[#EBE1D4] bg-[#FAF7F2] p-3">
                 <span className="text-xs font-bold text-[#1A1612]">Số lượng</span>
                 <div className="flex items-center gap-3">
@@ -184,17 +206,16 @@ setSelectedVariant(defaultVariant);
 
           <div className="h-px w-full bg-[#EBE1D4]" />
 
-          {/* Chọn Size */}
           <div className="space-y-2.5">
             <label className="text-xs font-bold text-[#163D2C]">Các kích thước sẵn có:</label>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {product.variants.map((v) => {
-                const isSelected = selectedVariant?.id === v.id;
+                const isSelected = selectedVariantId === v.id;
                 return (
                   <button
                     key={v.id}
                     type="button"
-                    onClick={() => setSelectedVariant(v)}
+                    onClick={() => setSelectedVariantId(v.id)}
                     className={`rounded-2xl border p-3 text-left transition ${
                       isSelected
                         ? 'border-[#163D2C] bg-[#F2F7F4] text-[#163D2C] ring-1 ring-[#163D2C]'
@@ -203,7 +224,7 @@ setSelectedVariant(defaultVariant);
                   >
                     <div className="text-xs font-bold">Size {v.size}</div>
                     <div className="text-[11px] font-medium opacity-80">
-                      {Number(v.price).toLocaleString('vi-VN')} đ • Còn {v.stock}
+                      {formatVnd(Number(v.price))} • Còn {v.stock}
                     </div>
                   </button>
                 );
@@ -211,7 +232,6 @@ setSelectedVariant(defaultVariant);
             </div>
           </div>
 
-          {/* Dropdown Đường & Đá */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[#163D2C]">Mức đường</label>
@@ -225,7 +245,6 @@ setSelectedVariant(defaultVariant);
                 <option>Không đường (0%)</option>
               </select>
             </div>
-
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-[#163D2C]">Mức đá</label>
               <select
@@ -240,45 +259,63 @@ setSelectedVariant(defaultVariant);
             </div>
           </div>
 
-          {/* Topping */}
-          <div className="space-y-2.5 pb-2">
-            <label className="text-xs font-bold text-[#163D2C]">Topping thêm:</label>
-            <div className="flex flex-wrap gap-2">
-              {AVAILABLE_TOPPINGS.map((t) => {
-                const isSelected = selectedToppings.some((item) => item.id === t.id);
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => toggleTopping(t)}
-                    className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
-                      isSelected
-                        ? 'border-[#163D2C] bg-[#163D2C] text-white shadow-sm'
-                        : 'border-[#EBE1D4] bg-[#FAF7F2] text-[#40352C] hover:border-[#163D2C]'
-                    }`}
-                  >
-                    + {t.name} {t.price.toLocaleString('vi-VN')} đ
-                  </button>
-                );
-              })}
+          {availableToppings.length > 0 && (
+            <div className="space-y-2.5">
+              <label className="text-xs font-bold text-[#163D2C]">Topping thêm:</label>
+              <div className="flex flex-wrap gap-2">
+                {availableToppings.map((t) => {
+                  const isSelected = selectedToppingIds.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      disabled={!t.available}
+                      onClick={() => toggleTopping(t.id)}
+                      className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+                        isSelected
+                          ? 'border-[#163D2C] bg-[#163D2C] text-white shadow-sm'
+                          : 'border-[#EBE1D4] bg-[#FAF7F2] text-[#40352C] hover:border-[#163D2C]'
+                      } disabled:cursor-not-allowed disabled:opacity-50`}
+                    >
+                      + {t.name} {formatVnd(Number(t.price))}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          )}
+
+          <div className="space-y-1.5 pb-2">
+            <label className="text-xs font-bold text-[#163D2C]">
+              Ghi chú cho món
+            </label>
+            <textarea
+              name="note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              maxLength={500}
+              rows={2}
+              placeholder="Ví dụ: để topping riêng"
+              className="mt-1 block w-full rounded-xl border border-[#EBE1D4] bg-[#FAF7F2] px-3 py-2 text-xs font-medium text-[#1A1612] focus:border-[#163D2C] focus:outline-none"
+            />
+            <div className="text-right text-[10px] text-[#A39282]">{note.length}/500</div>
           </div>
         </div>
 
-        {/* 2. CHÂN ĐẾ FOOTER TÁCH BIỆT CỐ ĐỊNH Ở ĐÁY */}
         <div className="shrink-0 border-t border-[#EBE1D4] bg-white p-4 sm:px-8">
           <button
             type="button"
             onClick={handleAddToCart}
             className="flex w-full items-center justify-between rounded-full bg-[#163D2C] px-6 py-3.5 text-white shadow-md transition hover:bg-[#1f503a] active:scale-[0.99]"
           >
-            <span className="text-sm font-bold">Thêm vào giỏ</span>
+            <span className="text-sm font-bold">
+              {editingItem ? 'Cập nhật giỏ' : 'Thêm vào giỏ'}
+            </span>
             <span className="text-sm font-extrabold tracking-wide">
-              {totalPrice.toLocaleString('vi-VN')} đ
+              {formatVnd(itemTotal)}
             </span>
           </button>
         </div>
-
       </div>
     </div>
   );

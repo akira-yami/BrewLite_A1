@@ -16,11 +16,12 @@ export interface CartItem {
   quantity: number;
   sugarLevel: number | null;
   iceLevel: number | null;
+  note: string | null;
   toppings: Array<Pick<Topping, 'id' | 'name' | 'price'>>;
   lineTotal: number;
 }
 
-interface AddCartItemInput {
+export interface AddCartItemInput {
   product: Product;
   variantId: string;
   size: ProductSize;
@@ -28,6 +29,7 @@ interface AddCartItemInput {
   quantity: number;
   sugarLevel?: number | null;
   iceLevel?: number | null;
+  note?: string | null;
   toppings: Array<Pick<Topping, 'id' | 'name' | 'price'>>;
 }
 
@@ -54,27 +56,33 @@ function normalizeLevel(value: unknown): number | null {
     : null;
 }
 
-function formatCartItemId(input: Pick<CartItem, 'productId' | 'variantId' | 'toppings' | 'sugarLevel' | 'iceLevel'>) {
+function normalizeNote(value: unknown): string | null {
+  return typeof value === 'string' ? value.trim() || null : null;
+}
+
+function formatCartItemId(input: Pick<CartItem, 'productId' | 'variantId' | 'toppings' | 'sugarLevel' | 'iceLevel' | 'note'>) {
   const toppingKey = input.toppings
     .map((topping) => topping.id)
     .sort()
     .join('.');
 
-  return `${input.productId}:${input.variantId}:${toppingKey || 'plain'}:sugar=${input.sugarLevel ?? 'standard'}:ice=${input.iceLevel ?? 'standard'}`;
+  return `${input.productId}:${input.variantId}:${toppingKey || 'plain'}:sugar=${input.sugarLevel ?? 'standard'}:ice=${input.iceLevel ?? 'standard'}:note=${JSON.stringify(input.note)}`;
 }
 
 function calculateSnapshot(items: CartItem[]): CartSnapshot {
   const normalizedItems = items.map((item) => {
     const sugarLevel = normalizeLevel(item.sugarLevel);
     const iceLevel = normalizeLevel(item.iceLevel);
+    const note = normalizeNote(item.note);
     const toppingsTotal = item.toppings.reduce((sum, topping) => sum + topping.price, 0);
     const lineTotal = (item.unitPrice + toppingsTotal) * item.quantity;
 
     return {
       ...item,
-      id: formatCartItemId({ ...item, sugarLevel, iceLevel }),
+      id: formatCartItemId({ ...item, sugarLevel, iceLevel, note }),
       sugarLevel,
       iceLevel,
+      note,
       lineTotal,
     };
   });
@@ -147,6 +155,7 @@ export const cartStore = {
       toppingIds: item.toppings.map((topping) => topping.id),
       sugarLevel: item.sugarLevel,
       iceLevel: item.iceLevel,
+      note: item.note,
     }));
   },
 
@@ -154,7 +163,8 @@ export const cartStore = {
     hydrateCart();
     const sugarLevel = normalizeLevel(input.sugarLevel);
     const iceLevel = normalizeLevel(input.iceLevel);
-    const id = formatCartItemId({ ...input, productId: input.product.id, sugarLevel, iceLevel });
+    const note = normalizeNote(input.note);
+    const id = formatCartItemId({ ...input, productId: input.product.id, sugarLevel, iceLevel, note });
     const existing = currentSnapshot.items.find((item) => item.id === id);
 
     if (existing) {
@@ -179,11 +189,46 @@ export const cartStore = {
       quantity: input.quantity,
       sugarLevel,
       iceLevel,
+      note,
       toppings: input.toppings,
       lineTotal: (input.unitPrice + toppingsTotal) * input.quantity,
     };
 
     emit([...currentSnapshot.items, nextItem]);
+  },
+
+  replaceItem(idToReplace: string, input: AddCartItemInput) {
+    const nextId = formatCartItemId(input);
+    const toppingsTotal = input.toppings.reduce((sum, topping) => sum + topping.price, 0);
+    const replacement: CartItem = {
+      id: nextId,
+      productId: input.product.id,
+      variantId: input.variantId,
+      sku: input.product.sku,
+      name: input.product.name,
+      imageUrl: input.product.imageUrl,
+      size: input.size,
+      unitPrice: input.unitPrice,
+      quantity: input.quantity,
+      toppings: input.toppings,
+      lineTotal: (input.unitPrice + toppingsTotal) * input.quantity,
+    };
+
+    const withoutOriginal = currentSnapshot.items.filter((item) => item.id !== idToReplace);
+    const sameConfiguration = withoutOriginal.find((item) => item.id === nextId);
+
+    if (sameConfiguration) {
+      emit(
+        withoutOriginal.map((item) =>
+          item.id === nextId
+            ? { ...item, quantity: item.quantity + replacement.quantity }
+            : item,
+        ),
+      );
+      return;
+    }
+
+    emit([...withoutOriginal, replacement]);
   },
 
   updateQuantity(id: string, quantity: number) {

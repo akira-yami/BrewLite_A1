@@ -6,6 +6,7 @@ export interface OrderItemResponseDto {
   quantity: number;
   sugarLevel: number | null;
   iceLevel: number | null;
+  note: string | null;
   toppings: Array<{ name: string; unitPrice: number; quantity: number }>;
   lineTotal: number;
 }

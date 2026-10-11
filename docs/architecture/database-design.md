@@ -98,6 +98,8 @@ Không tạo index dư thừa trên cột ít phân biệt như boolean đơn l�
 
 ## 5. Transaction tạo đơn
 
+Migration `20261010100000_order_item_note` thêm `order_items.note VARCHAR(500) NULL`, không default; đơn cũ nhận null. DTO kiểm tra chuỗi tối đa 500 ký tự sau trim, chuỗi trắng được chuẩn hóa thành null. Snapshot ghi chú cùng item, không đổi giá. Chỉ gộp dòng khi cùng cả note đã chuẩn hóa, nhưng reservation vẫn cộng quantity theo variant.
+
 Transaction cần ngắn và không gọi HTTP bên ngoài:
 
 ```text
@@ -113,6 +115,7 @@ BEGIN
     nếu row_count = 0: conflict/hết hàng
   INSERT order + items + item_toppings
   lưu sugar_level/ice_level cho từng item, cùng snapshot giá
+  lưu note đã trim (rỗng/thiếu thành null) cùng item
   INSERT inventory_reservations(status=ACTIVE)
   INSERT order_status_history(NULL -> PENDING)
 COMMIT

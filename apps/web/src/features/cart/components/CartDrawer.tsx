@@ -107,6 +107,16 @@ export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
                         {' • '}Đá: {item.iceLevel === null ? 'Theo công thức chuẩn' : `${item.iceLevel}%`}
                       </p>
 
+                      <button
+                        type="button"
+                        onClick={() => onEditOptions(item)}
+                        className="inline-flex w-fit items-center gap-2 rounded-full bg-[#E8F1EC] px-3 py-1.5 text-[11px] font-black text-[#163E2B] transition hover:bg-[#dcebe3]"
+                      >
+                        <span aria-hidden="true">⚙</span>
+                        <span>Sửa tùy chọn</span>
+                        <span aria-hidden="true">›</span>
+                      </button>
+
                       {item.note !== null && (
                         <p className="whitespace-pre-wrap break-words text-[11px] leading-5 text-[#756A63]">
                           Ghi chú: {item.note}

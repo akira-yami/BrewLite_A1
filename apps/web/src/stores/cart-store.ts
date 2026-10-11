@@ -14,10 +14,10 @@ export interface CartItem {
   size: ProductSize;
   unitPrice: number;
   quantity: number;
+  toppings: Array<Pick<Topping, 'id' | 'name' | 'price'>>;
   sugarLevel: number | null;
   iceLevel: number | null;
   note: string | null;
-  toppings: Array<Pick<Topping, 'id' | 'name' | 'price'>>;
   lineTotal: number;
 }
 
@@ -27,10 +27,10 @@ export interface AddCartItemInput {
   size: ProductSize;
   unitPrice: number;
   quantity: number;
+  toppings: Array<Pick<Topping, 'id' | 'name' | 'price'>>;
   sugarLevel?: number | null;
   iceLevel?: number | null;
   note?: string | null;
-  toppings: Array<Pick<Topping, 'id' | 'name' | 'price'>>;
 }
 
 interface CartSnapshot {
@@ -60,13 +60,55 @@ function normalizeNote(value: unknown): string | null {
   return typeof value === 'string' ? value.trim() || null : null;
 }
 
-function formatCartItemId(input: Pick<CartItem, 'productId' | 'variantId' | 'toppings' | 'sugarLevel' | 'iceLevel' | 'note'>) {
+function formatCartItemId(
+  input: Pick<CartItem, 'productId' | 'variantId' | 'toppings' | 'sugarLevel' | 'iceLevel' | 'note'>,
+) {
   const toppingKey = input.toppings
     .map((topping) => topping.id)
     .sort()
     .join('.');
 
-  return `${input.productId}:${input.variantId}:${toppingKey || 'plain'}:sugar=${input.sugarLevel ?? 'standard'}:ice=${input.iceLevel ?? 'standard'}:note=${JSON.stringify(input.note)}`;
+  return [
+    input.productId,
+    input.variantId,
+    toppingKey || 'plain',
+    `sugar=${input.sugarLevel ?? 'standard'}`,
+    `ice=${input.iceLevel ?? 'standard'}`,
+    `note=${JSON.stringify(input.note)}`,
+  ].join(':');
+}
+
+function buildCartItem(input: AddCartItemInput): CartItem {
+  const sugarLevel = normalizeLevel(input.sugarLevel);
+  const iceLevel = normalizeLevel(input.iceLevel);
+  const note = normalizeNote(input.note);
+  const toppingsTotal = input.toppings.reduce((sum, topping) => sum + topping.price, 0);
+
+  const baseItem = {
+    productId: input.product.id,
+    variantId: input.variantId,
+    toppings: input.toppings,
+    sugarLevel,
+    iceLevel,
+    note,
+  };
+
+  return {
+    id: formatCartItemId(baseItem),
+    productId: input.product.id,
+    variantId: input.variantId,
+    sku: input.product.sku,
+    name: input.product.name,
+    imageUrl: input.product.imageUrl,
+    size: input.size,
+    unitPrice: input.unitPrice,
+    quantity: input.quantity,
+    toppings: input.toppings,
+    sugarLevel,
+    iceLevel,
+    note,
+    lineTotal: (input.unitPrice + toppingsTotal) * input.quantity,
+  };
 }
 
 function calculateSnapshot(items: CartItem[]): CartSnapshot {
@@ -161,73 +203,33 @@ export const cartStore = {
 
   addItem(input: AddCartItemInput) {
     hydrateCart();
-    const sugarLevel = normalizeLevel(input.sugarLevel);
-    const iceLevel = normalizeLevel(input.iceLevel);
-    const note = normalizeNote(input.note);
-    const id = formatCartItemId({ ...input, productId: input.product.id, sugarLevel, iceLevel, note });
-    const existing = currentSnapshot.items.find((item) => item.id === id);
+    const nextItem = buildCartItem(input);
+    const existing = currentSnapshot.items.find((item) => item.id === nextItem.id);
 
     if (existing) {
       emit(
         currentSnapshot.items.map((item) =>
-          item.id === id ? { ...item, quantity: item.quantity + input.quantity } : item,
+          item.id === nextItem.id
+            ? { ...item, quantity: item.quantity + nextItem.quantity }
+            : item,
         ),
       );
       return;
     }
-
-    const toppingsTotal = input.toppings.reduce((sum, topping) => sum + topping.price, 0);
-    const nextItem: CartItem = {
-      id,
-      productId: input.product.id,
-      variantId: input.variantId,
-      sku: input.product.sku,
-      name: input.product.name,
-      imageUrl: input.product.imageUrl,
-      size: input.size,
-      unitPrice: input.unitPrice,
-      quantity: input.quantity,
-      sugarLevel,
-      iceLevel,
-      note,
-      toppings: input.toppings,
-      lineTotal: (input.unitPrice + toppingsTotal) * input.quantity,
-    };
 
     emit([...currentSnapshot.items, nextItem]);
   },
 
   replaceItem(idToReplace: string, input: AddCartItemInput) {
     hydrateCart();
-    const sugarLevel = normalizeLevel(input.sugarLevel);
-    const iceLevel = normalizeLevel(input.iceLevel);
-    const note = normalizeNote(input.note);
-    const nextId = formatCartItemId({ ...input, productId: input.product.id, sugarLevel, iceLevel, note });
-    const toppingsTotal = input.toppings.reduce((sum, topping) => sum + topping.price, 0);
-    const replacement: CartItem = {
-      id: nextId,
-      productId: input.product.id,
-      variantId: input.variantId,
-      sku: input.product.sku,
-      name: input.product.name,
-      imageUrl: input.product.imageUrl,
-      size: input.size,
-      unitPrice: input.unitPrice,
-      quantity: input.quantity,
-      sugarLevel,
-      iceLevel,
-      note,
-      toppings: input.toppings,
-      lineTotal: (input.unitPrice + toppingsTotal) * input.quantity,
-    };
-
+    const replacement = buildCartItem(input);
     const withoutOriginal = currentSnapshot.items.filter((item) => item.id !== idToReplace);
-    const sameConfiguration = withoutOriginal.find((item) => item.id === nextId);
+    const sameConfiguration = withoutOriginal.find((item) => item.id === replacement.id);
 
     if (sameConfiguration) {
       emit(
         withoutOriginal.map((item) =>
-          item.id === nextId
+          item.id === replacement.id
             ? { ...item, quantity: item.quantity + replacement.quantity }
             : item,
         ),

@@ -44,10 +44,10 @@ test('editing opens with the saved size, quantity, zero sugar, ice and note', ()
     id: 'saved-item', variantId: 'small', quantity: 3, sugarLevel: 0, iceLevel: 25,
     note: 'Để topping riêng', toppings: [product.toppings[0]],
   } });
-  assert.match(html, /Cập nhật giỏ/);
+  assert.match(html, /Lưu thay đổi/);
   assert.match(html, /Để topping riêng<\/textarea>/);
-  assert.match(html, /value="0" selected=""/);
-  assert.match(html, /value="25" selected=""/);
+  assert.match(html, /aria-pressed="true"[^>]*>[\s\S]*?<span>0%<\/span>/);
+  assert.match(html, /aria-pressed="true"[^>]*>[\s\S]*?<span>25%<\/span>/);
   assert.match(html, /105\.000 đ/);
 });
 
@@ -57,4 +57,17 @@ test('new product starts with the standard recipe and an empty note', () => {
   assert.match(html, /Thêm vào giỏ/);
   assert.match(html, /<textarea[^>]*><\/textarea>/);
   assert.equal(render({ product: null }), '');
+});
+
+test('editing standard items retains the recipe and exposes percentage and quantity controls', () => {
+  const html = render({ editingItem: {
+    id: 'standard-item', variantId: 'small', quantity: 2, sugarLevel: null, iceLevel: null,
+    note: '', toppings: [],
+  } });
+  assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 2);
+  assert.equal((html.match(/Theo công thức chuẩn/g) ?? []).length, 2);
+  assert.match(html, /30%/);
+  assert.match(html, /70%/);
+  assert.match(html, /Số lượng/);
+  assert.match(html, /60\.000 đ/);
 });

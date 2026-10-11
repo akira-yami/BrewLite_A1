@@ -28,6 +28,10 @@ tests/e2e/                       # luồng end-to-end toàn hệ thống
 | TC-08 | Coupon | dùng coupon, fail/cancel/expire | `RESERVED` không bị tính vĩnh viễn; success -> `CONSUMED`; cancel/expire -> release |
 | TC-09 | Loyalty | order thanh toán thành công và request lặp | Mỗi order chỉ cộng `EARN` một lần |
 | TC-10 | E2E | menu -> cart -> login -> order -> payment -> history | Luồng MVP hoàn thành và lịch sử chứa đúng order |
+| TC-11 | Đường/đá | null/thiếu, 0/100, -1/101, số thập phân/chuỗi; reload giỏ cũ/mới và tách/gộp dòng | DTO và CHECK từ chối dữ liệu sai; 0 được giữ; response phản ánh snapshot; tùy chọn không đổi giá |
+| TC-12 | Ghi chú món | thiếu/null/trắng, trim, 500/501 ký tự, sai kiểu; reload và tách/gộp dòng theo note | DTO chuẩn hóa/validate; VARCHAR(500) bảo vệ giới hạn; mapper trả snapshot; giỏ giữ note và không đổi giá |
+
+Đã có test DTO/mapper trong module orders, integration CHECK/nullable trên PostgreSQL và `apps/web/tests/cart-store.test.mjs` (`npm test` trong web). Test giỏ kiểm tra payload không chứa giá client, giữ 0 khi reload, chuyển giỏ cũ sang null, tách/gộp dòng và tổng tiền. Khi triển khai OrdersService/checkout/barista, thêm E2E để chứng minh đường/đá đi từ UI qua POST/GET đến màn pha chế và reservation cộng đúng quantity của các dòng cùng variant.
 
 ## 4. Ba test bắt buộc của Task 10
 

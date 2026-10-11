@@ -15,3 +15,7 @@ Hợp đồng thống nhất với [REST API](../architecture/api-spec.md), [ERD
 | **Hậu điều kiện** | Kết quả Payment dùng enum `PROCESSING / SUCCEEDED / FAILED`; trạng thái Order dùng enum riêng. DB giữ key/hash/kết quả attempt và tối đa một payment `SUCCEEDED` mỗi đơn. Các cập nhật liên quan thành công được commit cùng transaction. |
 
 Mock Payment Gateway là tác nhân tích hợp, không phải role tài khoản. Tài khoản chỉ có `CUSTOMER` và `BARISTA`.
+
+Ghi chú `OrderItem.note` được snapshot lúc tạo đơn, không gửi lại vào payment request, không đổi amount; giỏ và đơn giữ ghi chú khi thanh toán thất bại/retry.
+
+`sugarLevel`/`iceLevel` được chọn trong giỏ và snapshot trên OrderItem khi tạo đơn, không gửi lại trong request thanh toán và không thay đổi amount. Sau thất bại/retry, giỏ và đơn giữ nguyên cả hai lựa chọn (bao gồm 0% và null theo công thức chuẩn).

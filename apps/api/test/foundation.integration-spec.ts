@@ -69,6 +69,34 @@ describe('Foundation on migrated PostgreSQL', () => {
     expect((await prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } })).stock).toBe(2);
   });
 
+  it('preserves nullable preferences and stores both percentage boundaries', async () => {
+    const items = await prisma.orderItem.findMany({ where: { orderId } });
+    expect(items[0]).toMatchObject({ sugarLevel: null, iceLevel: null });
+    for (const levels of [{ sugarLevel: 0, iceLevel: 100 }, { sugarLevel: 100, iceLevel: 0 }]) {
+      await prisma.orderItem.updateMany({ where: { orderId }, data: levels });
+      expect((await prisma.orderItem.findMany({ where: { orderId } }))[0]).toMatchObject(levels);
+    }
+    await prisma.orderItem.updateMany({ where: { orderId }, data: { sugarLevel: null, iceLevel: null } });
+  });
+
+  it('rejects sugar/ice levels outside 0..100 at the database layer', async () => {
+    for (const field of ['sugarLevel', 'iceLevel'] as const) {
+      for (const value of [-1, 101]) {
+        await expect(prisma.orderItem.updateMany({ where: { orderId }, data: { [field]: value } })).rejects.toThrow();
+      }
+    }
+  });
+
+  it('stores optional notes and rejects more than 500 characters', async () => {
+    expect((await prisma.orderItem.findMany({ where: { orderId } }))[0].note).toBeNull();
+    for (const note of ['Để topping riêng', 'a'.repeat(500)]) {
+      await prisma.orderItem.updateMany({ where: { orderId }, data: { note } });
+      expect((await prisma.orderItem.findMany({ where: { orderId } }))[0].note).toBe(note);
+    }
+    await expect(prisma.orderItem.updateMany({ where: { orderId }, data: { note: 'a'.repeat(501) } })).rejects.toThrow();
+    await prisma.orderItem.updateMany({ where: { orderId }, data: { note: null } });
+  });
+
   it('rejects invalid coupon percentage and time window', async () => {
     const coupon = { code: randomUUID(), discountType: 'PERCENTAGE' as const, discountValue: 101n,
       startsAt: new Date('2026-10-01T00:00:00Z'), endsAt: new Date('2026-11-01T00:00:00Z') };

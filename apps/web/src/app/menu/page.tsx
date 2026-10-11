@@ -7,11 +7,15 @@ import { HeroBanner } from '@/features/catalog/components/HeroBanner';
 import { ProductCard } from '@/features/catalog/components/ProductCard';
 import { ProductCardSkeleton } from '@/features/catalog/components/ProductCardSkeleton';
 import { ProductDetailModal } from '@/features/catalog/components/ProductDetailModal';
+import { CartDrawer } from '@/features/cart/components/CartDrawer';
+import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 
 export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewingProduct, setPreviewingProduct] = useState<Product | null>(null);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const cart = useCartStore();
 
   // 1. Fetch dữ liệu thật từ API NestJS qua TanStack Query
   const { data: products = [], isLoading, isError, error, refetch } = useMenuProducts();
@@ -41,6 +45,23 @@ export default function MenuPage() {
     });
   }, [products, selectedCategory, searchQuery]);
 
+  const handleQuickAdd = (product: Product) => {
+    const variant = product.variants.find((item) => item.size === 'M') ?? product.variants[0];
+    if (!variant) {
+      setPreviewingProduct(product);
+      return;
+    }
+
+    cartStore.addItem({
+      product,
+      variantId: variant.id,
+      size: variant.size,
+      unitPrice: variant.price,
+      quantity: 1,
+      toppings: [],
+    });
+  };
+
   return (
     <main className="min-h-screen bg-[#F5EFEB] p-3 text-[#1E1813] antialiased md:p-6 pb-24">
       <div className="mx-auto max-w-7xl space-y-7">
@@ -61,7 +82,22 @@ export default function MenuPage() {
               <span className="hidden sm:block text-[10px] text-[#756A63]">Nhà gỗ mộc ấm áp • SGU Campus</span>
             </div>
           </div>
-          <span className="text-[11px] sm:text-xs font-semibold text-[#163E2B]">Ủ nóng 70°C • Chiết xuất tươi</span>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-[11px] font-semibold text-[#163E2B] sm:inline">
+              Ủ nóng 70°C • Chiết xuất tươi
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsCartOpen(true)}
+              className="relative flex h-10 items-center gap-2 rounded-full bg-[#163E2B] px-3 text-xs font-black text-white shadow-md transition hover:bg-[#1f4f38]"
+              aria-label="Mở giỏ hàng"
+            >
+              <span>Giỏ</span>
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] text-[#163E2B]">
+                {cart.totalQuantity}
+              </span>
+            </button>
+          </div>
         </header>
 
         {/* Hero Banner (Chỉ hiện khi đã tải xong và có sản phẩm) */}
@@ -182,6 +218,7 @@ export default function MenuPage() {
                 onCustomize={(item) => {
                   setPreviewingProduct(item);
                 }}
+                onQuickAdd={handleQuickAdd}
               />
             ))}
           </div>
@@ -193,10 +230,21 @@ export default function MenuPage() {
       <ProductDetailModal
         product={previewingProduct}
         onClose={() => setPreviewingProduct(null)}
-        onOpenCustomizer={(item) => {
-          console.log('Tùy biến món:', item.name);
-        }}
+        onAddedToCart={() => setIsCartOpen(true)}
       />
+
+      {cart.totalQuantity > 0 && (
+        <button
+          type="button"
+          onClick={() => setIsCartOpen(true)}
+          className="fixed bottom-4 left-1/2 z-30 flex w-[calc(100%-24px)] max-w-xl -translate-x-1/2 items-center justify-between rounded-full border border-[#E5DCD2] bg-[#163E2B] px-4 py-3 text-sm font-black text-white shadow-2xl transition hover:bg-[#1f4f38] md:hidden"
+        >
+          <span>{cart.totalQuantity} món trong giỏ</span>
+          <span className="font-mono">{formatVnd(cart.subtotal)}</span>
+        </button>
+      )}
+
+      <CartDrawer open={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </main>
   );
 }

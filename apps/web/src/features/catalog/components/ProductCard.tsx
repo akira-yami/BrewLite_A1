@@ -7,15 +7,16 @@ interface ProductCardProps {
   product: Product;
   onPreview: (product: Product) => void;
   onCustomize: (product: Product) => void;
+  onQuickAdd: (product: Product) => void;
 }
 
-export const ProductCard = ({ product, onPreview, onCustomize }: ProductCardProps) => {
+export const ProductCard = ({ product, onPreview, onCustomize, onQuickAdd }: ProductCardProps) => {
   return (
-    <div className="group flex flex-col justify-between rounded-3xl border border-[#E5DCD2] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#c9bcaf] hover:shadow-xl">
+    <div className="group flex flex-col justify-between rounded-2xl border border-[#E5DCD2] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#c9bcaf] hover:shadow-xl">
       <div>
         <div
           onClick={() => onPreview(product)}
-          className="relative h-52 w-full cursor-pointer overflow-hidden rounded-t-3xl"
+          className="relative h-52 w-full cursor-pointer overflow-hidden rounded-t-2xl"
         >
           <Image
             src={product.imageUrl}
@@ -42,7 +43,7 @@ export const ProductCard = ({ product, onPreview, onCustomize }: ProductCardProp
         </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-between border-t border-[#FAF6F2] p-5 pt-0">
+      <div className="mt-2 flex flex-col gap-3 border-t border-[#FAF6F2] p-5 pt-0 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <span className="block text-[10px] font-semibold uppercase text-[#756A63]">Giá từ</span>
           <span className="font-mono text-lg font-black text-[#163E2B]">
@@ -52,10 +53,10 @@ export const ProductCard = ({ product, onPreview, onCustomize }: ProductCardProp
 
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => onPreview(product)}
+            onClick={() => onQuickAdd(product)}
             className="flex items-center space-x-1 rounded-xl border border-[#E5DCD2] bg-[#FAF6F2] px-3 py-2 text-xs font-bold text-[#163E2B] transition hover:bg-[#E8F1EC]"
           >
-            Preview
+            + Thêm
           </button>
           <button
             onClick={() => onCustomize(product)}

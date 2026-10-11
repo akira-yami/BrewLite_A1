@@ -180,6 +180,9 @@ model OrderItem {
   variantNameSnapshot String @map("variant_name_snapshot") @db.VarChar(50)
   unitPrice           BigInt @map("unit_price")
   quantity            Int
+  sugarLevel          Int?   @map("sugar_level")
+  iceLevel            Int?   @map("ice_level")
+  note                String? @db.VarChar(500)
 
   order             Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
   productVariant    ProductVariant     @relation(fields: [productVariantId], references: [id], onDelete: Restrict)

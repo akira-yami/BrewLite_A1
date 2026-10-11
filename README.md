@@ -92,7 +92,7 @@ BrewLite/
 ## Chức năng MVP
 
 - Hiển thị menu và chi tiết sản phẩm.
-- Chọn size và topping.
+- Chọn size, topping, mức đường và đá.
 - Thêm, sửa số lượng và xóa sản phẩm trong giỏ.
 - Đăng ký, đăng nhập bằng JWT.
 - Tạo đơn với giá được tính lại ở backend.
@@ -142,7 +142,21 @@ Compose chạy service `migrate` trước backend. Kiểm tra trạng thái bằ
 
 Khi chạy trực tiếp trên host, tạo database PostgreSQL rồi làm theo [README API](./apps/api/README.md): dùng `apps/api/.env.example` với hostname `localhost`, chạy migrate trước start. Root `.env.example` dùng hostname `postgres` cho Compose.
 
+## CI trên GitHub Actions
+
+Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull request hoặc chạy thủ công từ tab **Actions**. Các job dùng Node.js 24, cài dependencies bằng `npm ci` và cache npm theo lockfile của từng app:
+
+- **Frontend:** lint, typecheck, test giỏ hàng và build Next.js.
+- **Backend:** generate Prisma client, lint, typecheck, unit test, API E2E test và build NestJS. Bộ API E2E hiện kiểm tra health endpoint bằng Prisma mock.
+- **Database migrations and integration:** PostgreSQL 18 riêng cho mỗi lần chạy; validate/generate Prisma, apply migration hai lần để kiểm tra chạy lặp, kiểm tra migration status và chạy integration test với database thật.
+
+CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Sau khi đưa workflow lên GitHub, có thể chọn ba job trên làm required checks trong ruleset/branch protection.
+
 ## Quy ước phát triển
+
+`OrderItem.note` là ghi chú món tùy chọn, tối đa 500 ký tự sau trim; thiếu/rỗng thành null. UI nhập và hiển thị ghi chú, giỏ persist và tách dòng khác ghi chú; DTO/mapper giữ cùng snapshot, không thay đổi giá. Migration bổ sung riêng giữ đơn cũ với note null.
+
+`OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo [hợp đồng API](./docs/architecture/api-spec.md).
 
 - Backend không tin giá, tổng tiền, user ID hoặc trạng thái do frontend gửi.
 - Tiền lưu bằng số nguyên theo đơn vị VND; không dùng số thực.

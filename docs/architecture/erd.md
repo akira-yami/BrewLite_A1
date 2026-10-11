@@ -4,11 +4,13 @@ Owner: Dev Khang. Reviewer theo sheet `SoDo`: Dev Hoàng; card tuần 1 ghi Ki�
 
 ## 1. Sơ đồ quan hệ
 
+Bổ sung `ORDER_ITEM.note` nullable (varchar(500)) ngày 10/10/2026; Mermaid và schema là mô hình cập nhật, ảnh gốc giữ làm tham chiếu.
+
 Ảnh ERD gốc do nhóm thiết kế, được đồng bộ vào repository ngày 09/10/2026:
 
 ![ERD BrewLite của nhóm](../../database/BrewLite.png)
 
-Mermaid bên dưới là bản mô tả bằng văn bản của cùng mô hình, dùng để review cùng schema.
+Mermaid bên dưới là mô hình cập nhật dùng để review cùng schema. Bổ sung ngày 10/10/2026: `ORDER_ITEM.sugar_level` và `ice_level` nullable, số nguyên 0..100; ảnh gốc phía trên là tài liệu tham chiếu trước bổ sung này.
 
 ```mermaid
 erDiagram
@@ -106,6 +108,9 @@ erDiagram
         string variant_name_snapshot
         bigint unit_price
         int quantity
+        int sugar_level "nullable; 0..100"
+        int ice_level "nullable; 0..100"
+        string note "nullable; varchar(500)"
     }
 
     ORDER_ITEM_TOPPING {
@@ -218,6 +223,7 @@ Năm entity trong đề bài đủ để demo luồng đơn giản nhưng chưa 
 
 - `ProductVariant` biểu diễn size, giá và tồn kho độc lập.
 - `OrderItemTopping` lưu nhiều topping và snapshot giá tại thời điểm mua.
+- `OrderItem` lưu mức đường/đá lúc đặt: null là công thức chuẩn, 0 là không đường/đá; không ảnh hưởng giá và không làm thay đổi quan hệ giữa các bảng.
 - `OrderStatusHistory` chứng minh transition và hỗ trợ audit.
 - `InventoryReservation` cho biết lượng tồn đang giữ/đã tiêu thụ/đã hoàn.
 - `CouponRedemption` giữ lượt coupon khi order còn chờ thanh toán và chỉ chuyển `CONSUMED` sau khi trả tiền thành công; hủy/hết hạn sẽ giải phóng lượt.

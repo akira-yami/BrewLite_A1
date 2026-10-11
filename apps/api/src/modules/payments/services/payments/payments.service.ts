@@ -11,8 +11,12 @@ export class PaymentsService implements IPaymentGateway {
     // Nhúng MockGateway vào đây để gọi
     constructor(private readonly mockGateway: MockGatewayService) {}
 
-    async processPayment(payload: CreatePaymentDto): Promise<PaymentResponseDto> {
-        this.logger.log(`[Sprint 1 Foundation] Chuẩn bị xử lý thanh toán cho Order: ${payload.orderId}`);
+    async processPayment(
+        payload: CreatePaymentDto,
+        idempotencyKey: string,
+        userId: string
+    ): Promise<PaymentResponseDto> {
+        this.logger.log(`[Sprint 1 Foundation] Chuẩn bị xử lý thanh toán cho Order: ${payload.orderId}, User: ${userId}, Key: ${idempotencyKey}`);
 
         // TODO (Sprint 2): 1. Nhận Idempotency-Key từ HTTP Header (do Controller truyền xuống)
         // TODO (Sprint 2): 2. Truy vấn OrdersService bằng payload.orderId để lấy tổng tiền (`amount`)

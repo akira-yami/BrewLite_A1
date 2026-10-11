@@ -40,7 +40,7 @@ describe('AuthService (Unit Test - TDD)', () => {
       password: 'StrongPassword123!',
     };
 
-    it('should hash password with bcrypt and create a user with default USER role without exposing passwordHash and return expiresIn: 900', async () => {
+    it('should hash password with bcrypt and create a user with default CUSTOMER role without exposing passwordHash and return expiresIn: 900', async () => {
       userRepositoryMock.findByUsername.mockResolvedValue(null);
 
       let createdUserRecord: any = null;
@@ -49,7 +49,7 @@ describe('AuthService (Unit Test - TDD)', () => {
           id: 'mock-uuid-1',
           username,
           passwordHash,
-          role: role || UserRole.USER,
+          role: role || UserRole.CUSTOMER,
           loyaltyBalance: 0,
           isActive: true,
           createdAt: new Date('2026-10-10T00:00:00Z'),
@@ -74,7 +74,7 @@ describe('AuthService (Unit Test - TDD)', () => {
       expect(result).toHaveProperty('accessToken', 'mocked-jwt-token');
       expect(result).toHaveProperty('expiresIn', 900);
       expect(result.user.username).toBe('testuser');
-      expect(result.user.role).toBe(UserRole.USER);
+      expect(result.user.role).toBe(UserRole.CUSTOMER);
       expect((result.user as any).passwordHash).toBeUndefined();
       expect((result as any).passwordHash).toBeUndefined();
     });
@@ -110,7 +110,7 @@ describe('AuthService (Unit Test - TDD)', () => {
         id: 'user-uuid-1',
         username: 'testuser',
         passwordHash: hashedPassword,
-        role: UserRole.USER,
+        role: UserRole.CUSTOMER,
         loyaltyBalance: 100,
         isActive: true,
       });
@@ -121,7 +121,7 @@ describe('AuthService (Unit Test - TDD)', () => {
         expect.objectContaining({
           sub: 'user-uuid-1',
           username: 'testuser',
-          role: UserRole.USER,
+          role: UserRole.CUSTOMER,
         }),
       );
 
@@ -129,7 +129,7 @@ describe('AuthService (Unit Test - TDD)', () => {
       expect(result.expiresIn).toBe(900);
       expect(result.user.id).toBe('user-uuid-1');
       expect(result.user.username).toBe('testuser');
-      expect(result.user.role).toBe(UserRole.USER);
+      expect(result.user.role).toBe(UserRole.CUSTOMER);
       expect((result.user as any).passwordHash).toBeUndefined();
       expect((result as any).passwordHash).toBeUndefined();
     });
@@ -152,7 +152,7 @@ describe('AuthService (Unit Test - TDD)', () => {
         id: 'user-uuid-1',
         username: 'testuser',
         passwordHash: hashedPassword,
-        role: UserRole.USER,
+        role: UserRole.CUSTOMER,
         isActive: true,
       });
 
@@ -174,7 +174,7 @@ describe('AuthService (Unit Test - TDD)', () => {
         id: 'user-uuid-1',
         username: 'testuser',
         passwordHash: hashedPassword,
-        role: UserRole.USER,
+        role: UserRole.CUSTOMER,
         isActive: false,
       });
 
@@ -195,7 +195,7 @@ describe('AuthService (Unit Test - TDD)', () => {
         id: 'user-uuid-1',
         username: 'testuser',
         passwordHash: 'secret-hash',
-        role: UserRole.USER,
+        role: UserRole.CUSTOMER,
         loyaltyBalance: 50,
         isActive: true,
         createdAt: new Date('2026-10-10T00:00:00Z'),
@@ -205,7 +205,7 @@ describe('AuthService (Unit Test - TDD)', () => {
       const profile = await authService.getProfile('user-uuid-1');
       expect(profile.id).toBe('user-uuid-1');
       expect(profile.username).toBe('testuser');
-      expect(profile.role).toBe(UserRole.USER);
+      expect(profile.role).toBe(UserRole.CUSTOMER);
       expect((profile as any).passwordHash).toBeUndefined();
     });
 

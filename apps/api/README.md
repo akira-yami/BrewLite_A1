@@ -7,6 +7,8 @@ Backend BrewLite sử dụng NestJS, TypeScript và REST API với global prefix
 ```bash
 npm ci
 cp .env.example .env
+node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
+# Điền giá trị vừa tạo vào JWT_SECRET trong .env trước khi khởi động.
 npm run prisma:generate
 npm run prisma:deploy
 npm run start:dev
@@ -20,9 +22,14 @@ Các biến môi trường chính:
 PORT=3001
 WEB_ORIGIN=http://localhost:3000
 DATABASE_URL=postgresql://brewlite:change_me_local_only@localhost:5432/brewlite?schema=public
+JWT_SECRET=<secret ngẫu nhiên vừa tạo>
+JWT_ISSUER=brewlite-api
+JWT_AUDIENCE=brewlite-web
 ```
 
 `WEB_ORIGIN` chấp nhận nhiều origin phân tách bằng dấu phẩy.
+
+`JWT_SECRET` bắt buộc để ký và xác thực JWT. API dừng khi thiếu biến này. File `.env` dùng cho local được Git bỏ qua; không ghi secret thật vào `.env.example`.
 
 ## Kiểm tra
 

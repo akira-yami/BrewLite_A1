@@ -14,7 +14,7 @@ describe('AuthController (Unit Test - TDD)', () => {
   const mockSafeUser = {
     id: 'test-uuid',
     username: 'testuser',
-    role: UserRole.USER,
+    role: UserRole.CUSTOMER,
     loyaltyBalance: 0,
     isActive: true,
     createdAt: new Date('2026-10-10T00:00:00Z'),
@@ -68,7 +68,7 @@ describe('AuthController (Unit Test - TDD)', () => {
   it('should return profile wrapped in data envelope for the authenticated user via me endpoint', async () => {
     authServiceMock.getProfile.mockResolvedValue(mockSafeUser);
 
-    const user = { sub: 'test-uuid', username: 'testuser', role: UserRole.USER };
+    const user = { sub: 'test-uuid', username: 'testuser', role: UserRole.CUSTOMER };
     const res = await controller.getMe(user);
 
     expect(authServiceMock.getProfile).toHaveBeenCalledWith('test-uuid');

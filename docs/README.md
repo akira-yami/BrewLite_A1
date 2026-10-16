@@ -13,6 +13,7 @@ Bổ sung `OrderItem.note` nullable tối đa 500 ký tự: schema/migration, DT
 - [SD-03 — ERD](./architecture/erd.md)
 - [SD-04 — Order State Machine](./architecture/order-state-machine.md)
 - [Contract bổ sung foundation](./architecture/foundation-contract.md)
+- [SD-11: Thanh toán & Retry](./architecture/sequence-diagram-payment.md)
 
 ## Lộ trình đọc
 

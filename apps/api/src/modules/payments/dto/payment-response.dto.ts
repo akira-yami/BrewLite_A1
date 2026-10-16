@@ -18,6 +18,7 @@ export enum OrderStatus {
 export class PaymentResponseDto {
     paymentId: string;                   // ID của bản ghi trong bảng `payments`
     orderId: string;                     // ID đơn hàng
+    orderNumber: string;
     amount: number;                      // Số tiền đã xử lý
     method: PaymentMethod;
     success: boolean;                    // Khẳng định trạng thái boolean (true/false)

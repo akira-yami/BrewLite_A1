@@ -21,6 +21,7 @@ export class CreatePaymentDto {
   @IsNotEmpty()
   method: PaymentMethod;       // Phương thức thanh toán
 
-  // ĐÃ XÓA: amount và requestHash (Server sẽ tự tính ở Sprint 2)
+  // LƯU Ý BẢO MẬT:
+  // ĐÃ XÓA VÌ KHÔNG NHẬN: amount (sẽ lấy từ DB: order.total) và requestHash (Server sẽ tự tính bằng SHA-256 ở Sprint 2)
   // ĐÃ XÓA: idempotencyKey (Sẽ được lấy từ HTTP Header trong Controller)
 }

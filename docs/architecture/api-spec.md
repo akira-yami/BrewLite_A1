@@ -152,6 +152,8 @@ Lỗi: `404 PRODUCT_NOT_FOUND`.
 
 Yêu cầu role `CUSTOMER`. Tạo đơn `PENDING`, tính lại giá và giữ tồn kho.
 
+Hợp đồng chi tiết S1-10: [transaction/Inventory/Coupon](./orders-contract.md), [UC-06](../use-cases/UC-06-tao-don-hang.md), [SD-10 PlantUML riêng](./diagrams/SD-10-create-order.puml) và [OpenAPI](../api/orders.openapi.yaml). Đây là thiết kế cho S2, chưa có endpoint runtime ở S1-W2.
+
 ```json
 {
   "items": [
@@ -172,6 +174,7 @@ Validation:
 
 - `items` có 1..20 phần tử.
 - `quantity` mỗi item là số nguyên 1..20.
+- `couponCode` tùy chọn/null; chuỗi được trim hai đầu, giữ nguyên hoa/thường và phải dài 1..50 sau trim. Chuỗi toàn khoảng trắng bị từ chối.
 - Variant/topping phải active và topping phải hợp lệ cho product.
 - Không chấp nhận giá/tổng/userId từ client.
 - `sugarLevel`, `iceLevel` là tùy chọn, mỗi trường nhận số nguyên 0..100 hoặc null; không gửi được chuẩn hóa thành null (công thức chuẩn). `0` là không đường/đá, không được thay bằng giá trị mặc định. UI cung cấp chuẩn/0/25/50/75/100%, API vẫn chấp nhận mọi số nguyên trong khoảng.
@@ -213,7 +216,7 @@ Kết quả `201 Created`:
 }
 ```
 
-Lỗi chính: `401 UNAUTHORIZED`, `400 INVALID_OPTION`, `409 OUT_OF_STOCK`, `409 INVENTORY_CONFLICT`, `422 COUPON_NOT_APPLICABLE`.
+Lỗi chính: `401 UNAUTHORIZED`, `403 FORBIDDEN_RESOURCE`, `400 INVALID_OPTION`, `409 OUT_OF_STOCK`, `409 INVENTORY_CONFLICT`, `422 COUPON_NOT_APPLICABLE`, `500 INTERNAL_ERROR`. Response đích có `meta.requestId` và header `X-Request-Id`; xem OpenAPI cho envelope đầy đủ.
 
 Sai kiểu, số thập phân hoặc đường/đá ngoài 0..100 trả `400 VALIDATION_ERROR` theo error envelope chung. `CreateOrderDto` và mapper item đã có trong code; controller/service tạo đơn vẫn thuộc phần triển khai tiếp theo.
 

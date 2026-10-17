@@ -6,6 +6,7 @@ import {
   IsArray,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -58,13 +59,17 @@ export class CreateOrderDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(20)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items: CreateOrderItemDto[];
 
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(50)
-  couponCode?: string;
+  couponCode?: string | null;
 }

@@ -19,6 +19,8 @@ Trạng thái dùng thống nhất: `TODO -> IN_PROGRESS -> REVIEW -> DONE`. Ch�
 
 ## Kế hoạch / bằng chứng
 
+Đối chiếu tuần 2 của Khang ngày 17/10/2026: [bàn giao S1-10/SD-10, kết quả kiểm chứng local và chuẩn bị S1-11](./khang-week-02-handover.md). Phần này chưa thay cho approval thiết kế, CI/PR hoặc biên bản Review của nhóm.
+
 - Ngày bắt đầu: _Điền khi chốt Sprint_.
 - Ngày kết thúc: _Điền khi chốt Sprint_.
 - Mốc giữa Sprint: cuối Tuần 1 phải tích hợp được Catalog API bản đầu tiên với frontend.

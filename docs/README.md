@@ -14,6 +14,16 @@ Bổ sung `OrderItem.note` nullable tối đa 500 ký tự: schema/migration, DT
 - [SD-04 — Order State Machine](./architecture/order-state-machine.md)
 - [Contract bổ sung foundation](./architecture/foundation-contract.md)
 
+## Bàn giao Khang tuần 2
+
+- [SD-10 — Mã PlantUML tạo đơn & giữ tồn](./architecture/diagrams/SD-10-create-order.puml)
+- [Hợp đồng Orders S1-10](./architecture/orders-contract.md)
+- [UC-06 — Tạo đơn hàng](./use-cases/UC-06-tao-don-hang.md)
+- [OpenAPI POST /orders](./api/orders.openapi.yaml)
+- [Bằng chứng kiểm tra, rà Product Detail và chuẩn bị Review/Retro](./scrum/khang-week-02-handover.md)
+
+Thiết kế/DTO đã chuẩn bị để Hoàng review; endpoint tạo đơn thuộc S2-W3. Không tự ghi approval hoặc kết quả họp Scrum.
+
 ## Lộ trình đọc
 
 1. [Phân tích đề bài](./phan-tich-de-bai.md): phạm vi MVP, yêu cầu, giả định và truy vết 10 task.

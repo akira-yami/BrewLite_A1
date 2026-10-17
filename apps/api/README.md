@@ -72,3 +72,9 @@ Script không đọc `.env`, không reset/drop database và từ chối DB khôn
 
 Integration kiểm tra CHECK, FK, partial unique payment/loyalty và rollback; chưa chứng minh implementation Task 10 (state machine, payment idempotency service, inventory concurrency), vốn thuộc các Sprint sau.
 
+`test/s1.integration-spec.ts` bổ sung kiểm tra HTTP qua AppModule với PostgreSQL thật: Register → Login → JWT/profile, hash/response an toàn, whitelist, credential lỗi và Menu đọc giá từ DB. Bộ này chạy cùng `test:migration`/`test:integration` và chỉ ghi fixture vào `SMOKE_DATABASE_URL` đã được kiểm tra tên.
+
+## Hợp đồng Orders tuần 2
+
+S1-10/SD-10 được bàn giao tại [Orders contract](../../docs/architecture/orders-contract.md), [UC-06](../../docs/use-cases/UC-06-tao-don-hang.md), [OpenAPI](../../docs/api/orders.openapi.yaml) và [mã PlantUML riêng](../../docs/architecture/diagrams/SD-10-create-order.puml). DTO request/response chuẩn bị cho S2-W3; `POST /orders` chưa được đăng ký. `couponCode` được trim, giữ nguyên hoa/thường và từ chối chuỗi trắng.
+

@@ -107,13 +107,14 @@ BEGIN
   đọc product/variant/topping active
   validate đường/đá 0..100; chuẩn hóa thiếu thành null, giữ 0
   tính snapshot giá, subtotal, coupon, total
-  kiểm tra giới hạn coupon và INSERT coupon_redemption(status=RESERVED) nếu có
-  với từng variant:
+  nếu có coupon: khóa hàng coupon rồi kiểm tra giới hạn trong cùng transaction
+  INSERT order(PENDING) + items + item_toppings với snapshot
+  INSERT coupon_redemption(status=RESERVED) nếu có, sau order để đúng FK
+  với từng variant (tổng quantity mọi dòng cùng variant, sắp theo variant_id):
     UPDATE product_variants
       SET stock = stock - qty, version = version + 1
       WHERE id = :id AND version = :expected_version AND stock >= :qty
     nếu row_count = 0: conflict/hết hàng
-  INSERT order + items + item_toppings
   lưu sugar_level/ice_level cho từng item, cùng snapshot giá
   lưu note đã trim (rỗng/thiếu thành null) cùng item
   INSERT inventory_reservations(status=ACTIVE)
@@ -121,7 +122,7 @@ BEGIN
 COMMIT
 ```
 
-Nếu câu lệnh trừ tồn không cập nhật được dòng nào, Service trả `409 OUT_OF_STOCK` kèm variant bị thiếu. Chỉ retry transaction khi PostgreSQL trả lỗi serialization/deadlock có thể retry an toàn.
+Nếu trừ tồn không cập nhật được dòng nào, rollback toàn transaction rồi kiểm tra lại trong transaction mới. Nếu thiếu stock, trả `409 OUT_OF_STOCK` kèm variant bị thiếu. Nếu chỉ xung đột version và còn hàng, hoặc gặp serialization/deadlock, retry toàn transaction tối đa 3 lần thử tổng cộng; hết lượt trả `409 INVENTORY_CONFLICT`. Không commit order/redemption/reservation dở dang. Xem [hợp đồng S1-10/SD-10](./orders-contract.md) cho boundary, coupon locking và public Service.
 
 Thứ tự lock/update variant luôn theo `product_variant_id` tăng dần để giảm deadlock khi nhiều đơn chứa cùng tập sản phẩm. Nếu version đã đổi, đọc lại và retry có giới hạn khi còn stock; nếu hết stock thì trả 409. Stock/version phải được cập nhật cùng nhau.
 

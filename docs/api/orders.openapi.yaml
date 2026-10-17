@@ -1,0 +1,339 @@
+openapi: 3.0.3
+info:
+  title: BrewLite — Orders contract S1-10 / SD-10
+  version: 0.1.0-draft
+  description: >-
+    Thiết kế S1-W2 của Dev Khang, chờ Dev Hoàng review. Endpoint chưa
+    triển khai; không mô tả khả năng runtime hiện có. Giá VND do server tính,
+    mọi ghi dữ liệu tạo đơn và giữ tồn trong cùng transaction.
+servers:
+  - url: http://localhost:3001/api/v1
+paths:
+  /orders:
+    post:
+      operationId: createOrder
+      summary: Tạo đơn PENDING, lưu snapshot và giữ tồn 15 phút
+      description: >-
+        Chỉ CUSTOMER; userId lấy từ JWT. Không có idempotency cho tạo đơn.
+        Chuẩn hóa và gộp dòng trước khi ghi; quantity sau gộp không quá 20.
+        Tổng quantity của mọi dòng cùng variant được giữ bằng một reservation.
+        Không tự gửi lại khi timeout sau commit. Chỉ trả 201 sau commit.
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: X-Request-Id
+          required: false
+          schema:
+            type: string
+          description: Correlation ID; server sinh nếu thiếu, không phải idempotency key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+            example:
+              items:
+                - productVariantId: 123e4567-e89b-42d3-a456-426614174000
+                  quantity: 2
+                  toppingIds: [123e4567-e89b-42d3-a456-426614174001]
+                  sugarLevel: 50
+                  iceLevel: 0
+                  note: Để topping riêng
+              couponCode: WELCOME10
+      responses:
+        '201':
+          description: Order đã commit, stock và lượt coupon đã được giữ.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [data, meta]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CreatedOrder'
+                  meta:
+                    type: object
+                    additionalProperties: false
+                    required: [requestId]
+                    properties:
+                      requestId:
+                        type: string
+              example:
+                data:
+                  id: 123e4567-e89b-42d3-a456-426614174002
+                  orderNumber: BL-20261017-AB12CD
+                  status: PENDING
+                  items:
+                    - id: 123e4567-e89b-42d3-a456-426614174003
+                      productName: Cappuccino
+                      size: M
+                      unitPrice: 50000
+                      quantity: 2
+                      sugarLevel: 50
+                      iceLevel: 0
+                      note: Để topping riêng
+                      toppings:
+                        - name: Kem
+                          unitPrice: 7000
+                          quantity: 1
+                      lineTotal: 114000
+                  subtotal: 114000
+                  discountAmount: 10000
+                  total: 104000
+                  currency: VND
+                  reservationExpiresAt: '2026-10-17T13:15:00Z'
+                  createdAt: '2026-10-17T13:00:00Z'
+                meta:
+                  requestId: w2-contract-example
+        '400':
+          description: VALIDATION_ERROR hoặc INVALID_OPTION; không có ghi dở dang.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderError'
+        '401':
+          description: UNAUTHORIZED — JWT thiếu/sai/hết hạn hoặc principal không hợp lệ.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderError'
+        '403':
+          description: FORBIDDEN_RESOURCE — role khác CUSTOMER.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderError'
+        '409':
+          description: OUT_OF_STOCK hoặc INVENTORY_CONFLICT sau tối đa 3 lần thử tổng cộng.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderError'
+              example:
+                error:
+                  code: OUT_OF_STOCK
+                  message: Một số sản phẩm không còn đủ số lượng.
+                  requestId: w2-contract-example
+                  details:
+                    - field: items[0].quantity
+                      variantId: 123e4567-e89b-42d3-a456-426614174000
+                      available: 1
+        '422':
+          description: COUPON_NOT_APPLICABLE; không tự bỏ coupon để tạo đơn.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderError'
+        '500':
+          description: INTERNAL_ERROR — rollback, không tiết lộ SQL/credentials.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  headers:
+    RequestId:
+      description: Cùng correlation ID trong response body.
+      schema:
+        type: string
+  schemas:
+    Money:
+      type: integer
+      format: int64
+      minimum: 0
+      maximum: 9007199254740991
+      description: VND nguyên, an toàn khi serialize thành JSON number.
+    Preference:
+      type: integer
+      nullable: true
+      minimum: 0
+      maximum: 100
+      description: Thiếu/null dùng công thức chuẩn; 0 là không đường/đá.
+    CreateOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/CreateOrderItem'
+        couponCode:
+          type: string
+          nullable: true
+          description: >-
+            Thiếu/null nghĩa là không dùng coupon. Chuỗi được trim hai đầu,
+            giữ nguyên hoa/thường, sau trim phải dài 1..50. Chuỗi trắng bị từ chối.
+          x-normalized-minLength: 1
+          x-normalized-maxLength: 50
+    CreateOrderItem:
+      type: object
+      additionalProperties: false
+      required: [productVariantId, quantity]
+      properties:
+        productVariantId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 20
+        toppingIds:
+          type: array
+          nullable: true
+          uniqueItems: true
+          description: Thiếu/null dùng tập rỗng; topping phải active và thuộc product.
+          items:
+            type: string
+            format: uuid
+        sugarLevel:
+          $ref: '#/components/schemas/Preference'
+        iceLevel:
+          $ref: '#/components/schemas/Preference'
+        note:
+          type: string
+          nullable: true
+          description: >-
+            Trim hai đầu, giữ khoảng trắng bên trong/xuống dòng. Thiếu/null/rỗng
+            thành null; tối đa 500 ký tự sau trim, không thay đổi giá.
+          x-normalized-maxLength: 500
+    OrderItem:
+      type: object
+      additionalProperties: false
+      required: [id, productName, size, unitPrice, quantity, sugarLevel, iceLevel, note, toppings, lineTotal]
+      properties:
+        id:
+          type: string
+          format: uuid
+        productName:
+          type: string
+        size:
+          type: string
+          enum: [S, M, L]
+        unitPrice:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 20
+        sugarLevel:
+          $ref: '#/components/schemas/Preference'
+        iceLevel:
+          $ref: '#/components/schemas/Preference'
+        note:
+          type: string
+          nullable: true
+          maxLength: 500
+        toppings:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, unitPrice, quantity]
+            properties:
+              name:
+                type: string
+              unitPrice:
+                $ref: '#/components/schemas/Money'
+              quantity:
+                type: integer
+                enum: [1]
+        lineTotal:
+          $ref: '#/components/schemas/Money'
+    CreatedOrder:
+      type: object
+      additionalProperties: false
+      required: [id, orderNumber, status, items, subtotal, discountAmount, total, currency, reservationExpiresAt, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        orderNumber:
+          type: string
+          maxLength: 30
+        status:
+          type: string
+          enum: [PENDING]
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        subtotal:
+          $ref: '#/components/schemas/Money'
+        discountAmount:
+          $ref: '#/components/schemas/Money'
+        total:
+          $ref: '#/components/schemas/Money'
+        currency:
+          type: string
+          enum: [VND]
+        reservationExpiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    OrderError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message, requestId]
+          properties:
+            code:
+              type: string
+              enum: [VALIDATION_ERROR, INVALID_OPTION, UNAUTHORIZED, FORBIDDEN_RESOURCE, OUT_OF_STOCK, INVENTORY_CONFLICT, COUPON_NOT_APPLICABLE, INTERNAL_ERROR]
+            message:
+              type: string
+            requestId:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  variantId:
+                    type: string
+                    format: uuid
+                  available:
+                    type: integer
+                    minimum: 0

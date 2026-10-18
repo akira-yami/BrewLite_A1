@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CatalogRepository } from '../repositories/catalog.repository.js';
 import { ProductResponseDto } from '../dto/product.dto.js';
 
@@ -37,4 +37,39 @@ export class CatalogService {
       };
     });
   }
+  
+  async getProductDetailById(id: string): Promise<ProductResponseDto> {
+    const p = await this.repository.findDetailById(id);
+
+    if (!p) {
+      throw new NotFoundException('Product not found');
+    }
+    
+
+    const prices = p.variants.map((v) => Number(v.price));
+    const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+
+    return {
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      description: p.description || '',
+      imageUrl: p.imageUrl,
+      basePrice: minPrice,
+      variants: p.variants.map((v) => ({
+        id: v.id,
+        size: v.size as any,
+        price: Number(v.price),
+        stock: v.stock,
+      })),
+      toppings: p.productToppings.map((pt) => ({
+        id: pt.topping.id,
+        code: pt.topping.code,
+        name: pt.topping.name,
+        price: Number(pt.topping.price),
+        available: pt.topping.isActive,
+      })),
+    };
+  }
+
 }

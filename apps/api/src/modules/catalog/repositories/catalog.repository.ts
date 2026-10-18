@@ -22,4 +22,29 @@ export class CatalogRepository {
       orderBy: { createdAt: 'asc' },
     });
   }
+  
+  async findDetailById(id: string) {
+    return this.prisma.product.findFirst({
+      where: {
+        id: id,
+        isActive: true,
+      },
+      include: {
+        variants: {
+          where: { isActive: true },
+        },
+       productToppings: {
+  where: {
+    topping: {
+      isActive: true,
+    },
+  },
+  include: {
+    topping: true,
+  },
+},
+      },
+    });
+  }
+
 }

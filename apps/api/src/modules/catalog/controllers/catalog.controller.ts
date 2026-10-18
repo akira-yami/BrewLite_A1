@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
 import { CatalogService } from '../services/catalog.service.js';
 
 @Controller('products')
@@ -13,4 +13,17 @@ export class CatalogController {
       data,
     };
   }
+  
+  @Get(':id')
+  async getProductDetail(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const data = await this.catalogService.getProductDetailById(id);
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
 }

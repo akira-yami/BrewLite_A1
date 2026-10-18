@@ -14,7 +14,10 @@ export const ProductCard = ({
   product,
   onPreview,
   onCustomize,
+  onQuickAdd,
 }: ProductCardProps) => {
+  const canQuickAdd = product.variants.some((variant) => variant.stock > 0);
+
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-[#E8DFC8] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md">
       <div
@@ -43,18 +46,28 @@ export const ProductCard = ({
           </p>
         </div>
 
-        <div className="flex items-center justify-between pt-1">
+        <div className="flex items-center justify-between gap-2 pt-1">
           <span className="text-sm font-extrabold text-[#1A1612]">
             {Number(product.basePrice).toLocaleString('vi-VN')} đ
           </span>
-          <button
-            type="button"
-            onClick={() => onCustomize(product)}
-            className="flex items-center gap-1.5 rounded-full bg-[#163D2C] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#1f503a] active:scale-95"
-          >
-            <span>+</span>
-            <span>Tùy chọn</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onQuickAdd(product)}
+              disabled={!canQuickAdd}
+              className="rounded-full border border-[#D8CCBA] bg-[#FAF7F2] px-3 py-1.5 text-xs font-bold text-[#163D2C] transition hover:border-[#163D2C] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              + Thêm
+            </button>
+            <button
+              type="button"
+              onClick={() => onCustomize(product)}
+              disabled={!canQuickAdd}
+              className="flex items-center gap-1.5 rounded-full bg-[#163D2C] px-3.5 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#1f503a] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span>Tùy chọn</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

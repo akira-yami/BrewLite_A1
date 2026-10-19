@@ -44,6 +44,10 @@ RBAC chưa đủ: API dành cho khách còn phải kiểm tra ownership theo `us
 
 Phương án ưu tiên là refresh token trong cookie HttpOnly và access token giữ trong memory. Nếu auth hoàn toàn dựa trên cookie, bật CSRF token cho request thay đổi trạng thái. Nếu dùng Bearer token do JavaScript đọc được, CSP và chống XSS càng quan trọng.
 
+Hiện thực MVP S1-W2 dùng Bearer JWT và hai khóa localStorage `brewlite_token`/`brewlite_user`. Khi tải trang, frontend gọi `GET /auth/me` trước khi hiển thị user/role; dữ liệu user lưu cục bộ không phải bằng chứng xác thực. Đọc claim `exp` chỉ để đặt timer UX, không thay việc xác minh signature/issuer/audience/expiration tại backend.
+
+Đăng xuất, hết hạn hoặc 401 của request có xác thực xóa dữ liệu phiên, hủy cache và đưa về Login; giữ giỏ hàng. Request 401 từ phiên cũ không được xóa phiên đăng nhập mới. Lỗi mạng/5xx giữ token để thử lại. Logout hiện là kết thúc phiên ở client; JWT còn hạn vẫn hợp lệ tại server, chưa có cơ chế thu hồi/refresh token hoặc endpoint logout. Chi tiết kiểm chứng ở [bàn giao Huy tuần 2](../scrum/huy-week-02-handover.md).
+
 Header tối thiểu:
 
 - `Content-Security-Policy` phù hợp với asset thực tế.

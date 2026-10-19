@@ -81,6 +81,12 @@ Public. Xác thực username/password.
 
 Kết quả `200 OK` giống phần auth của register. Sai thông tin luôn trả `401 INVALID_CREDENTIALS`, không tiết lộ username có tồn tại hay không.
 
+### `GET /auth/me`
+
+Yêu cầu Bearer JWT hợp lệ. Trả `200 { data: user }` từ userId trong JWT subject; user có `id`, `username`, `role`, `loyaltyBalance`, `isActive`, `createdAt`, `updatedAt`, không trả passwordHash. Thiếu/sai/hết hạn token, sai signature/issuer/audience hoặc thiếu subject trả 401. User không còn tồn tại trả 404 theo AuthService hiện tại.
+
+Frontend sử dụng endpoint này để xác minh phiên sau reload. Với 401, client xóa phiên và về Login; với lỗi mạng/5xx, giữ token và cho thử lại. Logout hiện thực ở frontend; JWT chưa được thu hồi server-side trước thời điểm hết hạn.
+
 ### `POST /auth/refresh` (khuyến nghị)
 
 Phát access token mới từ refresh token lưu trong cookie HttpOnly. Endpoint này không bắt buộc theo đề bài nhưng nên có nếu access token ngắn hạn.

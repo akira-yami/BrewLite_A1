@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { loginApi } from "../../features/auth/api";
+import { authSession } from "../../features/auth/session";
+import { SessionNotice } from "../../features/auth/AuthControls";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,11 +21,8 @@ export default function LoginPage() {
 
     try {
       const data = await loginApi({ username, password });
-      if (typeof window !== "undefined") {
-        localStorage.setItem("brewlite_token", data.accessToken);
-        localStorage.setItem("brewlite_user", JSON.stringify(data.user));
-      }
-      router.push("/");
+      authSession.establish(data);
+      router.replace("/menu");
     } catch (err: unknown) {
       if (err instanceof Error) {
         setErrorMessage(err.message);
@@ -51,8 +50,9 @@ export default function LoginPage() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="rounded-2xl border border-stone-200 bg-white px-8 py-10 shadow-sm sm:px-10">
+          <SessionNotice />
           {errorMessage && (
-            <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div role="alert" className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               <span className="font-semibold">Lỗi: </span>
               {errorMessage}
             </div>
@@ -70,6 +70,7 @@ export default function LoginPage() {
                 <input
                   id="username"
                   name="username"
+                  autoComplete="username"
                   type="text"
                   required
                   value={username}
@@ -91,6 +92,7 @@ export default function LoginPage() {
                 <input
                   id="password"
                   name="password"
+                  autoComplete="current-password"
                   type="password"
                   required
                   value={password}

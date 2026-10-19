@@ -22,6 +22,7 @@ Bổ sung `OrderItem.note` nullable tối đa 500 ký tự: schema/migration, DT
 - [UC-06 — Tạo đơn hàng](./use-cases/UC-06-tao-don-hang.md)
 - [OpenAPI POST /orders](./api/orders.openapi.yaml)
 - [Bằng chứng kiểm tra, rà Product Detail và chuẩn bị Review/Retro](./scrum/khang-week-02-handover.md)
+- [Huy — JWT Guard, quản lý phiên và logout/401](./scrum/huy-week-02-handover.md)
 
 Thiết kế/DTO đã chuẩn bị để Hoàng review; endpoint tạo đơn thuộc S2-W3. Không tự ghi approval hoặc kết quả họp Scrum.
 

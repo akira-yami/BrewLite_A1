@@ -8,6 +8,7 @@ import { UserRepository } from './repositories/user.repository.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { JwtAuthGuard } from './guards/jwt-auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
+import { OwnershipGuard } from './guards/ownership.guard.js';
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret && process.env.NODE_ENV !== 'test') {
@@ -28,7 +29,7 @@ if (!jwtSecret && process.env.NODE_ENV !== 'test') {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, UserRepository, JwtStrategy, JwtAuthGuard, RolesGuard],
-  exports: [AuthService, UserRepository, JwtAuthGuard, RolesGuard, JwtModule],
+  providers: [AuthService, UserRepository, JwtStrategy, JwtAuthGuard, RolesGuard, OwnershipGuard],
+  exports: [AuthService, UserRepository, JwtAuthGuard, RolesGuard, OwnershipGuard, JwtModule],
 })
 export class AuthModule {}

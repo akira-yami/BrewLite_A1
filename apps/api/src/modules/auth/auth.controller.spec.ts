@@ -76,4 +76,20 @@ describe('AuthController (Unit Test - TDD)', () => {
     expect(res.data.id).toBe('test-uuid');
     expect(res.data.username).toBe('testuser');
   });
+
+  it('should call authService.getProfile and return data envelope for getUserById', async () => {
+    authServiceMock.getProfile.mockResolvedValue(mockSafeUser);
+
+    const res = await controller.getUserById('test-uuid');
+
+    expect(authServiceMock.getProfile).toHaveBeenCalledWith('test-uuid');
+    expect(res).toHaveProperty('data');
+    expect(res.data.id).toBe('test-uuid');
+  });
+
+  it('should return greeting message for baristaOnly', async () => {
+    const res = await controller.baristaOnly();
+
+    expect(res).toEqual({ data: { message: 'Chào Barista' } });
+  });
 });

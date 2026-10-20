@@ -224,6 +224,37 @@ sequenceDiagram
         end
     end
     end
+
+    %% Giai đoạn 3: Kiểm soát Quyền sở hữu (Ownership Guard & User Isolation)
+    rect rgb(255, 250, 240)
+    note right of U: Giai đoạn 3: Kiểm soát Quyền sở hữu (Ownership Guard & User Isolation)
+    U->>FE: 28. Khách hàng A truy cập tài nguyên (VD: GET /api/v1/auth/users/:userId)
+    FE->>SEC: 29. Gửi request kèm Bearer JWT của Khách hàng A
+    SEC->>JS: 30. JwtAuthGuard xác thực token
+    
+    alt Token thiếu / hết hạn (401 Unauthorized)
+        JS-->>SEC: Token không hợp lệ
+        SEC-->>FE: 30a. 401 Unauthorized ({ error: { code: 'UNAUTHORIZED', message: 'Phiên đăng nhập đã hết hạn hoặc không còn hợp lệ. Vui lòng đăng nhập lại.' } })
+        FE-->>U: 30b. Tự động xóa token phiên và chuyển về /login
+    else Token hợp lệ
+        JS-->>SEC: req.user = { id: "user-A", role: "CUSTOMER" }
+        SEC->>SEC: 31. OwnershipGuard kiểm tra quyền sở hữu (req.user.id vs targetUserId)
+        
+        alt Khách hàng A truy cập tài nguyên của Khách hàng B (req.user.id != targetUserId)
+            SEC-->>FE: 32a. 403 Forbidden ({ error: { code: 'FORBIDDEN_RESOURCE', message: 'Bạn không có quyền truy cập dữ liệu của người dùng khác.' } })
+            FE-->>U: 32b. Hiển thị thông báo từ chối truy cập (Giữ nguyên phiên đăng nhập)
+        else Khách hàng A truy cập tài nguyên của chính mình (req.user.id == targetUserId)
+            SEC->>AC: 33. Cho phép truy cập Controller & Service
+            AC->>DB: 34. Truy vấn dữ liệu người dùng A
+            DB-->>AC: Dữ liệu người dùng A
+            AC-->>FE: 35. 200 OK ({ data: userProfile })
+            FE-->>U: 36. Hiển thị dữ liệu tài khoản
+        else Người gọi là BARISTA (Role đặc quyền vận hành)
+            SEC->>AC: 37. Barista được phép truy cập theo nghiệp vụ quầy
+            AC-->>FE: 38. 200 OK ({ data: userProfile })
+        end
+    end
+    end
 ```
 
 ### 3.2. Chi tiết kỹ thuật & Hợp đồng dữ liệu (SD-06)
@@ -270,6 +301,17 @@ sequenceDiagram
   - `@UseGuards(JwtAuthGuard, RolesGuard)`: Gắn tại Controller hoặc Method.
   - `@Roles(UserRole.BARISTA)`: Khai báo danh sách vai trò được phép truy cập.
   - `@CurrentUser()`: Custom Decorator trích xuất thông tin người dùng từ `req.user` để kiểm tra ownership (ví dụ `user.id === order.userId`).
+  - `@UseGuards(JwtAuthGuard, OwnershipGuard)`: Bảo vệ các endpoint dữ liệu tài khoản nhạy cảm, ngăn ngừa User Isolation Violation (Khách hàng A không thể xem dữ liệu của Khách hàng B).
+
+### 3.3. Chuẩn hóa Phân quyền, Quyền sở hữu & Ma trận Mã lỗi
+
+| Mã HTTP | Mã lỗi chuẩn (`code`) | Ngữ cảnh xảy ra | Hành vi Client (Frontend) |
+|---|---|---|---|
+| **401 Unauthorized** | `UNAUTHORIZED` | Thiếu token, token hết hạn, sai chữ ký số HMAC-SHA256, sai issuer/audience. | Tự động hủy phiên đăng nhập, xóa token lưu trữ và điều hướng về trang Đăng nhập (`/login`). |
+| **401 Unauthorized** | `INVALID_CREDENTIALS` | Sai username hoặc password lúc đăng nhập (chống username enumeration). | Hiển thị thông báo "Tài khoản hoặc mật khẩu không chính xác.", không xóa phiên hiện hữu nếu có. |
+| **403 Forbidden** | `FORBIDDEN_RESOURCE` | Đã đăng nhập nhưng không đủ vai trò (ví dụ: `CUSTOMER` gọi API của `BARISTA`), hoặc vi phạm quyền sở hữu (User A cố đọc dữ liệu User B). | Hiển thị thông báo từ chối truy cập rõ ràng, **giữ nguyên phiên đăng nhập** hợp lệ của người dùng. |
+| **403 Forbidden** | `ACCOUNT_INACTIVE` | Tài khoản bị tạm khóa hoặc chưa kích hoạt (`isActive == false`). | Hiển thị thông báo tài khoản bị khóa, đề nghị liên hệ quản trị. |
+| **404 Not Found** | `ORDER_NOT_FOUND` | Khách hàng A cố tình truy vấn/sửa đơn hàng của Khách hàng B (theo `security.md`). | Trả về 404 để chống tấn công dò quét (UUID enumeration) sự tồn tại đơn hàng của người khác. |
 
 ---
 

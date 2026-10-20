@@ -24,6 +24,11 @@ Bổ sung `OrderItem.note` nullable tối đa 500 ký tự: schema/migration, DT
 - [Bằng chứng kiểm tra, rà Product Detail và chuẩn bị Review/Retro](./scrum/khang-week-02-handover.md)
 - [Huy — JWT Guard, quản lý phiên và logout/401](./scrum/huy-week-02-handover.md)
 
+## Bàn giao Huy tuần 3
+
+- [Huy — RBAC, Ownership Guard & User Isolation](./scrum/huy-week-03-handover.md)
+- [Báo cáo phản biện kỹ thuật SD-12 & Coupon logic](./reviews/huy-review-coupon-sd12.md)
+
 Thiết kế/DTO đã chuẩn bị để Hoàng review; endpoint tạo đơn thuộc S2-W3. Không tự ghi approval hoặc kết quả họp Scrum.
 
 ## Lộ trình đọc

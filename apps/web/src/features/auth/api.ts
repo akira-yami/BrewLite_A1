@@ -13,6 +13,7 @@ export class AuthApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly code?: string,
   ) {
     super(message);
     this.name = 'AuthApiError';
@@ -37,12 +38,13 @@ async function request<T>(
   const json = await res.json().catch(() => null);
   if (!res.ok) {
     const raw = json?.error?.message ?? json?.message;
+    const code = json?.error?.code;
     const message = Array.isArray(raw)
       ? raw.filter((value) => typeof value === 'string').join('. ')
       : typeof raw === 'string'
         ? raw
         : '';
-    throw new AuthApiError(message || fallback, res.status);
+    throw new AuthApiError(message || fallback, res.status, code);
   }
   if (json === null)
     throw new AuthApiError(

@@ -139,3 +139,26 @@ test('Nest validation arrays produce readable errors', async () => {
     /Username không hợp lệ.*Password quá ngắn/,
   );
 });
+
+test('protected 403 preserves session and exposes code FORBIDDEN_RESOURCE', async () => {
+  const { api, invalidated } = setup({
+    ok: false,
+    status: 403,
+    body: {
+      error: {
+        code: 'FORBIDDEN_RESOURCE',
+        message: 'Bạn không có quyền truy cập dữ liệu của người dùng khác.',
+      },
+    },
+  });
+  await assert.rejects(
+    api.authenticatedRequest('/auth/users/other-id'),
+    (error) => {
+      assert.equal(error.status, 403);
+      assert.equal(error.code, 'FORBIDDEN_RESOURCE');
+      assert.match(error.message, /không có quyền/);
+      return true;
+    },
+  );
+  assert.deepEqual(invalidated, []);
+});

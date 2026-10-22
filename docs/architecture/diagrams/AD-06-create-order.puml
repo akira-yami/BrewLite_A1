@@ -1,0 +1,150 @@
+@startuml AD-06-create-order
+title AD-06 - UC-06: Luồng hoạt động tạo đơn và giữ tồn
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam ArrowColor #5D4037
+skinparam activity {
+  BackgroundColor #EFEBE9
+  BorderColor #6D4C41
+  DiamondBackgroundColor #FFF8E1
+  DiamondBorderColor #8D6E63
+  StartColor #6D4C41
+  EndColor #6D4C41
+}
+
+start
+partition "1. Khách hàng / Next.js UI" {
+:Xem / sửa giỏ, chọn tùy chọn;
+:Nhập coupon nếu có;
+:Chọn "Đặt đơn";
+if (Giỏ và dữ liệu nhập hợp lệ?) then (Không)
+  :Hiển thị lỗi để khách sửa;
+  stop
+else (Có)
+endif
+if (Có phiên đăng nhập?) then (Không)
+  :Thực hiện UC-02 - Đăng nhập;
+  if (Đăng nhập thành công?) then (Không)
+    :Giữ giỏ, dừng đặt đơn;
+    stop
+  else (Có)
+  endif
+else (Có)
+endif
+:Khóa nút gửi, hiển thị loading;
+:POST /api/v1/orders với JWT;
+}
+
+partition "2. NestJS API / OrdersService - Kiểm tra đầu vào" {
+
+:Xác thực JWT, kiểm tra role CUSTOMER,
+validate DTO;
+if (JWT / role / DTO hợp lệ?) then (Không)
+  :Trả 401 / 403 / 400 tương ứng;
+  :Kết thúc loading, giữ giỏ;
+  :Báo lỗi / yêu cầu đăng nhập lại;
+  stop
+else (Có)
+endif
+
+:Chuẩn hóa và gộp dòng theo
+variant / topping / đường / đá / note;
+if (Quantity sau gộp thuộc 1..20?) then (Không)
+  :Trả 400 VALIDATION_ERROR;
+  :Kết thúc loading, cho sửa số lượng;
+  stop
+else (Có)
+endif
+
+}
+
+partition "3. Transaction và retry có giới hạn" {
+:attempt = 0; result = chưa có;
+while (attempt < 3 và chưa có kết quả cuối?) is (Có)
+  :attempt += 1; xóa lỗi của attempt trước;
+
+  :BEGIN transaction Serializable;
+  :Thực thi toàn bộ nghiệp vụ của một attempt
+  (chi tiết tương tác trong SD-10);
+  note right
+    Cùng một tx cho tất cả thao tác:
+    1. Kiểm tra user active.
+    2. Đọc catalog / giá / stock / version.
+    3. Khóa và kiểm tra coupon nếu có.
+    4. Tính tiền, tạo Order(PENDING) / snapshot.
+    5. Giữ lượt coupon nếu có.
+    6. Giữ tồn bằng optimistic locking.
+    7. Ghi reservation và history.
+    Bất kỳ exception nào dừng các bước còn lại.
+  end note
+
+  if (Toàn bộ nghiệp vụ thành công?) then (Có)
+    :COMMIT;
+    if (DB xác nhận commit thành công?) then (Có)
+      :result = SUCCESS;
+    else (Chưa)
+      if (DB xác nhận transaction chưa commit?) then (Có)
+        :Ghi nhận lỗi transaction;
+      else (Không rõ)
+        :result = UNKNOWN;
+        :Log orderId / requestId để đối chiếu;
+      endif
+    endif
+  else (Có lỗi)
+    :Ghi nhận lỗi transaction;
+  endif
+
+  if (Có lỗi và xác định chưa commit?) then (Có)
+    :ROLLBACK toàn transaction;
+    :Hoàn nguyên order / item / coupon / reservation /
+    history / stock / version;
+
+    if (Stock update không khớp điều kiện?) then (Có)
+      :Đọc lại catalog / stock trong transaction mới;
+      :Phân biệt INVALID_OPTION / OUT_OF_STOCK
+      với version conflict nhưng vẫn đủ hàng;
+    endif
+    if (Lỗi nghiệp vụ không được retry?) then (Có)
+      :result = FAILURE(code nghiệp vụ);
+    else (Không)
+      if (Lỗi tạm thời được retry?) then (Có)
+        if (attempt < 3?) then (Có)
+          :Backoff + jitter;
+          :Giữ result chưa có để lặp toàn attempt;
+        else (Hết lượt)
+          :result = FAILURE(INVENTORY_CONFLICT);
+        endif
+      else (Không)
+        :Log requestId;
+        :result = FAILURE(INTERNAL_ERROR);
+      endif
+    endif
+  endif
+endwhile (Không)
+}
+
+partition "4. Trả kết quả và hiển thị trên UI" {
+
+if (result = SUCCESS?) then (Có)
+  :Trả 201 + snapshot và orderId;
+  :Kết thúc loading, lưu orderId;
+  :Hiển thị mã đơn / tổng tiền / hạn giữ tồn;
+  :Chuyển sang thanh toán UC-08
+  bằng orderId đã tạo;
+else (Không)
+  if (result = UNKNOWN?) then (Có)
+    :Trả lỗi hệ thống kèm requestId;
+    :Kết thúc loading, giữ giỏ;
+    :Đối chiếu lịch sử đơn SD-14;
+    :Không tự gửi lại POST /orders;
+  else (FAILURE)
+    :Trả error envelope với mã lỗi cuối cùng;
+    :Kết thúc loading, mở lại nút gửi, giữ giỏ;
+    :Hiển thị lỗi để khách xử lý;
+  endif
+endif
+}
+stop
+@enduml

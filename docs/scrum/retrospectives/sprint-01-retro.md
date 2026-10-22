@@ -1,17 +1,21 @@
 # Sprint 1 Retrospective
 
-> Chỉ cập nhật sau khi Sprint 1 kết thúc. Không dùng nội dung giả để thay thế bằng chứng thực tế.
+Trạng thái tại 22/10/2026: **chưa ghi nhận biên bản Retrospective** trong repo. Chưa có ngày họp, người tham dự, phát biểu hoặc action được nhóm thống nhất. Đây là hồ sơ chuẩn bị.
 
-## Điều làm tốt
+## Đầu vào kiểm chứng được
 
-- _Điền từ thảo luận của nhóm._
+Xem [Sprint 1](../sprint-01.md), [tiến độ](../progress-report.md) và [truy vết](../../traceability-matrix.md). Dùng kết quả test có ngày/SHA và phản hồi review thật; không quy phát hiện kỹ thuật thành lời nhận xét của thành viên.
 
-## Điều chưa tốt / blocker
+## Nội dung cần thảo luận
 
-- _Điền từ thảo luận của nhóm._
+- Điều làm tốt: chưa có kết luận của nhóm; đối chiếu Increment và minh chứng trong Sprint.
+- Điều cần cải thiện/blocker: Review menu/detail/cart; đối chiếu option/contract; lưu approval SD-10, quyết định Accepted/Not Accepted và carry-over.
+- Chênh lệch kế hoạch/thực tế: chưa có ngày/SP cam kết và burndown đủ để tính; không dùng ngày merge thay ngày Done.
 
-## Action items cho Sprint tiếp theo
+## Theo dõi action
 
-| Action | Người phụ trách | Deadline | Trạng thái |
-|---|---|---|---|
-| _Điền_ | _Điền_ | _Điền_ | TODO |
+Chưa có action được đồng thuận. Đề xuất đưa vào họp: bổ sung review/evidence cho task, làm rõ blocker tích hợp và ghi owner/deadline theo bảng phân công gốc. Sau họp, ghi action cụ thể, người nhận việc, ngày hẹn, trạng thái và link kết quả.
+
+## Biên bản cần bổ sung sau họp
+
+Ngày giờ/người tham dự; điều nhóm thống nhất giữ/cải thiện; action/owner/deadline; link theo dõi. PO/SM ghi kết quả thực tế và cập nhật [burndown](../burndown.md) nếu có dữ liệu từng ngày.

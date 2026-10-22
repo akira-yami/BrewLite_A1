@@ -1,0 +1,89 @@
+@startuml CD-02-services
+title CD-02 - Cac lop backend hien co (7feda73)\nNet dut la dependency/injection, khong khang dinh call nghiep vu da hoan thanh
+hide circle
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam nodesep 45
+skinparam ranksep 50
+skinparam classBackgroundColor #F2F7F4
+skinparam classBorderColor #456657
+
+class AuthController {
+  register(dto)
+  login(dto)
+  getMe(user)
+  getUserById(userId)
+  baristaOnly()
+}
+class AuthService {
+  register(dto)
+  login(dto)
+  getProfile(userId)
+}
+class UserRepository {
+  findByUsername(username)
+  findById(id)
+  create(data)
+}
+class CatalogController {
+  getProducts()
+  getProductDetail(id)
+}
+class CatalogService {
+  getProducts()
+  getProductDetailById(id)
+}
+class CatalogRepository {
+  findAllProducts()
+  findDetailById(id)
+}
+class OrdersService {
+  validateAndPriceItems(items)
+}
+class OrdersRepository {
+  findActiveVariantById(variantId)
+}
+class PaymentsService <<stub>> {
+  processPayment(payload, key, userId)
+}
+interface IPaymentGateway {
+  processPayment(payload, key, userId)
+}
+interface IMockGatewayService {
+  charge(amount, method)
+}
+class MockGatewayService {
+  charge(amount, method)
+}
+class PrismaService {
+  onModuleInit()
+  onModuleDestroy()
+}
+
+AuthController ..> AuthService : calls
+AuthService ..> UserRepository : calls
+UserRepository ..> PrismaService : queries
+CatalogController ..> CatalogService : calls
+CatalogService ..> CatalogRepository : calls
+CatalogRepository ..> PrismaService : queries
+OrdersService ..> OrdersRepository : pricing only
+OrdersRepository ..> PrismaService : reads variant
+PaymentsService ..|> IPaymentGateway
+MockGatewayService ..|> IMockGatewayService
+PaymentsService ..> MockGatewayService : inject only
+
+note bottom of PaymentsService
+  processPayment nem NotImplementedException.
+  Chua co payment orchestration/transaction.
+  IPaymentGateway la ten interface orchestration
+  trong code; IMockGatewayService moi la adapter charge.
+end note
+note bottom of OrdersService
+  Chua co OrdersController/createOrder/transition.
+  UsersService, InventoryService, PromotionsService,
+  LoyaltyService trong thiet ke dich chua co runtime.
+  AuthService con phu thuoc JwtService (NestJS),
+  guard/DTO/mapper xem tai lieu va source rieng.
+end note
+@enduml

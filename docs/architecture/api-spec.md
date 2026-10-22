@@ -1,5 +1,17 @@
 # Đặc tả REST API BrewLite
 
+Đối chiếu 22/10/2026, baseline `7feda73`. Catalog dưới đây mô tả response hiện hành; Orders/Payments và các API chưa có runtime là hợp đồng đích. [Ma trận truy vết](../traceability-matrix.md) ghi test và phần còn thiếu.
+
+| Nhóm route | Trạng thái trong source |
+|---|---|
+| GET /health; GET /products và /products/:id | Đã đăng ký route |
+| POST /auth/register, /auth/login; GET /auth/me, /auth/users/:userId, /auth/barista-only | Đã đăng ký route; JWT/ownership/RBAC tùy endpoint |
+| POST /orders; GET /orders/me, /orders/:id; transition/cancel | Chưa có OrdersController; mô tả dưới là contract cần triển khai |
+| POST /payments | Decorator @Post đang comment; service ném NotImplementedException |
+| Refresh token, coupon và loyalty API | Chưa triển khai; xem phạm vi từng mục |
+
+Quy ước requestId/envelope/phân trang là mục tiêu chung. Runtime hiện chưa áp dụng đồng nhất: Auth trả `{data: ...}`, Catalog trả `{success: true, data: ...}`; filter chuẩn hóa 401/403/custom error, các lỗi thông thường khác có thể còn định dạng NestJS. Rate limit 429 và metadata/header cho mọi response chưa được chứng minh. Không dùng ví dụ contract để khẳng định endpoint đã tồn tại.
+
 ## 1. Quy ước chung
 
 - Base URL: `/api/v1`.
@@ -7,7 +19,7 @@
 - Auth: `Authorization: Bearer <access-token>`.
 - ID là UUID; thời gian ISO 8601 UTC; tiền là số nguyên VND.
 - Tất cả request có/được gán `X-Request-Id`; response trả lại header này.
-- API danh sách có `limit` tối đa 100 và metadata phân trang.
+- API danh sách theo thiết kế có `limit` tối đa 100 và metadata phân trang; GET /products hiện chưa nhận query/phân trang.
 - Không nhận `userId`, `unitPrice`, `lineTotal`, `total` từ client cho nghiệp vụ tạo đơn.
 
 Response thành công trả tài nguyên trực tiếp trong `data`:
@@ -91,38 +103,37 @@ Frontend sử dụng endpoint này để xác minh phiên sau reload. Với 401,
 
 Phát access token mới từ refresh token lưu trong cookie HttpOnly. Endpoint này không bắt buộc theo đề bài nhưng nên có nếu access token ngắn hạn.
 
+### Route kiểm chứng quyền hiện có
+
+`GET /auth/users/:userId` dùng JwtAuthGuard + OwnershipGuard: CUSTOMER chỉ đọc userId của mình, BARISTA có quyền theo guard hiện tại. `GET /auth/barista-only` dùng JwtAuthGuard + RolesGuard, chỉ BARISTA. Các route này có HTTP test, nhưng chưa chứng minh ownership đơn hàng. Khi bổ sung `/orders/:id`, phải đọc order.userId và đối chiếu principal; không so orderId trực tiếp với userId.
+
 ## 3. Catalog
 
 ### `GET /products`
 
-Public. Trả menu đang hoạt động.
-
-Query:
-
-| Tên | Kiểu | Mặc định | Ý nghĩa |
-|---|---|---:|---|
-| `search` | string | - | Tìm theo tên |
-| `cursor` | string | - | Cursor trang kế |
-| `limit` | int | 20 | 1..100 |
+Public. Trả product và variant đang active theo thứ tự product.createdAt tăng dần. Controller hiện không khai báo query search/cursor/limit. Topping inactive có thể vẫn có trong list với `available: false`; frontend không được coi mọi topping trong list là chọn được. Detail lọc topping active.
 
 Kết quả `200 OK`:
 
 ```json
 {
+  "success": true,
   "data": [
     {
       "id": "uuid",
       "sku": "CAPPUCCINO",
       "name": "Cappuccino",
-      "imageUrl": "https://...",
-      "minPrice": 45000,
-      "available": true
+      "description": "Cà phê sữa bọt",
+      "imageUrl": "/images/cappuccino.png",
+      "basePrice": 45000,
+      "variants": [
+        { "id": "uuid", "size": "M", "price": 45000, "stock": 10 }
+      ],
+      "toppings": [
+        { "id": "uuid", "code": "CREAM", "name": "Kem", "price": 7000, "available": true }
+      ]
     }
-  ],
-  "meta": {
-    "nextCursor": null,
-    "requestId": "01K..."
-  }
+  ]
 }
 ```
 
@@ -132,25 +143,27 @@ Public. Trả chi tiết và chỉ các tùy chọn đang hoạt động.
 
 ```json
 {
+  "success": true,
   "data": {
     "id": "uuid",
     "sku": "CAPPUCCINO",
     "name": "Cappuccino",
     "description": "...",
     "imageUrl": "https://...",
+    "basePrice": 50000,
     "variants": [
-      { "id": "uuid", "size": "M", "price": 50000, "available": true }
+      { "id": "uuid", "size": "M", "price": 50000, "stock": 10 }
     ],
     "toppings": [
-      { "id": "uuid", "name": "Kem", "price": 7000 }
+      { "id": "uuid", "code": "CREAM", "name": "Kem", "price": 7000, "available": true }
     ]
   }
 }
 ```
 
-Lỗi: `404 PRODUCT_NOT_FOUND`.
+Runtime: UUID sai bị ParseUUIDPipe trả 400; sản phẩm thiếu/inactive trả 404 với thông báo `Product not found` theo NestJS, chưa có mã `PRODUCT_NOT_FOUND` thống nhất.
 
-`minPrice` được suy ra từ giá các variant đang hoạt động; bảng `products` không có cột giá cơ sở.
+`basePrice` là giá nhỏ nhất của các variant active, hoặc 0 khi không có variant; bảng `products` không có cột giá cơ sở. Variant có `stock`, không có trường `available`; UI suy ra khả dụng từ tồn. Search/phân trang và chuẩn hóa envelope/error là phần còn cần thống nhất khi mở rộng contract.
 
 ## 4. Order
 

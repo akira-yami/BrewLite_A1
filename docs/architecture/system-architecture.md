@@ -2,11 +2,13 @@
 
 Owner: Dev Khang. Reviewer: Dev Kiệt. Trạng thái: chờ xác nhận review độc lập. Foundation triển khai tại `apps/api/src/database`, [contract bổ sung tuần 1](./foundation-contract.md).
 
+Đây là kiến trúc đích. Snapshot 22/10/2026: Auth/Catalog có runtime; Orders mới có pricing/DTO/mapper, Payments mới có gateway mock; inventory/promotions/loyalty chưa có service nghiệp vụ. Xem [truy vết](../traceability-matrix.md), [Class Diagram domain và lớp hiện có](./class-diagram.md), [Deployment Diagram](./deployment-diagram.md). Luồng checkout dưới đây chưa chạy xuyên suốt.
+
 ## 1. Quyết định tổng thể
 
 BrewLite dùng **modular monolith** cho backend và ứng dụng Next.js độc lập cho frontend. Trong từng module NestJS áp dụng kiến trúc phân lớp đơn giản **Controller -> Service -> Repository**. Cách này phù hợp quy mô bài tập, dễ phân công và dễ kiểm thử hơn một kiến trúc nhiều lớp trừu tượng.
 
-- Frontend: Next.js App Router, React Query cho server state, Zustand cho giỏ hàng local.
+- Frontend: Next.js App Router, TanStack Query cho server state; giỏ hiện dùng custom external store với `useSyncExternalStore` và localStorage.
 - Backend: NestJS chia module theo nghiệp vụ; mỗi module có `controllers`, `services`, `repositories`, `mappers`, `dto`, `entities`.
 - Database: PostgreSQL, truy cập qua Prisma.
 - Payment: `PaymentService` gọi `PaymentGateway` interface; `MockPaymentGateway` là implementation mặc định.
@@ -32,7 +34,7 @@ brewlite/
 │  │     ├─ features/            # catalog, cart, auth, checkout, orders
 │  │     ├─ components/          # UI dùng chung
 │  │     ├─ lib/                 # API client, auth, query client
-│  │     └─ stores/              # Zustand cart/session UI state
+│  │     └─ stores/              # Custom cart store
 │  └─ api/                       # NestJS
 │     ├─ src/
 │     │  ├─ modules/             # module theo nghiệp vụ
@@ -114,20 +116,25 @@ Ví dụ luồng tạo đơn:
 OrdersController.create(dto, currentUser)
   -> OrdersService.createOrder(dto, currentUser.id)
      -> CatalogService.findActiveOptions(...)
-     -> PromotionService.calculateDiscount(...)
-     -> InventoryService.reserve(..., tx)
-     -> OrderRepository.create(..., tx)
+     -> PromotionsService.quoteAndLock(..., tx)
+     -> OrdersRepository.createOrderAndItems(..., tx)
+     -> PromotionsService.reserve(..., orderId, tx)  # nếu có coupon
+     -> InventoryService.reserve(..., orderId, tx)
   -> OrderResponseDto
 ```
+
+Tên method trong ví dụ là contract đích; các thao tác dùng chung transaction. Order được insert trước redemption/reservation có FK orderId.
 
 ## 4. Kiến trúc frontend
 
 | Loại state | Công cụ | Ví dụ |
 |---|---|---|
 | Server state | TanStack Query | menu, chi tiết, lịch sử đơn |
-| Client state lâu hơn một page | Zustand + localStorage | giỏ hàng |
-| Form state | React Hook Form + schema validation | đăng nhập, checkout |
-| Auth | cookie HttpOnly ưu tiên; hoặc memory + cơ chế refresh | access/refresh token |
+| Client state lâu hơn một page | Custom external store + localStorage | giỏ hàng; `stores/cart-store.ts` |
+| Form state | React state và validation hiện có | đăng nhập/đăng ký; checkout chưa triển khai |
+| Auth | Session store + localStorage; xác minh lại qua /auth/me | access token, tự hết phiên/401/logout; chưa có refresh token |
+
+Cookie HttpOnly/refresh token là phương án cải thiện sau, chưa phải cơ chế đang chạy. Zustand và React Hook Form không có trong dependencies hiện tại; không dùng tên thư viện dự kiến để mô tả implementation.
 
 Mỗi `feature` chứa component, hook, query key, API function và test của chính nghiệp vụ đó. Route trong `app/` chỉ compose feature, tránh đặt business rule trong page component.
 
@@ -158,9 +165,9 @@ sequenceDiagram
 
 1. Xác thực user và kiểm tra giỏ không rỗng.
 2. Đọc variant/topping đang hoạt động và tính giá server-side.
-3. Kiểm tra coupon, tính `subtotal`, `discountAmount`, `total`; nếu dùng coupon thì giữ lượt bằng `CouponRedemption(RESERVED)`.
-4. Với từng variant, trừ tồn bằng cập nhật nguyên tử với điều kiện `version = expectedVersion AND stock >= quantity`, đồng thời tăng `version`. Nếu không cập nhật được dòng nào, đọc lại và retry có giới hạn khi xung đột version; báo hết hàng nếu tồn không đủ.
-5. Tạo `Order`, `OrderItem` (snapshot cả `sugarLevel`/`iceLevel`), `OrderItemTopping`, `InventoryReservation` và `OrderStatusHistory`. Đường/đá là phần trăm nguyên 0..100 hoặc null (công thức chuẩn), không đổi giá. Tách dòng khi khác tùy chọn, nhưng tổng hợp quantity theo variant khi giữ tồn.
+3. Kiểm tra/khóa coupon nếu có, tính `subtotal`, `discountAmount`, `total`; chưa insert redemption trước khi có Order.
+4. Insert `Order(PENDING)`, `OrderItem` (snapshot cả `sugarLevel`/`iceLevel`) và `OrderItemTopping` trước các bản ghi có FK orderId; sau đó mới tạo coupon redemption RESERVED. Kiểm tra coupon ở bước 3 mới là quote/lock, chưa insert redemption.
+5. Với từng variant theo thứ tự ID ổn định, trừ tồn bằng cập nhật nguyên tử với điều kiện `version = expectedVersion AND stock >= quantity`, tăng `version` và tạo `InventoryReservation`; ghi `OrderStatusHistory` trước commit. Khi xung đột còn hàng thì retry toàn transaction có giới hạn; hết hàng không retry. Đường/đá là phần trăm nguyên 0..100 hoặc null (công thức chuẩn), không đổi giá. Tách dòng khi khác tùy chọn, tổng hợp quantity theo variant khi giữ tồn.
    `OrderItem.note` là ghi chú nullable tối đa 500 ký tự sau trim, snapshot và trả cho khách/barista. Giỏ persist note, khác note giữ dòng riêng; không phụ thu và reservation vẫn tổng hợp theo variant.
 6. Commit rồi trả order `PENDING`.
 

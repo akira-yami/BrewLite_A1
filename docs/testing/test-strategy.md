@@ -8,13 +8,15 @@ Kiểm thử tập trung vào Acceptance Criteria của 10 task và các rủi r
 
 ```text
 apps/api/src/**/**.spec.ts        # unit test đặt gần code
-apps/api/test/integration/       # Prisma/repository/transaction
-apps/api/test/fixtures/          # factory/fixture dùng cho backend test
-apps/web/tests/                  # component/integration frontend
-tests/e2e/                       # luồng end-to-end toàn hệ thống
+apps/api/test/*.integration-spec.ts # PostgreSQL thật: foundation, catalog seed, S1 HTTP
+apps/api/test/*.e2e-spec.ts         # HTTP readiness/Auth với provider mock
+apps/web/tests/*.test.mjs           # Node test cho logic/store/API và cấu trúc UI
+tests/e2e/                         # chỗ dự kiến cho browser E2E toàn hệ thống; chưa có suite
 ```
 
 ## 3. Ma trận kiểm thử tối thiểu
+
+Các TC dưới đây là yêu cầu kiểm chứng, không phải danh sách đều đã PASS. Snapshot 22/10/2026: có test Catalog/Auth, cart/session, DTO/pricing/mapper, mock gateway, DB constraints và seed. TC-03..10 chưa có đầy đủ service/API tích hợp. Foundation test chứng minh CHECK/unique/FK hoặc rollback SQL, chưa chứng minh state machine, payment orchestration và chống oversell qua request đồng thời. Xem [mapping từng test](../traceability-matrix.md).
 
 | ID | Phạm vi | Test chính | Kết quả mong đợi |
 |---|---|---|---|

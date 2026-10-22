@@ -1,114 +1,203 @@
 @startuml SD-10-create-order
-title SD-10 — UC-06: Tạo đơn, snapshot và giữ tồn
+title SD-10 - UC-06: Tạo đơn, snapshot và giữ tồn\nSequence Diagram
 hide footbox
 autonumber
 skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam shadowing false
 skinparam sequenceMessageAlign center
 skinparam responseMessageBelowArrow true
-skinparam maxMessageSize 240
+skinparam maxMessageSize 210
+skinparam sequence {
+  ArrowColor #5D4037
+  LifeLineBorderColor #A1887F
+  ParticipantBorderColor #6D4C41
+  ParticipantBackgroundColor #EFEBE9
+  ActivationBackgroundColor #D7CCC8
+  ActivationBorderColor #6D4C41
+  GroupBorderColor #8D6E63
+  GroupBackgroundColor #FAF8F6
+  DividerBackgroundColor #D7CCC8
+  NoteBackgroundColor #FFF8E1
+  NoteBorderColor #BCAAA4
+}
 
 actor "Khách hàng" as Customer
-boundary "Checkout UI" as UI
-control "OrdersController\nJWT / Role / ValidationPipe" as API
+boundary "Checkout UI\nNext.js" as UI
+control "NestJS API\nOrdersController" as API
 control "OrdersService" as Orders
 control "UsersService" as Users
 control "CatalogService" as Catalog
 control "PromotionsService" as Coupon
 control "InventoryService" as Inventory
-database "PostgreSQL\nqua Repository của mỗi module" as DB
+database "PostgreSQL\nqua Repository / Prisma" as DB
 
 note over API, DB
-Thiết kế S1-W2 — Dev Khang; chờ Dev Hoàng review.
-Service nghiệp vụ chưa triển khai ở tuần 2.
-Mỗi Service/Repository dùng cùng Prisma.TransactionClient.
+Thiết kế đích UC-06; các cổng Service là hợp đồng triển khai.
+Guard / ValidationPipe chạy trước controller handler.
+Các lời gọi DB đi qua Repository nội bộ của từng module.
+Mọi thao tác trong một attempt dùng cùng tx: Prisma.TransactionClient.
 end note
 
-Customer -> UI: Xác nhận giỏ hàng
-UI -> API: POST /api/v1/orders + Bearer JWT\nitems, couponCode?; không gửi giá/userId/status
-alt JWT thiếu / sai / hết hạn
-  API --> UI: 401 UNAUTHORIZED
-else role khác CUSTOMER
-  API --> UI: 403 FORBIDDEN_RESOURCE
-else DTO không hợp lệ
-  API --> UI: 400 VALIDATION_ERROR
-else request hợp lệ
-  API -> Orders: createOrder(principal.id, dto)
-  Orders -> Orders: Chuẩn hóa và gộp theo variant/topping/đường/đá/note\nGiữ null khác 0 và 100; coupon trim, giữ hoa/thường
-  break Quantity sau gộp không thuộc 1..20
-    Orders --> API: 400 VALIDATION_ERROR (không ghi dữ liệu)
-    API --> UI: Error envelope
+== 1. Khách hàng xác nhận đặt đơn ==
+Customer -> UI: Kiểm tra giỏ, nhập coupon nếu có\nChọn "Đặt đơn"
+activate UI
+UI -> UI: Kiểm tra giỏ và dữ liệu nhập
+alt Giỏ rỗng hoặc dữ liệu nhập không hợp lệ
+  UI --> Customer: Hiển thị lỗi, cho sửa giỏ / tùy chọn
+else Dữ liệu đủ để gửi
+  opt Chưa có phiên đăng nhập
+    ref over Customer, API: UC-02: Đăng nhập; tiếp tục sau khi nhận JWT hợp lệ
   end
-  loop Tối đa 3 lần thử toàn transaction, chỉ retry lỗi tạm thời
-    group Một transaction Serializable (không HTTP / gateway)
-      Orders -> DB: BEGIN; now; expiresAt = now + 15 phút
-      Orders -> Users: assertActive(tx, userId)
-      Users -> DB: Đọc user còn active
-      DB --> Users: User
-      Users --> Orders: Principal hợp lệ hoặc lỗi
-      Orders -> Catalog: quoteItems(tx, normalizedItems)
-      Catalog -> DB: Đọc product / variant / topping / quan hệ / giá / version
-      DB --> Catalog: Catalog trong transaction
-      Catalog --> Orders: Snapshot giá và tên hoặc INVALID_OPTION
-      Orders -> Orders: Tính lineTotal, subtotal bằng bigint VND
-      opt Có couponCode
-        Orders -> Coupon: quoteAndLock(tx, userId, code, subtotal, now)
-        Coupon -> DB: Khóa hàng coupon; đọc điều kiện và lượt dùng\nCONSUMED + RESERVED chưa hết hạn
-        DB --> Coupon: Điều kiện / lượt dùng
-        Coupon --> Orders: Discount quote hoặc COUPON_NOT_APPLICABLE
-      end
-      Orders -> Orders: total = subtotal - discountAmount\nKiểm tra tiền là JSON integer an toàn\nSinh orderId / orderNumber và snapshot
-      Orders -> DB: INSERT Order(PENDING), OrderItem, OrderItemTopping
-      note over Orders, DB
-      Order phải tồn tại trước redemption / reservation / history (FK).
-      Chưa commit: mọi dữ liệu vẫn có thể rollback.
-      end note
-      opt Có coupon hợp lệ
-        Orders -> Coupon: reserve(tx, quote, orderId, expiresAt)
-        Coupon -> DB: INSERT CouponRedemption(RESERVED)
-        Coupon --> Orders: Đã giữ lượt
-      end
-      Orders -> Inventory: reserve(tx, orderId, needs, expiresAt)
-      Inventory -> Inventory: Tổng quantity mọi dòng theo variant\nSắp xếp variantId để giữ thứ tự update
-      loop Mỗi variant (một reservation / order / variant)
-        Inventory -> Catalog: reserveVariants(tx, quantity, expectedVersion)
-        Catalog -> DB: UPDATE stock -= quantity, version += 1\nWHERE version khớp AND stock >= quantity AND active
-        DB --> Catalog: rowCount = 1 hoặc conflict / thiếu stock
-        Catalog --> Inventory: Thành công hoặc lỗi (dừng luồng khi lỗi)
-        Inventory -> DB: INSERT InventoryReservation(ACTIVE, expiresAt)
-      end
-      Inventory --> Orders: Tất cả variant đã được giữ
-      Orders -> DB: INSERT OrderStatusHistory(NULL -> PENDING, userId)
-      alt Tất cả bước thành công
-        Orders -> DB: COMMIT
-        Orders -> Orders: Map response từ snapshot đã commit
-        note right of Orders
-        Kết thúc vòng retry sau commit.
-        Không tạo Payment / cộng điểm.
-        Thanh toán consume reservation,
-        không trừ stock lần nữa.
-        end note
-      else Lỗi tại bất kỳ bước nào (dừng các bước còn lại)
-        Orders -> DB: ROLLBACK toàn transaction
-        note over Orders, DB
-        Hoàn nguyên order/items/toppings/history/redemption/reservation,
-        stock và version. Không còn ghi dở dang.
-        end note
-        alt Version conflict nhưng còn stock / serialization / deadlock
-          Orders -> Orders: Nếu còn lượt: backoff + jitter, BEGIN mới\nHết lượt: 409 INVENTORY_CONFLICT
-        else Invalid option / coupon không hợp lệ / hết stock / lỗi DB khác
-          Orders -> Orders: Không retry; ánh xạ lỗi phù hợp
+  UI -> UI: Hiển thị loading, khóa nút gửi khi đang xử lý
+  UI -> API: POST /api/v1/orders + Bearer JWT\nitems, couponCode?; không gửi giá / userId / status
+  activate API
+  API -> API: JwtAuthGuard -> RolesGuard -> ValidationPipe
+  alt JWT thiếu, sai hoặc hết hạn
+    API --> UI: 401 UNAUTHORIZED
+    UI --> Customer: Yêu cầu đăng nhập lại, giữ nguyên giỏ
+  else Role không phải CUSTOMER
+    API --> UI: 403 FORBIDDEN_RESOURCE
+    UI --> Customer: Thông báo không có quyền tạo đơn
+  else DTO không hợp lệ
+    API --> UI: 400 VALIDATION_ERROR
+    UI --> Customer: Hiển thị lỗi tại trường nhập, giữ nguyên giỏ
+  else Request hợp lệ
+    API -> Orders: createOrder(principal.id, dto)
+    activate Orders
+    Orders -> Orders: Chuẩn hóa / gộp theo variant, tập topping, đường, đá, note\nGiữ null khác 0; trim note / coupon, giữ hoa-thường coupon
+    alt Quantity sau gộp không thuộc 1..20
+      Orders --> API: VALIDATION_ERROR
+      API --> UI: 400 VALIDATION_ERROR
+      UI --> Customer: Yêu cầu sửa số lượng trong giỏ
+    else Dữ liệu đã chuẩn hóa hợp lệ
+      Orders -> Orders: attempt = 0; result = chưa có
+
+      == 2. Tạo đơn trong transaction có giới hạn retry ==
+      loop Còn lượt (attempt < 3) và chưa có kết quả cuối cùng
+        Orders -> Orders: attempt += 1; tạo ngữ cảnh attempt mới
+        Orders -> DB: BEGIN - isolation Serializable
+        activate DB
+        DB --> Orders: tx
+        alt Attempt thành công (luồng chính)
+          Orders -> Orders: Chụp now; sinh orderId / orderNumber\nexpiresAt = now + 15 phút
+          Orders -> Users: assertActive(tx, userId)
+          activate Users
+          Users -> DB: Đọc tài khoản theo principal.id
+          DB --> Users: User đang active
+          Users --> Orders: Hợp lệ
+          deactivate Users
+          Orders -> Catalog: quoteItems(tx, normalizedItems)
+          activate Catalog
+          Catalog -> DB: Đọc product / variant / topping / quan hệ\nKiểm tra active; lấy giá và version hiện tại
+          DB --> Catalog: Catalog hợp lệ
+          Catalog --> Orders: Snapshot tên / size / giá / topping, stock và version
+          deactivate Catalog
+          Orders -> Orders: Tính lineTotal và subtotal bằng bigint VND\nMặc định discountAmount = 0
+          opt Có couponCode
+            Orders -> Coupon: quoteAndLock(tx, userId, code, subtotal, now)
+            activate Coupon
+            Coupon -> DB: Khóa coupon; kiểm tra thời hạn / điều kiện / lượt dùng\nTính CONSUMED + RESERVED chưa hết hạn
+            DB --> Coupon: Coupon đủ điều kiện
+            Coupon --> Orders: Discount quote
+            deactivate Coupon
+          end
+          Orders -> Orders: total = subtotal - discountAmount\nKiểm tra tiền chuyển được sang JSON integer an toàn
+          Orders -> DB: INSERT Order(PENDING) + OrderItem + OrderItemTopping\nLưu snapshot giá, tên, đường / đá / note
+          DB --> Orders: Order và items đã ghi trong tx
+          opt Có coupon hợp lệ
+            Orders -> Coupon: reserve(tx, quote, orderId, expiresAt)
+            activate Coupon
+            Coupon -> DB: INSERT CouponRedemption(RESERVED)
+            DB --> Coupon: Đã giữ lượt coupon
+            Coupon --> Orders: Thành công
+            deactivate Coupon
+          end
+          Orders -> Inventory: reserve(tx, orderId, needs, expiresAt)
+          activate Inventory
+          Inventory -> Inventory: Cộng quantity của mọi dòng cùng variant\nXử lý variantId theo thứ tự tăng dần
+          loop Mỗi variant cần giữ tồn
+            Inventory -> Catalog: reserveVariants(tx, variantId, quantity, expectedVersion)
+            activate Catalog
+            Catalog -> DB: UPDATE stock -= quantity, version += 1\nWHERE id / version khớp AND stock >= quantity AND active
+            DB --> Catalog: rowCount = 1
+            Catalog --> Inventory: Giữ stock thành công
+            deactivate Catalog
+            Inventory -> DB: INSERT InventoryReservation(ACTIVE, expiresAt)\nMột reservation cho mỗi order / variant
+            DB --> Inventory: Reservation đã ghi
+          end
+          Inventory --> Orders: Đã giữ đủ tồn cho toàn bộ đơn
+          deactivate Inventory
+          Orders -> DB: INSERT OrderStatusHistory(NULL -> PENDING, userId)
+          DB --> Orders: History đã ghi
+          Orders -> DB: COMMIT
+          DB --> Orders: Commit thành công
+          Orders -> Orders: result = SUCCESS(snapshot đã commit)\nKhông chạy attempt tiếp theo
+        else Attempt phát sinh lỗi, transaction chưa commit thành công
+          ref over Orders, DB
+          Exception tại bước đọc / kiểm tra / ghi của attempt:
+          DỪNG ngay các bước còn lại, truyền lỗi về OrdersService.
+          Toán hạng này thay thế đường thành công phía trên.
+          end ref
+          Orders -> DB: ROLLBACK toàn bộ attempt
+          DB --> Orders: Hoàn nguyên order / items / coupon / reservation / history\nHoàn nguyên cả stock và version
+          Orders -> Orders: Phân loại nguyên nhân lỗi
+          opt UPDATE stock không khớp version / điều kiện
+            Orders -> Catalog: Đọc lại trạng thái và stock trong transaction mới
+            activate Catalog
+            Catalog -> DB: BEGIN mới; đọc các variant; COMMIT\nKhông dùng tx đã rollback
+            DB --> Catalog: Catalog / stock hiện tại
+            Catalog --> Orders: INVALID_OPTION, OUT_OF_STOCK\nhoặc xung đột tạm thời khi vẫn đủ hàng
+            deactivate Catalog
+          end
+          alt Lỗi nghiệp vụ / tài khoản / tùy chọn / coupon / hết stock
+            Orders -> Orders: result = FAILURE(code tương ứng)\nKhông retry
+          else Lỗi tạm thời AND attempt < 3
+            Orders -> Orders: Backoff ngắn + jitter\nLần sau đọc lại dữ liệu, sinh mã và tính lại toàn bộ
+          else Lỗi tạm thời AND attempt = 3
+            Orders -> Orders: result = FAILURE(INVENTORY_CONFLICT)
+          else Lỗi lưu trữ không dự kiến
+            Orders -> Orders: Log theo requestId\nresult = FAILURE(INTERNAL_ERROR)
+          end
+        else Mất ACK COMMIT, chưa xác định kết quả
+          Orders -> Orders: result = UNKNOWN; log orderId / requestId\nKhông giả định rollback, không tự retry
         end
+        deactivate DB
+      end
+
+      == 3. Trả kết quả cuối cùng ==
+      alt result = SUCCESS
+        Orders -> Orders: Map DTO từ snapshot đã commit
+        Orders --> API: Order(PENDING), items, totals, reservationExpiresAt
+        API --> UI: 201 Created\n{data: order, meta: {requestId}} + X-Request-Id
+        UI -> UI: Lưu orderId đã tạo; kết thúc loading
+        UI --> Customer: Hiển thị mã đơn, tổng tiền và hạn giữ tồn\nChuyển sang bước thanh toán UC-08
+        ref over Customer, API: UC-08 / SD-11: Thanh toán orderId đã có; không tạo lại đơn
+      else result = FAILURE
+        Orders --> API: Lỗi cuối cùng sau rollback
+        API --> UI: Error envelope + X-Request-Id\n400 / 401 / 409 / 422 / 500
+        UI -> UI: Kết thúc loading, mở lại nút gửi, giữ nguyên giỏ
+        UI --> Customer: Báo lỗi cụ thể để sửa giỏ / coupon hoặc thử lại chủ động
+      else result = UNKNOWN
+        Orders --> API: INTERNAL_ERROR + requestId
+        API --> UI: 500 INTERNAL_ERROR + X-Request-Id
+        UI -> UI: Kết thúc loading, giữ giỏ; không tự gửi lại
+        UI --> Customer: Chưa xác định kết quả; kiểm tra lịch sử đơn (SD-14)
       end
     end
+    deactivate Orders
   end
-  Orders --> API: Snapshot đã commit hoặc lỗi sau rollback
-  API --> UI: 201 {data: Order(PENDING), meta: {requestId}}\nhoặc error envelope 400/401/409/422/500; X-Request-Id
-  UI --> Customer: Hiển thị tổng tiền đã chốt / lỗi cần xử lý
+  deactivate API
 end
+deactivate UI
 
 legend bottom
-  Mũi tên DB biểu diễn Repository nội bộ, không cho phép Controller gọi DB.
-  Bất kỳ lỗi nào trong transaction đều nhảy thẳng sang rollback.
-  Chỉ trả 201 sau commit. POST /orders chưa có idempotency contract.
+  Thanh chữ nhật dọc là activation (khoảng thành phần đang xử lý lời gọi).
+  Retry chỉ áp dụng lỗi version khi còn hàng, serialization / deadlock hoặc trùng orderNumber.
+  Tối đa 3 attempt tổng cộng; thành công hoặc lỗi nghiệp vụ kết thúc vòng lặp.
+  UI timeout / mất response: giữ giỏ, đối chiếu lịch sử đơn trước khi tạo lại (SD-14).
+  POST /orders chưa có idempotency; khóa nút chỉ ngăn bấm lặp trong lúc đang gửi.
+  Luồng tạo đơn chưa thu tiền / cộng điểm; thanh toán consume reservation, không trừ stock lần hai.
 endlegend
 @enduml

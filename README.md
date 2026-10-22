@@ -2,14 +2,14 @@
 
 BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt, được xây dựng cho bài tập lớn môn Công nghệ Phần mềm. Sản phẩm hướng tới luồng đặt món nhanh tại quầy: xem menu, chọn size/topping, quản lý giỏ hàng, đăng nhập, tạo đơn, thanh toán và theo dõi trạng thái.
 
-> Trạng thái hiện tại: có scaffold Next.js/NestJS, schema Prisma tổng thể, migration, PrismaService và readiness kiểm tra PostgreSQL. Module nghiệp vụ sẽ được triển khai theo Sprint Backlog. [Contract foundation](./docs/architecture/foundation-contract.md).
+> Đối chiếu ngày 22/10/2026, mã nguồn nền `7feda73`: đã có catalog API/database, menu/chi tiết, tùy chọn món, giỏ hàng và đăng ký/đăng nhập JWT. Tạo đơn mới có DTO, mapper và kiểm tra/tính giá; chưa có `POST /orders`. Payment orchestration chưa triển khai, nên chưa chạy được toàn luồng mua hàng. Xem [báo cáo tiến độ và minh chứng](./docs/scrum/progress-report.md).
 
-## Công nghệ dự kiến
+## Công nghệ và hiện trạng
 
 | Thành phần | Công nghệ |
 |---|---|
 | Frontend | Next.js, React, TypeScript, Tailwind CSS |
-| Quản lý state | TanStack Query, Zustand |
+| Quản lý state | TanStack Query; giỏ hàng dùng custom store với `useSyncExternalStore` và localStorage |
 | Backend | NestJS, TypeScript, REST API |
 | Database | PostgreSQL |
 | ORM | Prisma |
@@ -47,7 +47,7 @@ BrewLite/
 │  │  │  ├─ components/            # UI dùng chung
 │  │  │  ├─ features/              # auth, cart, catalog, checkout, orders
 │  │  │  ├─ lib/                   # API client, auth, query client
-│  │  │  └─ stores/                # Zustand stores
+│  │  │  └─ stores/                # Custom cart store
 │  │  └─ tests/
 │  └─ api/                         # Ứng dụng NestJS
 │     ├─ prisma/
@@ -91,6 +91,8 @@ BrewLite/
 
 ## Chức năng MVP
 
+Đây là phạm vi cần nghiệm thu. Trạng thái từng yêu cầu nằm trong [ma trận truy vết](./docs/traceability-matrix.md); danh sách này không có nghĩa mọi chức năng đã hoàn thành.
+
 - Hiển thị menu và chi tiết sản phẩm.
 - Chọn size, topping, mức đường và đá.
 - Thêm, sửa số lượng và xóa sản phẩm trong giỏ.
@@ -118,7 +120,11 @@ Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào
 
 - [Mục lục tài liệu](./docs/README.md)
 - [Phân tích đề bài](./docs/phan-tich-de-bai.md)
+- [Truy vết yêu cầu A1/A2, code, test và review](./docs/traceability-matrix.md)
+- [Tiến độ thực tế ngày 22/10/2026](./docs/scrum/progress-report.md)
 - [Kiến trúc hệ thống](./docs/architecture/system-architecture.md)
+- [Class Diagram](./docs/architecture/class-diagram.md)
+- [Deployment Diagram và khoảng trống production](./docs/architecture/deployment-diagram.md)
 - [ERD](./docs/architecture/erd.md)
 - [Đặc tả entity](./docs/architecture/entities.md)
 - [Thiết kế cơ sở dữ liệu](./docs/architecture/database-design.md)
@@ -151,10 +157,10 @@ Khi chạy trực tiếp trên host, tạo database PostgreSQL rồi làm theo [
 Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull request hoặc chạy thủ công từ tab **Actions**. Các job dùng Node.js 24, cài dependencies bằng `npm ci` và cache npm theo lockfile của từng app:
 
 - **Frontend:** lint, typecheck, test giỏ hàng và build Next.js.
-- **Backend:** generate Prisma client, lint, typecheck, unit test, API E2E test và build NestJS. Bộ API E2E hiện kiểm tra health endpoint bằng Prisma mock.
+- **Backend:** generate Prisma client, lint, typecheck, unit test, API E2E test và build NestJS. Bộ API E2E hiện kiểm tra readiness và JWT/RBAC/ownership trên route Auth bằng provider mock; không phải E2E đặt hàng/thanh toán.
 - **Database migrations and integration:** PostgreSQL 18 riêng cho mỗi lần chạy; validate/generate Prisma, apply migration hai lần để kiểm tra chạy lặp, kiểm tra migration status và chạy integration test với database thật.
 
-CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Sau khi đưa workflow lên GitHub, có thể chọn ba job trên làm required checks trong ruleset/branch protection.
+CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ba job trên cần được chọn làm required checks trong ruleset/branch protection; cấu hình YAML không chứng minh rule này đã được bật. Repo hiện có CI, chưa có workflow CD. Xem [kế hoạch bàn giao](./docs/deployment/release-checklist.md).
 
 ## Quy ước phát triển
 

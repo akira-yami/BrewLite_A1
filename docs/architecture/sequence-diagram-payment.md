@@ -8,6 +8,8 @@
 > **Người duyệt (Reviewer):** Dev Khang (Tech Lead / Product Owner)
 > **Trạng thái:** ⏳ Chờ Dev Khang duyệt (Design Gate S1-W2)
 
+Đối chiếu 22/10/2026: DTO và mock gateway đã có code/test; `PaymentsService.processPayment` vẫn ném NotImplementedException, route @Post chưa bật. Các service/repository call bên dưới là thiết kế đích. Trang SD-11 trong `tutorial_new.drawio` vẫn chứa bản cũ đặt idempotency ở gateway, nên chưa đồng bộ với source trong tài liệu này; khi review dùng contract dưới đây. Race cùng key/khác key trên cùng order, rollback, timeout và boundary loyalty cần test/contract chi tiết trước khi nghiệm thu.
+
 ---
 
 ## 1. Bối cảnh & Mục tiêu thiết kế
@@ -246,7 +248,7 @@ Khi xử lý hoàn tất (kể cả khi cổng thanh toán duyệt `SUCCEEDED` h
 
 ---
 
-## 4. Mã nguồn PlantUML (Đồng bộ với Draw.io Master)
+## 4. Mã nguồn PlantUML (bản contract để đồng bộ Draw.io)
 
 Đoạn mã PlantUML dưới đây dùng để nhúng trực tiếp vào file Draw.io tổng thể của nhóm:
 
@@ -255,7 +257,7 @@ Khi xử lý hoàn tất (kể cả khi cổng thanh toán duyệt `SUCCEEDED` h
 skinparam maxMessageSize 160
 skinparam responseMessageBelowArrow true
 autonumber
-title SD-11: Thực hiện thanh toán & Retry (Đồng bộ 100% với UC-08, API Spec & SD-04)
+title SD-11: Thực hiện thanh toán & Retry (Thiết kế đích UC-08, chờ review)
 
 actor "Khách hàng\n(CUSTOMER)" as Client
 participant "PaymentsController" as Controller

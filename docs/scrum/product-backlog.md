@@ -2,6 +2,8 @@
 
 Backlog dưới đây bám sát 10 task của đề bài. Story point là ước lượng gợi ý để lập kế hoạch, không thay thế thang điểm chấm của giảng viên.
 
+Giữ nguyên mã/nội dung/SP của bảng dưới. Đây là 10 hạng mục tổng hợp theo đề, không thay workbook 33 task đã gửi nhóm. [Ma trận truy vết A1/A2](../traceability-matrix.md) và [báo cáo 22/10/2026](./progress-report.md) bổ sung trạng thái/minh chứng; không suy Done từ việc có schema hoặc đã merge PR.
+
 | ID | Sprint | Hạng mục | Kết quả chấp nhận chính | SP |
 |---|---:|---|---|---:|
 | BL-01 | 1 | Khởi tạo monorepo | Next.js/NestJS chạy, env mẫu, lint/test, README | 3 |

@@ -1,6 +1,17 @@
 # Tài liệu dự án BrewLite
 
-Thư mục này mô tả kiến trúc đích của BrewLite dựa trên đề bài phiên bản 1.0. Repository có scaffold Next.js/NestJS, Prisma/PostgreSQL và Docker; các tài liệu là đường cơ sở để nhóm triển khai module nghiệp vụ theo từng Sprint.
+Thư mục này gồm thiết kế đích và minh chứng triển khai BrewLite. Đối chiếu ngày 22/10/2026 trên mã nguồn nền `7feda73`: catalog, menu/chi tiết, giỏ hàng và Auth đã có code/test; tạo đơn và thanh toán chưa hoàn thành. Thiết kế hoặc schema có sẵn không thay cho bằng chứng chức năng đã chạy.
+
+## Hồ sơ đối chiếu và báo cáo
+
+- [Ma trận truy vết](./traceability-matrix.md): A1/A2 → FR/NFR → UC/User Story → thiết kế → code → test → review; giữ các mã task hiện hành.
+- [Tiến độ thực tế](./scrum/progress-report.md): sản phẩm đã có, khoảng trống, commit/PR và mốc cần kiểm chứng; không thay bảng 33 task đã gửi nhóm.
+- [Class Diagram](./architecture/class-diagram.md): mô hình domain theo Prisma schema, nguồn PlantUML/draw.io và bản xuất.
+- [Deployment Diagram](./architecture/deployment-diagram.md): topology Compose hiện có và phương án HTTPS chưa triển khai.
+- [Danh mục sơ đồ](./architecture/diagrams/README.md): nguồn chuẩn, bản xuất, tình trạng đồng bộ draw.io.
+- [Bàn giao/release](./deployment/release-checklist.md): E2E, required checks, CD, HTTPS, smoke và rollback còn cần minh chứng.
+
+Nguồn đề chính thức hiện có là [BrewLite v1.0](./BrewLite-CongNghePhanMem.pdf). Phạm vi Assignment 2 được đối chiếu theo cuộc trò chuyện “Đánh giá bảng phân công”; chưa có bản đề A2 trong repo, nên các mục A2 được ghi là đối chiếu tạm thời, không coi là trích nguyên văn yêu cầu giảng viên.
 
 Cập nhật 10/10/2026: thêm `OrderItem.sugarLevel`/`iceLevel` nullable 0..100 vào schema, migration, contract và giỏ. Quy ước null/0%, snapshot, tách dòng và tổng hợp tồn nằm trong [entity](./architecture/entities.md), [database](./architecture/database-design.md) và [API](./architecture/api-spec.md). PDF đề bài và ảnh ERD gốc giữ làm tài liệu tham chiếu; Mermaid ERD là mô hình đã cập nhật.
 
@@ -14,10 +25,12 @@ Bổ sung `OrderItem.note` nullable tối đa 500 ký tự: schema/migration, DT
 - [SD-04 — Order State Machine](./architecture/order-state-machine.md)
 - [Contract bổ sung foundation](./architecture/foundation-contract.md)
 - [SD-11: Thanh toán & Retry](./architecture/sequence-diagram-payment.md)
+- [SD-14: Sequence lịch sử và chi tiết đơn hàng (UC-09)](./architecture/sequence-diagram-order-history-detail.md)
 
 ## Bàn giao Khang tuần 2
 
 - [SD-10 — Mã PlantUML tạo đơn & giữ tồn](./architecture/diagrams/SD-10-create-order.puml)
+- [SD-10 đã bổ sung activation và luồng Activity AD-06](./architecture/sequence-diagram-create-order.md)
 - [Hợp đồng Orders S1-10](./architecture/orders-contract.md)
 - [UC-06 — Tạo đơn hàng](./use-cases/UC-06-tao-don-hang.md)
 - [OpenAPI POST /orders](./api/orders.openapi.yaml)
@@ -81,4 +94,4 @@ Kiến trúc này bao phủ luồng: xem menu -> chọn size/topping -> giỏ h�
 - [Burndown](./scrum/burndown.md)
 - [Definition of Done](./scrum/definition-of-done.md)
 
-Các file Sprint/Retrospective là biểu mẫu ban đầu; nhóm phải cập nhật bằng dữ liệu thật trong quá trình thực hiện, không coi placeholder là bằng chứng Scrum đã hoàn thành.
+Các file Sprint đã ghi trạng thái kỹ thuật theo minh chứng tại ngày 22/10/2026. Retrospective ghi rõ chưa có biên bản và nội dung chuẩn bị; nhóm cần bổ sung sự kiện, feedback, approval và nghiệm thu thực tế trước khi dùng làm bằng chứng Scrum hoàn thành.

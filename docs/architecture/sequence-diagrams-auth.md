@@ -5,7 +5,7 @@
 > **Sprint:** Sprint 1 / Sprint 2  
 > **Tác giả:** Huy (Development Team - Auth)  
 > **Người duyệt (Reviewer):** Dev Khang  
-> **Trạng thái:** ⏳ Chờ Dev Khang duyệt trước khi viết code (Design Trước Code)
+> **Trạng thái đối chiếu 22/10/2026:** Auth/JWT/session/RBAC/ownership trên route Auth đã có code và test (PR #6/#21/#22). Chưa ghi nhận approval độc lập trong hồ sơ này; không còn mô tả toàn bộ Auth là “chưa viết code”. Ownership order/payment vẫn là thiết kế cần tích hợp. Xem [handover Huy W3](../scrum/huy-week-03-handover.md) và [ma trận truy vết](../traceability-matrix.md).
 
 ---
 

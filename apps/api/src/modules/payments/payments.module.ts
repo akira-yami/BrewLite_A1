@@ -1,13 +1,17 @@
 // File cấu hình module gom tất cả Controller, Service lại
 import { Module } from '@nestjs/common';
-// import { PaymentsController } from './controllers/payments/payments.controller.js';
-import { PaymentsService } from './services/payments/payments.service.js';
-import { MockGatewayService } from './services/mock-gateway/mock-gateway.service.js';
+import { PrismaModule } from '../../database/prisma.module.js';
+import { AuthModule } from '../auth/auth.module.js';
+import { OrdersModule } from '../orders/orders.module.js';
+import { PaymentsController } from './controllers/payments.controller.js';
+import { PaymentsService } from './services/payments.service.js';
+import { PaymentsRepository } from './repositories/payments.repository.js';
+import { MockGatewayService } from './services/mock-gateway.service.js';
 
 @Module({
-// TẠM KHÔNG ĐĂNG KÝ CONTROLLER VÀO ENDPOINT PUBLIC (Giải quyết KT-05)
-  // controllers: [PaymentsController],
-  providers: [PaymentsService, MockGatewayService],
+  imports: [PrismaModule, AuthModule, OrdersModule],
+  controllers: [PaymentsController],
+  providers: [PaymentsService, PaymentsRepository, MockGatewayService],
   exports: [PaymentsService], // Export để module khác có thể gọi nếu cần
 })
 export class PaymentsModule {}

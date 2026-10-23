@@ -1,0 +1,12 @@
+Recorded: 2026-10-23T16:29:00.0115095+07:00
+Command: vitest run --config vitest.config.e2e.ts
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+
+ Test Files  2 passed (2)
+      Tests  16 passed (16)
+   Start at  16:29:01
+   Duration  14.27s (transform 2.17s, setup 0ms, import 25.28s, tests 1.18s, environment 0ms)
+
+Exit code: 0

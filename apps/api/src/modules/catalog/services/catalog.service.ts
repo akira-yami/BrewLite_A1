@@ -1,3 +1,4 @@
+import type { Prisma } from '../../../generated/prisma/client.js';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CatalogRepository } from '../repositories/catalog.repository.js';
 import { ProductResponseDto } from '../dto/product.dto.js';
@@ -5,6 +6,30 @@ import { ProductResponseDto } from '../dto/product.dto.js';
 @Injectable()
 export class CatalogService {
   constructor(private readonly repository: CatalogRepository) {}
+
+  // These entry points share the Orders transaction; Catalog owns variant data.
+  async quoteVariant(tx: Prisma.TransactionClient, id: string) {
+    return tx.productVariant.findFirst({
+      where: { id, isActive: true, product: { isActive: true } },
+      include: {
+        product: {
+          include: { productToppings: { include: { topping: true } } },
+        },
+      },
+    });
+  }
+
+  async reserveVariant(
+    tx: Prisma.TransactionClient,
+    id: string,
+    quantity: number,
+    version: number,
+  ) {
+    return tx.productVariant.updateMany({
+      where: { id, version, stock: { gte: quantity }, isActive: true },
+      data: { stock: { decrement: quantity }, version: { increment: 1 } },
+    });
+  }
 
   async getProducts(): Promise<ProductResponseDto[]> {
     const products = await this.repository.findAllProducts();
@@ -37,14 +62,13 @@ export class CatalogService {
       };
     });
   }
-  
+
   async getProductDetailById(id: string): Promise<ProductResponseDto> {
     const p = await this.repository.findDetailById(id);
 
     if (!p) {
       throw new NotFoundException('Product not found');
     }
-    
 
     const prices = p.variants.map((v) => Number(v.price));
     const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
@@ -71,5 +95,4 @@ export class CatalogService {
       })),
     };
   }
-
 }

@@ -9,7 +9,7 @@ describe('OrdersRepository (Unit Test - TDD)', () => {
     beforeEach(() => {
         prismaMock = {
             productVariant: { findFirst: vi.fn() },
-            order: { findUnique: vi.fn(), update: vi.fn() },
+            order: { findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
             orderStatusHistory: { create: vi.fn() },
             inventoryReservation: { updateMany: vi.fn() },
             couponRedemption: { updateMany: vi.fn() },
@@ -27,6 +27,67 @@ describe('OrdersRepository (Unit Test - TDD)', () => {
 
         expect(prismaMock.order.findUnique).toHaveBeenCalledWith({where: { id: 'o-1', userId: 'u-1' },});
         expect(result).toEqual(mockOrder);
+    });
+
+    it('findOrdersByUserId - tìm tất cả đơn hàng theo userId, sắp xếp createdAt desc kèm items và toppings', async () => {
+        const mockOrders = [{ id: 'o-1', userId: 'u-1' }];
+        prismaMock.order.findMany.mockResolvedValue(mockOrders);
+
+        const result = await repository.findOrdersByUserId('u-1');
+
+        expect(prismaMock.order.findMany).toHaveBeenCalledWith({
+            where: { userId: 'u-1' },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                items: {
+                    include: {
+                        orderItemToppings: true,
+                    },
+                },
+            },
+        });
+        expect(result).toEqual(mockOrders);
+    });
+
+    it('findOrderDetail - tìm chi tiết đơn hàng theo orderId và userId kèm items, payments, statusHistories', async () => {
+        const mockDetail = { id: 'o-1', userId: 'u-1', payments: [], statusHistories: [] };
+        prismaMock.order.findFirst.mockResolvedValue(mockDetail);
+
+        const result = await repository.findOrderDetail('o-1', 'u-1');
+
+        expect(prismaMock.order.findFirst).toHaveBeenCalledWith({
+            where: { id: 'o-1', userId: 'u-1' },
+            include: {
+                items: {
+                    include: {
+                        orderItemToppings: true,
+                    },
+                },
+                payments: {
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        method: true,
+                        status: true,
+                        amount: true,
+                        gatewayTransactionId: true,
+                        processedAt: true,
+                        createdAt: true,
+                    },
+                },
+                statusHistories: {
+                    orderBy: { createdAt: 'asc' },
+                    select: {
+                        id: true,
+                        fromStatus: true,
+                        toStatus: true,
+                        reason: true,
+                        createdAt: true,
+                    },
+                },
+            },
+        });
+        expect(result).toEqual(mockDetail);
     });
 
     it('updateStatusWithHistory - cập nhật trạng thái và ghi log history', async () => {

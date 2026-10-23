@@ -1,11 +1,10 @@
 import type { OrderItemResponseDto } from './order-item-response.dto.js';
+import type { OrderStatus } from '../../../generated/prisma/client.js';
 
-// Draft payload for POST /orders (SD-10). The HTTP envelope is { data, meta }.
-// No controller is registered until the Sprint 2 orders implementation.
-export interface CreateOrderResponseDto {
+export interface OrderResponseDto {
   id: string;
   orderNumber: string;
-  status: 'PENDING';
+  status: OrderStatus;
   items: OrderItemResponseDto[];
   subtotal: number;
   discountAmount: number;
@@ -13,4 +12,8 @@ export interface CreateOrderResponseDto {
   currency: 'VND';
   reservationExpiresAt: string;
   createdAt: string;
+}
+
+export interface CreateOrderResponseDto extends Omit<OrderResponseDto, 'status'> {
+  status: 'PENDING';
 }

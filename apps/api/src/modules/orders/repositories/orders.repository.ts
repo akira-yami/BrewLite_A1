@@ -1,3 +1,4 @@
+import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { OrderStatus, Prisma } from '../../../generated/prisma/client.js';
@@ -6,30 +7,70 @@ import { OrderStatus, Prisma } from '../../../generated/prisma/client.js';
 export class OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findActiveVariantById(variantId: string) {
-    return this.prisma.productVariant.findFirst({
-      where: {
-        id: variantId,
-        isActive: true,
-        product: {
-          isActive: true,
-        },
-      },
+  async findByIdAndUserId(id: string, userId: string) {
+    return this.prisma.order.findUnique({ where: { id, userId } });
+  }
+
+  async findOrdersByUserId(userId: string) {
+    return this.prisma.order.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
       include: {
-        product: {
+        items: {
           include: {
-            productToppings: {
-              include: {
-                topping: true,
-              },
-            },
+            orderItemToppings: true,
           },
         },
       },
     });
   }
 
-  async findByIdAndUserId(id: string, userId: string) {return this.prisma.order.findUnique({where: { id, userId },});}
+  async findOrdersPage(userId: string, query: OrderHistoryQueryDto) {
+    return this.prisma.order.findMany({
+      where: { userId, ...(query.status ? { status: query.status } : {}) },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: (query.limit ?? 20) + 1,
+      ...(query.cursor
+        ? { cursor: { id: query.cursor, userId }, skip: 1 }
+        : {}),
+      include: { items: { include: { orderItemToppings: true } } },
+    });
+  }
+
+  async findOrderDetail(orderId: string, userId: string) {
+    return this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: {
+        items: {
+          include: {
+            orderItemToppings: true,
+          },
+        },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            method: true,
+            status: true,
+            amount: true,
+            gatewayTransactionId: true,
+            processedAt: true,
+            createdAt: true,
+          },
+        },
+        statusHistories: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            fromStatus: true,
+            toStatus: true,
+            reason: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+  }
 
   async updateStatusWithHistory(
     orderId: string,
@@ -65,7 +106,7 @@ export class OrdersRepository {
     tx: Prisma.TransactionClient,
   ) {
     await tx.order.update({
-      where: { id: orderId, status: currentStatus},
+      where: { id: orderId, status: currentStatus },
       data: { status: OrderStatus.PAID },
     });
 

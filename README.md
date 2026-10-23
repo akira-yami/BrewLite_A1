@@ -2,7 +2,7 @@
 
 BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt, được xây dựng cho bài tập lớn môn Công nghệ Phần mềm. Sản phẩm hướng tới luồng đặt món nhanh tại quầy: xem menu, chọn size/topping, quản lý giỏ hàng, đăng nhập, tạo đơn, thanh toán và theo dõi trạng thái.
 
-> Đối chiếu ngày 22/10/2026, mã nguồn nền `7feda73`: đã có catalog API/database, menu/chi tiết, tùy chọn món, giỏ hàng và đăng ký/đăng nhập JWT. Tạo đơn mới có DTO, mapper và kiểm tra/tính giá; chưa có `POST /orders`. Payment orchestration chưa triển khai, nên chưa chạy được toàn luồng mua hàng. Xem [báo cáo tiến độ và minh chứng](./docs/scrum/progress-report.md).
+> Cập nhật Orders tuần 3 ngày 23/10/2026: đã có `POST /orders`, `GET /orders/me`, `GET /orders/:id`, snapshot đường/đá/ghi chú, transaction giữ tồn và kiểm tra quyền sở hữu. Xem [API và cách kiểm chứng Orders](./docs/api/orders-week3.md). [Bản bàn giao có commit, ngày giờ và log kiểm thử](./docs/scrum/khang-week3-handoff.md). Nút đặt/thanh toán trên giao diện giỏ hàng chưa được nối vào toàn bộ luồng checkout.
 
 ## Công nghệ và hiện trạng
 

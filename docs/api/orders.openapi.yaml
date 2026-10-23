@@ -1,10 +1,10 @@
 openapi: 3.0.3
 info:
   title: BrewLite — Orders contract S1-10 / SD-10
-  version: 0.1.0-draft
+  version: 0.2.0
   description: >-
-    Thiết kế S1-W2 của Dev Khang, chờ Dev Hoàng review. Endpoint chưa
-    triển khai; không mô tả khả năng runtime hiện có. Giá VND do server tính,
+    Triển khai backend Orders tuần 3 của Dev Khang. Trạng thái review
+    được ghi nhận riêng, không suy ra từ test. Giá VND do server tính,
     mọi ghi dữ liệu tạo đơn và giữ tồn trong cùng transaction.
 servers:
   - url: http://localhost:3001/api/v1
@@ -33,7 +33,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOrderRequest'
+              $ref: "#/components/schemas/CreateOrderRequest"
             example:
               items:
                 - productVariantId: 123e4567-e89b-42d3-a456-426614174000
@@ -44,11 +44,11 @@ paths:
                   note: Để topping riêng
               couponCode: WELCOME10
       responses:
-        '201':
+        "201":
           description: Order đã commit, stock và lượt coupon đã được giữ.
           headers:
             X-Request-Id:
-              $ref: '#/components/headers/RequestId'
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
@@ -57,7 +57,7 @@ paths:
                 required: [data, meta]
                 properties:
                   data:
-                    $ref: '#/components/schemas/CreatedOrder'
+                    $ref: "#/components/schemas/CreatedOrder"
                   meta:
                     type: object
                     additionalProperties: false
@@ -88,46 +88,46 @@ paths:
                   discountAmount: 10000
                   total: 104000
                   currency: VND
-                  reservationExpiresAt: '2026-10-17T13:15:00Z'
-                  createdAt: '2026-10-17T13:00:00Z'
+                  reservationExpiresAt: "2026-10-17T13:15:00Z"
+                  createdAt: "2026-10-17T13:00:00Z"
                 meta:
                   requestId: w2-contract-example
-        '400':
+        "400":
           description: VALIDATION_ERROR hoặc INVALID_OPTION; không có ghi dở dang.
           headers:
             X-Request-Id:
-              $ref: '#/components/headers/RequestId'
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderError'
-        '401':
+                $ref: "#/components/schemas/OrderError"
+        "401":
           description: UNAUTHORIZED — JWT thiếu/sai/hết hạn hoặc principal không hợp lệ.
           headers:
             X-Request-Id:
-              $ref: '#/components/headers/RequestId'
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderError'
-        '403':
+                $ref: "#/components/schemas/OrderError"
+        "403":
           description: FORBIDDEN_RESOURCE — role khác CUSTOMER.
           headers:
             X-Request-Id:
-              $ref: '#/components/headers/RequestId'
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderError'
-        '409':
+                $ref: "#/components/schemas/OrderError"
+        "409":
           description: OUT_OF_STOCK hoặc INVENTORY_CONFLICT sau tối đa 3 lần thử tổng cộng.
           headers:
             X-Request-Id:
-              $ref: '#/components/headers/RequestId'
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderError'
+                $ref: "#/components/schemas/OrderError"
               example:
                 error:
                   code: OUT_OF_STOCK
@@ -137,24 +137,107 @@ paths:
                     - field: items[0].quantity
                       variantId: 123e4567-e89b-42d3-a456-426614174000
                       available: 1
-        '422':
+        "422":
           description: COUPON_NOT_APPLICABLE; không tự bỏ coupon để tạo đơn.
           headers:
             X-Request-Id:
-              $ref: '#/components/headers/RequestId'
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderError'
-        '500':
+                $ref: "#/components/schemas/OrderError"
+        "500":
           description: INTERNAL_ERROR — rollback, không tiết lộ SQL/credentials.
           headers:
             X-Request-Id:
-              $ref: '#/components/headers/RequestId'
+              $ref: "#/components/headers/RequestId"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OrderError'
+                $ref: "#/components/schemas/OrderError"
+  /orders/me:
+    get:
+      operationId: getMyOrders
+      summary: Lịch sử đơn của CUSTOMER hiện tại
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: cursor
+          description: ID bản ghi cuối từ meta.nextCursor; cursor luôn giới hạn theo user.
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              [
+                PENDING,
+                PAYMENT_FAILED,
+                PAID,
+                PREPARING,
+                READY,
+                COMPLETED,
+                CANCELLED,
+              ]
+      responses:
+        "200":
+          description: Snapshot đơn, sắp xếp createdAt DESC và id DESC.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/OrderSummary" }
+                  meta:
+                    type: object
+                    required: [requestId, nextCursor]
+                    properties:
+                      requestId: { type: string }
+                      nextCursor: { type: string, format: uuid, nullable: true }
+        "400": { description: VALIDATION_ERROR }
+        "401": { description: UNAUTHORIZED }
+        "403": { description: FORBIDDEN_RESOURCE }
+  /orders/{id}:
+    get:
+      operationId: getOrderDetail
+      summary: Snapshot chi tiết, payment mới nhất và timeline của đơn thuộc user
+      tags: [Orders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Chi tiết đơn với paymentSummary có thể null; không trả hash hoặc khóa idempotency.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { $ref: "#/components/schemas/OrderDetail" }
+                  meta:
+                    type: object
+                    properties:
+                      requestId: { type: string }
+        "400": { description: VALIDATION_ERROR }
+        "401": { description: UNAUTHORIZED }
+        "403": { description: FORBIDDEN_RESOURCE }
+        "404":
+          {
+            description: ORDER_NOT_FOUND cho cả đơn không tồn tại và đơn của user khác,
+          }
 components:
   securitySchemes:
     bearerAuth:
@@ -189,7 +272,7 @@ components:
           minItems: 1
           maxItems: 20
           items:
-            $ref: '#/components/schemas/CreateOrderItem'
+            $ref: "#/components/schemas/CreateOrderItem"
         couponCode:
           type: string
           nullable: true
@@ -219,9 +302,9 @@ components:
             type: string
             format: uuid
         sugarLevel:
-          $ref: '#/components/schemas/Preference'
+          $ref: "#/components/schemas/Preference"
         iceLevel:
-          $ref: '#/components/schemas/Preference'
+          $ref: "#/components/schemas/Preference"
         note:
           type: string
           nullable: true
@@ -232,7 +315,19 @@ components:
     OrderItem:
       type: object
       additionalProperties: false
-      required: [id, productName, size, unitPrice, quantity, sugarLevel, iceLevel, note, toppings, lineTotal]
+      required:
+        [
+          id,
+          productName,
+          size,
+          unitPrice,
+          quantity,
+          sugarLevel,
+          iceLevel,
+          note,
+          toppings,
+          lineTotal,
+        ]
       properties:
         id:
           type: string
@@ -243,15 +338,15 @@ components:
           type: string
           enum: [S, M, L]
         unitPrice:
-          $ref: '#/components/schemas/Money'
+          $ref: "#/components/schemas/Money"
         quantity:
           type: integer
           minimum: 1
           maximum: 20
         sugarLevel:
-          $ref: '#/components/schemas/Preference'
+          $ref: "#/components/schemas/Preference"
         iceLevel:
-          $ref: '#/components/schemas/Preference'
+          $ref: "#/components/schemas/Preference"
         note:
           type: string
           nullable: true
@@ -266,16 +361,94 @@ components:
               name:
                 type: string
               unitPrice:
-                $ref: '#/components/schemas/Money'
+                $ref: "#/components/schemas/Money"
               quantity:
                 type: integer
                 enum: [1]
         lineTotal:
-          $ref: '#/components/schemas/Money'
+          $ref: "#/components/schemas/Money"
+    OrderSummary:
+      type: object
+      required:
+        [
+          id,
+          orderNumber,
+          status,
+          items,
+          subtotal,
+          discountAmount,
+          total,
+          currency,
+          reservationExpiresAt,
+          createdAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        orderNumber: { type: string }
+        status:
+          type: string
+          enum:
+            [
+              PENDING,
+              PAYMENT_FAILED,
+              PAID,
+              PREPARING,
+              READY,
+              COMPLETED,
+              CANCELLED,
+            ]
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderItem" }
+        subtotal: { type: integer, minimum: 0 }
+        discountAmount: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+        currency: { type: string, enum: [VND] }
+        reservationExpiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    OrderDetail:
+      allOf:
+        - $ref: "#/components/schemas/OrderSummary"
+        - type: object
+          required: [paymentSummary, timeline]
+          properties:
+            paymentSummary:
+              type: object
+              nullable: true
+              properties:
+                id: { type: string, format: uuid }
+                method: { type: string, enum: [E_WALLET, CARD] }
+                status: { type: string, enum: [PROCESSING, SUCCEEDED, FAILED] }
+                amount: { type: integer, minimum: 0 }
+                gatewayTransactionId: { type: string, nullable: true }
+                processedAt: { type: string, format: date-time, nullable: true }
+                createdAt: { type: string, format: date-time }
+            timeline:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  fromStatus: { type: string, nullable: true }
+                  toStatus: { type: string }
+                  reason: { type: string, nullable: true }
+                  createdAt: { type: string, format: date-time }
     CreatedOrder:
       type: object
       additionalProperties: false
-      required: [id, orderNumber, status, items, subtotal, discountAmount, total, currency, reservationExpiresAt, createdAt]
+      required:
+        [
+          id,
+          orderNumber,
+          status,
+          items,
+          subtotal,
+          discountAmount,
+          total,
+          currency,
+          reservationExpiresAt,
+          createdAt,
+        ]
       properties:
         id:
           type: string
@@ -291,13 +464,13 @@ components:
           minItems: 1
           maxItems: 20
           items:
-            $ref: '#/components/schemas/OrderItem'
+            $ref: "#/components/schemas/OrderItem"
         subtotal:
-          $ref: '#/components/schemas/Money'
+          $ref: "#/components/schemas/Money"
         discountAmount:
-          $ref: '#/components/schemas/Money'
+          $ref: "#/components/schemas/Money"
         total:
-          $ref: '#/components/schemas/Money'
+          $ref: "#/components/schemas/Money"
         currency:
           type: string
           enum: [VND]
@@ -319,7 +492,17 @@ components:
           properties:
             code:
               type: string
-              enum: [VALIDATION_ERROR, INVALID_OPTION, UNAUTHORIZED, FORBIDDEN_RESOURCE, OUT_OF_STOCK, INVENTORY_CONFLICT, COUPON_NOT_APPLICABLE, INTERNAL_ERROR]
+              enum:
+                [
+                  VALIDATION_ERROR,
+                  INVALID_OPTION,
+                  UNAUTHORIZED,
+                  FORBIDDEN_RESOURCE,
+                  OUT_OF_STOCK,
+                  INVENTORY_CONFLICT,
+                  COUPON_NOT_APPLICABLE,
+                  INTERNAL_ERROR,
+                ]
             message:
               type: string
             requestId:

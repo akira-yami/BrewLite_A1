@@ -1,0 +1,5 @@
+Recorded: 2026-10-23T16:29:54.4420112+07:00
+Command: tsc --noEmit
+Typecheck: PASS
+Command: oxlint --type-aware --ignore-pattern src/generated/** src/ test/
+Lint exit code: 0

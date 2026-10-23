@@ -1,0 +1,92 @@
+{
+  "recorded_at": "2026-10-23T16:33:06+07:00",
+  "repository": "https://github.com/phananhkhang/BrewLite",
+  "branch": "codex/khang-week3-orders",
+  "baseline": "64e82a4",
+  "verified_source_commit": "f1524a3dc77f6c9bcaa6862d41ea03197eb16f24",
+  "timezone": "Asia/Bangkok (UTC+07:00)",
+  "scope": "Khang S2-W3 Orders backend; frontend preference flow verified, checkout UI not wired",
+  "commits": [
+    {
+      "sha": "b747ceffa7e4100db1a0779eca49934fe2e38db6",
+      "author_date": "2026-10-23T16:30:52+07:00",
+      "committer_date": "2026-10-23T16:30:52+07:00",
+      "author": "Phan Anh Khang",
+      "subject": "feat(inventory): add transactional stock helpers"
+    },
+    {
+      "sha": "10e10860eb3697d767262804883d180c4bc0747a",
+      "author_date": "2026-10-23T16:31:08+07:00",
+      "committer_date": "2026-10-23T16:31:08+07:00",
+      "author": "Phan Anh Khang",
+      "subject": "feat(orders): add create and history endpoints"
+    },
+    {
+      "sha": "f1524a3dc77f6c9bcaa6862d41ea03197eb16f24",
+      "author_date": "2026-10-23T16:31:38+07:00",
+      "committer_date": "2026-10-23T16:31:38+07:00",
+      "author": "Phan Anh Khang",
+      "subject": "test(orders): verify rollback and buyer races"
+    }
+  ],
+  "results": {
+    "backend_unit": {
+      "passed": 181,
+      "files": 26
+    },
+    "backend_http": {
+      "passed": 16,
+      "files": 2
+    },
+    "backend_postgresql": {
+      "passed": 27,
+      "files": 4
+    },
+    "frontend_unit": {
+      "passed": 53
+    },
+    "backend_typecheck": "PASS",
+    "backend_lint": "PASS",
+    "frontend_typecheck": "PASS"
+  },
+  "notes": [
+    "Commit dates are actual Git recording times, not task start/end dates or review approvals.",
+    "Full integration on reused DB failed on existing catalog SKU fixture; retained log. Fresh migrated DB passed.",
+    "Expected ERROR logs exercise rollback and unsafe-money scenarios; see passing suite summary.",
+    "Document-only handoff commit follows these source/test commits; use Git history for its timestamp."
+  ],
+  "evidence_files": [
+    {
+      "path": "backend-http.txt",
+      "sha256": "7272f473ed37d2a2a94882ab3dfa5610a4d29add9ba35968b22c6a591de5599c"
+    },
+    {
+      "path": "backend-integration-reused-db.txt",
+      "sha256": "939ac7f34ee355b46749a00376c29550e6ed065bd430798165e5aec12cb0c59c"
+    },
+    {
+      "path": "backend-integration.txt",
+      "sha256": "4c44bb3bfb189ac6a30a1f2fd3096e0cb1387c9384fffb9259d017b726d70048"
+    },
+    {
+      "path": "backend-static.txt",
+      "sha256": "484ffb7036140237c1591f6cbe358d739d41e0dffc1ff0d7c290f482db270224"
+    },
+    {
+      "path": "backend-unit.txt",
+      "sha256": "aa3c900becc4351d44e4b6f2a3a80fd1a8bb01ab2afc5e0a47556bfaaf0fc506"
+    },
+    {
+      "path": "database-migrations.txt",
+      "sha256": "c459aa3febe006f946463bb4a26e1d01da0d7980a787b2adbcf932302c3d8f44"
+    },
+    {
+      "path": "frontend-static.txt",
+      "sha256": "9a205084408847284f3a49b8637564df364d25c8e631409251073b7fb32643fd"
+    },
+    {
+      "path": "frontend-unit.txt",
+      "sha256": "150202511668350436996e2693a03cf45d61110a08dfc43147cd9e3250daac06"
+    }
+  ]
+}

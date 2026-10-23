@@ -18,10 +18,10 @@ Nguồn trong repository:
 - [Đặc tả REST API](./api-spec.md): `GET /orders/me`, `GET /orders/:id`, quyền sở hữu, query và mã lỗi.
 - [Prisma schema](../../apps/api/prisma/schema.prisma): `Order`, `OrderItem`, `OrderItemTopping`, `Payment`, `OrderStatusHistory`.
 - [Mapper item hiện có](../../apps/api/src/modules/orders/mappers/order-item.mapper.ts): `toOrderItemResponse()` đọc tên, giá, tùy chọn và ghi chú từ snapshot.
-- [OrdersModule](../../apps/api/src/modules/orders/orders.module.ts), [OrdersService](../../apps/api/src/modules/orders/services/orders.service.ts) và [OrdersRepository](../../apps/api/src/modules/orders/repositories/orders.repository.ts): đã có service/repository cho kiểm tra món và tính giá; chưa có controller đọc lịch sử/chi tiết.
+- [OrdersModule](../../apps/api/src/modules/orders/orders.module.ts), [OrdersService](../../apps/api/src/modules/orders/services/orders.service.ts) và [OrdersRepository](../../apps/api/src/modules/orders/repositories/orders.repository.ts): đã có controller tạo đơn và đọc lịch sử/chi tiết; quyền sở hữu được lọc trong truy vấn.
 - [JWT strategy](../../apps/api/src/modules/auth/strategies/jwt.strategy.ts) và [RolesGuard](../../apps/api/src/modules/auth/guards/roles.guard.ts): nền tảng xác thực và phân quyền đã có.
 
-**Đây là thiết kế đích**, chưa phải mô tả chức năng đã chạy hoàn chỉnh. Frontend hiện chưa có trang lịch sử/chi tiết; backend chưa có hai endpoint đọc đơn. `getMyOrders`, `getMyOrderDetail`, `findPageByUserId`, `findOwnedDetail` và `OrderDetailDto` là tên đề xuất để diễn đạt trách nhiệm trong sơ đồ.
+**Cập nhật 23/10/2026:** backend đã triển khai hai endpoint đọc đơn, có kiểm thử HTTP/PostgreSQL. Frontend chưa có trang lịch sử/chi tiết. Tên runtime tương ứng là `getMyOrdersPage`, `getOrderDetail`, `findOrdersPage`, `findOrderDetail` và `OrderDetailResponseDto`; tên trên sơ đồ diễn đạt trách nhiệm thiết kế. Trạng thái review sơ đồ được xác nhận riêng.
 
 ## Luồng và quy tắc
 
@@ -30,15 +30,15 @@ Nguồn trong repository:
 3. Service tạo summary và metadata. Không có đơn trả `200` với danh sách rỗng. UI hiển thị dữ liệu, trạng thái trống hoặc lỗi tương ứng.
 4. Khách chọn đơn; UI gọi `GET /api/v1/orders/{orderId}`. API xác thực lại và kiểm tra UUID.
 5. Repository truy vấn theo cả `orderId` và `userId`. Không tìm thấy và không thuộc chủ đơn đều trả `404 ORDER_NOT_FOUND`.
-6. Chi tiết hợp lệ gồm snapshot món/topping, đường/đá, ghi chú, subtotal, discountAmount, total, payment summary và timeline. Mapper hiện có xử lý phần item; ánh xạ detail tổng thể là phần thiết kế mới.
+6. Chi tiết hợp lệ gồm snapshot món/topping, đường/đá, ghi chú, subtotal, discountAmount, total, payment summary và timeline. Mapper xử lý snapshot item; service ánh xạ payment và timeline.
 
-Quy ước phân trang đề xuất: `limit` mặc định 20, trong khoảng 1..100; đọc `limit + 1` bản ghi để biết còn trang. `nextCursor` biểu diễn cặp `(createdAt, id)` của bản ghi cuối đã trả, trả `null` khi hết dữ liệu. Cursor phải được giải mã/kiểm tra trước truy vấn; điều kiện user/status luôn áp dụng cùng điều kiện cursor. Đổi bộ lọc đặt lại cursor. Cấu trúc `meta.nextCursor` là chi tiết thiết kế bổ sung, vì hợp đồng hiện tại chưa chốt JSON phân trang.
+Phân trang runtime: `limit` mặc định 20, trong khoảng 1..100; đọc `limit + 1` bản ghi. `meta.nextCursor` là UUID của bản ghi cuối đã trả, hoặc `null` khi hết dữ liệu. Prisma dùng cursor để xác định mốc theo `createdAt DESC, id DESC`; cursor kèm `userId` nên không thể dùng đơn của người khác làm mốc. `status` là bộ lọc tùy chọn. Khi đổi bộ lọc, client đặt lại cursor. UUID không hợp lệ bị từ chối trước truy vấn; mốc không tồn tại/không thuộc user trả danh sách rỗng.
 
 Đọc payment summary qua quan hệ đã lưu và chỉ chọn trường công khai như method, status, amount, processedAt; payment đang xử lý có thể có processedAt null, đơn chưa thanh toán có thể chưa có payment. Không gọi Payment Gateway hoặc Repository nội bộ của module Payments. Luồng đọc không thay đổi trạng thái đơn, tồn kho hoặc điểm thưởng.
 
 Không dùng `OwnershipGuard` hiện tại để so sánh `params.id` trực tiếp với `user.id`: ở route này `params.id` là **orderId**. Quyền sở hữu phải được kiểm tra bằng quan hệ `Order.userId`, thể hiện trong `findOwnedDetail(orderId, userId)`.
 
-Endpoint chi tiết còn phục vụ BARISTA trong UC-10 theo hợp đồng API; sơ đồ này chỉ mô tả nhánh CUSTOMER. Quyền đọc của barista cần xử lý riêng trong luồng vận hành, không dùng điều kiện chủ đơn của khách hàng để thay thế.
+Endpoint chi tiết hiện chỉ cho CUSTOMER. Nhánh BARISTA trong UC-10 là phần vận hành riêng, chưa được triển khai bởi endpoint này.
 
 ## Kết xuất và kiểm tra
 

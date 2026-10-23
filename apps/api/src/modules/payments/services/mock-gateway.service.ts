@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { IMockGatewayService } from '../mock-gateway.interface.js';
-import { PaymentMethod } from '../../dto/create-payment.dto.js';
+import { IMockGatewayService } from './mock-gateway.interface.js';
+import { PaymentMethod } from '../dto/create-payment.dto.js';
 import { randomUUID } from 'crypto';
 
 @Injectable()

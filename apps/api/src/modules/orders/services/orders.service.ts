@@ -1,4 +1,3 @@
-
 import {
   BadRequestException,
   ConflictException,
@@ -7,11 +6,15 @@ import {
 } from '@nestjs/common';
 import { CreateOrderItemDto } from '../dto/create-order.dto.js';
 import { OrdersRepository } from '../repositories/orders.repository.js';
+import { OrderStatus, Prisma } from '../../../generated/prisma/client.js';
 
 @Injectable()
 export class OrdersService {
   constructor(private readonly repository: OrdersRepository) {}
 
+  // =====================================================================
+  // 1. NGHIỆP VỤ XỬ LÝ ĐƠN HÀNG (UC-06)
+  // =====================================================================
   async validateAndPriceItems(items: CreateOrderItemDto[]) {
     const preparedItems = [];
     const requiredStock = new Map<string, number>();
@@ -101,5 +104,58 @@ export class OrdersService {
       items: preparedItems,
       subtotal,
     };
+  }
+
+  // =====================================================================
+  // 2. CỔNG GIAO TIẾP CHO MODULE THANH TOÁN (PAYMENT TRANSITIONS)
+  // =====================================================================
+  
+  async getOrderForPayment(orderId: string, userId: string) {
+    const order = await this.repository.findByIdAndUserId(orderId, userId);
+    if (!order) {
+      throw new NotFoundException('Đơn hàng không tồn tại hoặc bạn không có quyền truy cập');
+    }
+    return order;
+  }
+
+  async transitionForPaymentRetry(orderId: string, userId: string, reason: string) {
+    await this.repository.updateStatusWithHistory(
+      orderId,
+      OrderStatus.PAYMENT_FAILED,
+      OrderStatus.PENDING,
+      userId,
+      reason,
+    );
+  }
+
+  async markOrderPaid(
+    orderId: string,
+    userId: string,
+    orderTotal: bigint,
+    tx: Prisma.TransactionClient,
+  ) {
+    await this.repository.markAsPaid(
+      orderId,
+      OrderStatus.PENDING,
+      userId,
+      orderTotal,
+      tx,
+    );
+  }
+
+  async markOrderPaymentFailed(
+    orderId: string,
+    userId: string,
+    reason: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    await this.repository.updateStatusWithHistory(
+      orderId,
+      OrderStatus.PENDING,
+      OrderStatus.PAYMENT_FAILED,
+      userId,
+      reason,
+      tx,
+    );
   }
 }

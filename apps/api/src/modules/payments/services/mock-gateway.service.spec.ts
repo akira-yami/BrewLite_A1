@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { MockGatewayService } from './mock-gateway/mock-gateway.service.js';
+import { MockGatewayService } from './mock-gateway.service.js';
 import { PaymentMethod } from '../dto/create-payment.dto.js';
 import { vi, describe, beforeEach, afterEach, it, expect } from 'vitest';
 
@@ -31,11 +31,11 @@ describe('MockGatewayService', () => {
 
         // Bắt đầu gọi hàm nhưng không await ngay vì nó vướng setTimeout
         const promise = service.charge(50000, PaymentMethod.E_WALLET);
-        
+
         // Tua nhanh thời gian để bỏ qua thời gian chờ
         await vi.runAllTimersAsync();
         const result = await promise;
-    
+
         expect(result.success).toBe(true);
         expect(result.gatewayTransactionId).toBeDefined();
         expect(result.gatewayTransactionId).toContain('MOCK_E_WALLET_');

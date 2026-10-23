@@ -44,6 +44,13 @@ Bổ sung `OrderItem.note` nullable tối đa 500 ký tự: schema/migration, DT
 
 Thiết kế/DTO đã chuẩn bị để Hoàng review; endpoint tạo đơn thuộc S2-W3. Không tự ghi approval hoặc kết quả họp Scrum.
 
+## Bàn giao Kiệt tuần 3
+
+- [UC-07 — Áp dụng coupon](./use-cases/UC-07-ap-dung-coupon.md)
+- [SD-12 — Xử lý Coupon & Khuyến mãi](./architecture/sequence-diagram-coupon.md)
+- [UC-08 — Thực hiện thanh toán](./use-cases/UC-08-thuc-hien-thanh-toan.md)
+- [SD-11 — Thanh toán & Retry](./architecture/sequence-diagram-payment.md)
+
 ## Lộ trình đọc
 
 1. [Phân tích đề bài](./phan-tich-de-bai.md): phạm vi MVP, yêu cầu, giả định và truy vết 10 task.
@@ -57,6 +64,7 @@ Thiết kế/DTO đã chuẩn bị để Hoàng review; endpoint tạo đơn thu
 9. [Đặc tả Use Case chi tiết](./use-cases/):
    - [UC-01: Đăng ký tài khoản](./use-cases/UC-01-dang-ky-tai-khoan.md)
    - [UC-02: Đăng nhập & Xác thực JWT/RBAC](./use-cases/UC-02-dang-nhap-xac-thuc-jwt.md)
+   - [UC-07: Áp dụng mã giảm giá](./use-cases/UC-07-ap-dung-coupon.md)
    - [UC-08: Thực hiện thanh toán (Mock Gateway & Idempotency)](./use-cases/UC-08-thuc-hien-thanh-toan.md)
 10. [Các quyết định kiến trúc](./decisions/ADR-001-project-architecture.md): ADR giải thích các lựa chọn chính.
 11. [Hướng dẫn Docker](./deployment/docker-guide.md): topology chạy local và nguyên tắc cấu hình.

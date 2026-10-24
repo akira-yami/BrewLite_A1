@@ -54,10 +54,10 @@
     },
     {
       "source": "SD-06-login-rbac.puml",
-      "sha256": "05c19d8a6eeb0f91378443d0ee90e31c3403ef59ed8e7fa8d36e7b06b80f418f",
+      "sha256": "a82f2d77a7731d25b574f3fba578c86f11317c290e90e546a6673716056f0b55",
       "outputs": {
-        "SD-06-login-rbac.svg": "b27f7803bcb5aae26d535ad63c7ce5c2f774e25164c653c9a958c7a7d58fd703",
-        "SD-06-login-rbac.png": "b07ea989d12d6f12a9b376ba28cbaee8d6c23a12abfe3786d33ec4fc6b9a3415"
+        "SD-06-login-rbac.svg": "12fc3b6a400bd70020d23dff32291b1719a455a32672ebbe26a5198bf22fce7a",
+        "SD-06-login-rbac.png": "917da6427abbfb6539924bad3e096183b20c2d9ded5cc08909eafe045ef9f994"
       }
     },
     {

@@ -51,7 +51,7 @@ else Người dùng tồn tại
     else Tài khoản hoạt động
         AS -> BC: 6. compare(plainPassword, passwordHash)
         activate BC
-        
+
         alt Mật khẩu sai
             BC --> AS: false
             AS --> AC: throw UnauthorizedException('INVALID_CREDENTIALS')
@@ -68,7 +68,7 @@ else Người dùng tồn tại
             deactivate AS
             AC --> FE: 9. 200 OK (AuthResultDto)
             deactivate AC
-            
+
             FE -> FE: 10. Lưu accessToken, phân luồng điều hướng theo Role\n(CUSTOMER -> /menu, BARISTA -> màn hình vận hành UC-10 khi triển khai)
             FE --> User: 11. Chuyển hướng thành công
             deactivate FE

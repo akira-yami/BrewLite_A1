@@ -1,5 +1,7 @@
 # Hồ sơ bàn giao và release BrewLite
 
+Bổ sung 24/10/2026: [hồ sơ CI/required checks](./ci-quality-gates.md) ghi run pass/fail và ruleset CI riêng không bypass, bao gồm job Documentation. Bảng 22/10 dưới đây là snapshot lịch sử; các mục deploy/HTTPS/smoke vẫn cần minh chứng tương ứng.
+
 Đối chiếu 22/10/2026. A1 v1.0 yêu cầu code, Docker Compose, README, demo end-to-end và Review/Retro. CD/production HTTPS được nêu trong trao đổi về A2; chưa có đề A2 chính thức trong repo để xác nhận nguyên văn. Đây là danh sách điều kiện cần chứng minh, không phải báo cáo đã triển khai.
 
 | Điều kiện | Hiện trạng | Minh chứng cần lưu |

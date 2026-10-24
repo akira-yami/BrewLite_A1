@@ -1,5 +1,7 @@
 # Tài liệu dự án BrewLite
 
+Cập nhật hồ sơ A2 ngày 24/10/2026: [NFR và cách kiểm chứng](./phan-tich-de-bai.md), [AD-06 checkout end-to-end](./architecture/sequence-diagram-create-order.md), [nguồn/bản xuất sơ đồ](./architecture/diagrams/README.md), [quản lý phiên bản Task 1–3](./document-control.md), [CI quality gates](./deployment/ci-quality-gates.md). CD-02 đã đối chiếu lại với code `2bb2011`; phần snapshot 22/10 dưới đây được giữ với ngày gốc.
+
 Thư mục này gồm thiết kế đích và minh chứng triển khai BrewLite. Đối chiếu ngày 22/10/2026 trên mã nguồn nền `7feda73`: catalog, menu/chi tiết, giỏ hàng và Auth đã có code/test; tạo đơn và thanh toán chưa hoàn thành. Thiết kế hoặc schema có sẵn không thay cho bằng chứng chức năng đã chạy.
 
 ## Hồ sơ đối chiếu và báo cáo

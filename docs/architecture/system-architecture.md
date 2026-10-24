@@ -4,6 +4,8 @@ Owner: Dev Khang. Reviewer: Dev Kiệt. Trạng thái: chờ xác nhận review 
 
 Đây là kiến trúc đích. Snapshot 22/10/2026: Auth/Catalog có runtime; Orders mới có pricing/DTO/mapper, Payments mới có gateway mock; inventory/promotions/loyalty chưa có service nghiệp vụ. Xem [truy vết](../traceability-matrix.md), [Class Diagram domain và lớp hiện có](./class-diagram.md), [Deployment Diagram](./deployment-diagram.md). Luồng checkout dưới đây chưa chạy xuyên suốt.
 
+Đối chiếu bổ sung 24/10/2026, code `2bb2011`: Orders đã có create/history/detail, Payments có orchestration, Promotions có preview/quote/lock/reserve và Inventory có service/job. [CD-02](./class-diagram.md) ghi đúng các lớp/method, hai InventoryService khác đường dẫn và các điểm Prisma/loyalty chưa theo boundary đích. Không dùng snapshot lịch sử trên để kết luận code hiện tại còn stub; cũng chưa suy ra customer checkout E2E đã đạt. [AD-06](./sequence-diagram-create-order.md) là luồng đích end-to-end thống nhất SRS/UC-08.
+
 ## 1. Quyết định tổng thể
 
 BrewLite dùng **modular monolith** cho backend và ứng dụng Next.js độc lập cho frontend. Trong từng module NestJS áp dụng kiến trúc phân lớp đơn giản **Controller -> Service -> Repository**. Cách này phù hợp quy mô bài tập, dễ phân công và dễ kiểm thử hơn một kiến trúc nhiều lớp trừu tượng.

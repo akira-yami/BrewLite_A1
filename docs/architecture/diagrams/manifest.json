@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "renderer": "PlantUML 1.2026.8 / Java 27 / Arial (Windows)",
+  "jarSha256": "5e1ecfa8ecd32c90b03bbf3b1eb6f020943f98ab0fcf4032be31a0002ee2c462",
+  "sourceNormalization": "UTF-8, CRLF -> LF",
+  "entries": [
+    {
+      "source": "AD-06-create-order.puml",
+      "sha256": "ed4d7e83caf34d48c4e75c578cfde458f45fd438ac01f0a45bdfc847bbec810d",
+      "outputs": {
+        "AD-06-create-order.svg": "a757fe7f2eaf01936fcba6af01bcd91ebc7b2011ada731d488f7af42a089a0f8",
+        "AD-06-create-order.png": "cad1c669ba61715c280eb12072b389c29344d9f93d28a852c7b8118b6bc07c00"
+      }
+    },
+    {
+      "source": "CD-01-domain.puml",
+      "sha256": "af025c72fec652eaebbc6c6204cbbcd696f6c4097c74613419dfb50d81cf48f3",
+      "outputs": {
+        "CD-01-domain.svg": "fc3678bd4f68ee29ee0f8b0f3fcb4f097872093afa7bb38d50cf164b73f6f1f3",
+        "CD-01-domain.png": "40728e9ea1160cc6adb065eec7e390d405dab3f997837523d0920bc5c6460ae5"
+      }
+    },
+    {
+      "source": "CD-02-services.puml",
+      "sha256": "3d73f8b4c6cec3606418ce65ac299a79392edca92a8af9ea6b33ace73a9cdf0a",
+      "outputs": {
+        "CD-02-services.svg": "ca249854850f8f38dff16106da8b21fddbb5b5cdbb2881eca11240024575b328",
+        "CD-02-services.png": "be83c6a5e85b1fb9307b6bb9abc5547271cbea0205782dd939b00773c6ddc437"
+      }
+    },
+    {
+      "source": "DD-01-local.puml",
+      "sha256": "588155030ddcf02e013c966a6b026d6dd29267d9befe0b272d774c3aadfb3a31",
+      "outputs": {
+        "DD-01-local.svg": "08cf65615966b672e2ae59705281ccfc699cd3495a1e6b1c5a3a0ecc28907ef6",
+        "DD-01-local.png": "9a503184855ab1b500ec1dca8fd57b7846987566f50d5cd70aa0661609d5bd39"
+      }
+    },
+    {
+      "source": "DD-02-production-proposal.puml",
+      "sha256": "98a61302a77d61c4adf3726a22aa9ad3fd6e8db41e2e2efff03e78b94c1eb658",
+      "outputs": {
+        "DD-02-production-proposal.svg": "fad151e0dd6715c709184b35c175dc37b9a3b6db1a974f461c79b19f50b9d7a1",
+        "DD-02-production-proposal.png": "cf9034c15998014fc6e1bcbdb9b68d12d8cd9215173c7430823d5bbb92d6a543"
+      }
+    },
+    {
+      "source": "SD-05-registration.puml",
+      "sha256": "c88682d1d0e02841daa72b020d02d50e017f8913ab2224fde2ce4f374b99d80a",
+      "outputs": {
+        "SD-05-registration.svg": "9939dc7772b48d0691ffc19abc3cfdd44fa86939218c5b5d337f73342684881d",
+        "SD-05-registration.png": "21803e5b4a27f39acd0223bc9dcdf2778cbb7e72934661318226af576ff990f7"
+      }
+    },
+    {
+      "source": "SD-06-login-rbac.puml",
+      "sha256": "a82f2d77a7731d25b574f3fba578c86f11317c290e90e546a6673716056f0b55",
+      "outputs": {
+        "SD-06-login-rbac.svg": "12fc3b6a400bd70020d23dff32291b1719a455a32672ebbe26a5198bf22fce7a",
+        "SD-06-login-rbac.png": "917da6427abbfb6539924bad3e096183b20c2d9ded5cc08909eafe045ef9f994"
+      }
+    },
+    {
+      "source": "SD-10-create-order.puml",
+      "sha256": "dc77d66fc314741fb1d2f6a566400c141328d2f3c642ff6d9e76dc8eae771d42",
+      "outputs": {
+        "SD-10-create-order.svg": "37c1645d866d9fedbbf82d44b50163bea09a95ba9c392c1933623196e71ba280",
+        "SD-10-create-order.png": "df828f0c5d317becdb022373afed62cbcec32b80aa734f8b13a2a215b96290c9"
+      }
+    },
+    {
+      "source": "SD-11-payment-retry.puml",
+      "sha256": "c8596c2b35430fc4a0590708bd0ecadf27581d18414dd4b1beb7a574303ab388",
+      "outputs": {
+        "SD-11-payment-retry.svg": "256d06e85780c23b0636ce65a1363a541bb4b2e442beb903d08888555c0b7e7f",
+        "SD-11-payment-retry.png": "22ea644e45dd38e93a1e5691b37ef0a865de20675da5f09af0a796169fe6afdc"
+      }
+    },
+    {
+      "source": "SD-12-coupon.puml",
+      "sha256": "2d33994b16760872faaa78fd8a3976695c7d3c6b0c94f4c96c882b1f83db8a05",
+      "outputs": {
+        "SD-12-coupon.svg": "3ae76b686e5b249becd9a1ef378a01c1848ce686d61c157eaf2ddc3cff393ce6",
+        "SD-12-coupon.png": "3e8c3f31db47708fe661c37d52bf8c02ac20f2cfd8a810f3693b01078c316f04"
+      }
+    },
+    {
+      "source": "SD-14-order-history-detail.puml",
+      "sha256": "eed8048b96dda705e8a91ec80974da24833c3ae249b312c39938c11ef181f8a8",
+      "outputs": {
+        "SD-14-order-history-detail.svg": "989108afbde325ae0ef087401a1163ea0c4e8061d7b4c3e458efe61a5b37596d",
+        "SD-14-order-history-detail.png": "c19b34b7315ab2d7c90824a740bf7b80e045856f4538e74d150a1581cf8b57fe"
+      }
+    }
+  ]
+}

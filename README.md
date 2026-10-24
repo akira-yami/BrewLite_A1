@@ -159,8 +159,9 @@ Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull requ
 - **Frontend:** lint, typecheck, test giỏ hàng và build Next.js.
 - **Backend:** generate Prisma client, lint, typecheck, unit test, API E2E test và build NestJS. Bộ API E2E hiện kiểm tra readiness và JWT/RBAC/ownership trên route Auth bằng provider mock; không phải E2E đặt hàng/thanh toán.
 - **Database migrations and integration:** PostgreSQL 18 riêng cho mỗi lần chạy; validate/generate Prisma, apply migration hai lần để kiểm tra chạy lặp, kiểm tra migration status và chạy integration test với database thật.
+- **Documentation:** kiểm tra liên kết tài liệu, nguồn/SVG/PNG qua manifest, enum Prisma và danh mục tạo phẩm A2 Task 1–3; chạy bằng `node scripts/check-docs.mjs`.
 
-CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ba job trên cần được chọn làm required checks trong ruleset/branch protection; cấu hình YAML không chứng minh rule này đã được bật. Repo hiện có CI, chưa có workflow CD. Xem [kế hoạch bàn giao](./docs/deployment/release-checklist.md).
+CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ruleset `BrewLite CI quality gate` bắt buộc cả bốn job đạt trên main, strict và không có bypass actor; xem [snapshot GitHub và run pass/fail](./docs/deployment/ci-quality-gates.md). Cấu hình YAML không tự thiết lập rule trên GitHub. Repo hiện có CI, chưa có workflow CD. Xem [kế hoạch bàn giao](./docs/deployment/release-checklist.md) và [quy trình version tài liệu](./docs/document-control.md).
 
 ## Quy ước phát triển
 

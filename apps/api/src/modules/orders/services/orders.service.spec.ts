@@ -31,6 +31,9 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    const prisma = {
+  $transaction: vi.fn(),
+};
 
     txMock = {
       user: { findFirst: vi.fn().mockResolvedValue({ id: 'u-1' }) },

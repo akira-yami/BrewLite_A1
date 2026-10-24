@@ -25,9 +25,11 @@ describe('Non-destructive catalog seed', () => {
   let orderId: string;
 
   beforeAll(async () => {
-    const product = await prisma.product.create({
-      data: {
-        sku: 'COFFEE-CAU-DAT-01',
+    const testSuffix = randomUUID();
+
+const product = await prisma.product.create({
+  data: {
+    sku: `TEST-SEED-${testSuffix}`,
         name: 'Tên riêng',
         description: 'Mô tả riêng',
         imageUrl: '/custom.png',
@@ -47,8 +49,8 @@ describe('Non-destructive catalog seed', () => {
     productId = product.id;
     variantId = product.variants[0].id;
     const topping = await prisma.topping.create({
-      data: {
-        code: 'TOP_PEARL',
+  data: {
+    code: `TEST-TOP-${testSuffix}`,
         name: 'Topping riêng',
         price: 9000n,
         isActive: false,

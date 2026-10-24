@@ -6,7 +6,7 @@
 
 ![DD-01 Local](./diagrams/DD-01-local.svg)
 
-[Nguồn PlantUML](./diagrams/DD-01-local.puml) · [draw.io 4 trang](./diagrams/BrewLite-models.drawio) · [PNG](./diagrams/DD-01-local.png).
+[Nguồn PlantUML](./diagrams/DD-01-local.puml) · [draw.io lịch sử 22/10](./diagrams/archive/BrewLite-models.drawio) · [PNG](./diagrams/DD-01-local.png).
 
 | Thành phần | Kết nối/cấu hình hiện có | Điều kiện khởi động |
 |---|---|---|

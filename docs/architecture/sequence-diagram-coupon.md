@@ -10,7 +10,7 @@
 
 Thiết kế này đã áp dụng 4 khuyến nghị từ `docs/reviews/huy-review-coupon-sd12.md`:
 1. **Thứ tự Insert:** Tách API nội bộ thành `quoteAndLock` (để kiểm tra và khóa dòng coupon) và `reserve` (để insert `CouponRedemption`). `OrdersService` sẽ gọi `reserve` **sau** khi đã insert `Order`, đảm bảo không vi phạm khóa ngoại `order_id`.
-2. **Kiểm soát đồng thời (Concurrency):** Bảng `coupons` không lưu cột đếm. `PromotionsService` dùng `SELECT COUNT(...) FOR UPDATE` trên bảng `coupon_redemptions` (chỉ đếm `RESERVED` và `CONSUMED`) trong transaction để đảm bảo `usageLimit` và `perUserLimit` không bị vượt khi có request đồng thời.
+2. **Kiểm soát đồng thời (Concurrency):** Bảng `coupons` không lưu cột đếm. `PromotionsService` dùng khóa dòng `coupons` bằng `SELECT ... FOR UPDATE`, rồi đếm bảng `coupon_redemptions` (chỉ đếm `RESERVED` và `CONSUMED`) trong transaction để đảm bảo `usageLimit` và `perUserLimit` không bị vượt khi có request đồng thời.
 3. **Tính toán Server-side:** Client chỉ gửi `couponCode` dạng chuỗi. Backend tự truy vấn catalog, đối chiếu `minOrderValue` với `subtotal`, và dùng phép toán số nguyên `BIGINT` (VND) để tính `discountAmount`.
 4. **Vòng đời trạng thái:** `CouponRedemption` được khởi tạo là `RESERVED`. `OrdersService` sẽ gọi `PromotionsService` để chuyển sang `CONSUMED` khi thanh toán thành công (khớp SD-11), hoặc `RELEASED`/`EXPIRED` khi đơn bị hủy/hết hạn.
 
@@ -180,3 +180,7 @@ sequenceDiagram
             deactivate OS
         end
     end
+
+```
+
+Bản xuất chuẩn: [PlantUML](./diagrams/SD-12-coupon.puml) · [SVG](./diagrams/SD-12-coupon.svg) · [PNG](./diagrams/SD-12-coupon.png). Mermaid trên là cùng contract đích; method consume/release cần được triển khai qua public service. Preview hiện tại nhận subtotal client nên chỉ là gợi ý; checkout phải tính lại giá và khóa coupon trong transaction.

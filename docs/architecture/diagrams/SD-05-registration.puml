@@ -1,0 +1,72 @@
+@startuml SD-05-registration
+title SD-05: Đăng ký tài khoản khách hàng (UC-01)
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+actor "Khách hàng" as User
+
+box "Frontend (apps/web)" #F8F9FA
+    participant "RegisterForm\n(features/auth)" as FE
+end box
+
+box "Backend (apps/api - AuthModule)" #EBF5FB
+    participant "AuthController" as AC
+    participant "ValidationPipe" as VP
+    participant "AuthService" as AS
+    participant "UserRepository" as UR
+    participant "BCrypt Library" as BC
+    participant "JwtService" as JWT
+end box
+
+database "PostgreSQL\n(Prisma ORM)" as DB
+
+User -> FE: 1. Nhập email/username & mật khẩu, bấm "Đăng ký"
+activate FE
+FE -> FE: 2. Validate client-side
+FE -> AC: 3. POST /api/v1/auth/register (RegisterDto)
+activate AC
+AC -> VP: 4. Kiểm tra DTO
+activate VP
+VP --> AC: Validated
+deactivate VP
+
+AC -> AS: 5. register(registerDto)
+activate AS
+AS -> UR: 6. findByUsername(username)
+activate UR
+UR -> DB: 7. prisma.user.findUnique({ where: { username } })
+activate DB
+DB --> UR: null (chưa tồn tại)
+deactivate DB
+UR --> AS: null
+deactivate UR
+
+AS -> BC: 8. hash(password, saltRounds = 10)
+activate BC
+BC --> AS: passwordHash
+deactivate BC
+
+AS -> UR: 9. create({ username, passwordHash, role: CUSTOMER })
+activate UR
+UR -> DB: 10. prisma.user.create(...)
+activate DB
+DB --> UR: User record đã lưu
+deactivate DB
+UR --> AS: UserEntity (đã loại bỏ passwordHash)
+deactivate UR
+
+AS -> JWT: 11. signAsync({ sub: id, username, role: CUSTOMER })
+activate JWT
+JWT --> AS: accessToken (JWT)
+deactivate JWT
+
+AS --> AC: 12. AuthResultDto { user, accessToken, expiresIn: 900 }
+deactivate AS
+AC --> FE: 13. 201 Created (AuthResultDto)
+deactivate AC
+
+FE -> FE: 14. Lưu accessToken & cập nhật Auth State
+FE --> User: 15. Thông báo đăng ký thành công, điều hướng vào Menu
+deactivate FE
+@enduml

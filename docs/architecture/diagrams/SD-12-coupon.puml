@@ -1,0 +1,67 @@
+@startuml SD-12-coupon
+title SD-12 — Coupon (contract đích UC-07, không xác nhận runtime đầy đủ)
+skinparam defaultFontName Arial
+skinparam maxMessageSize 100
+autonumber
+actor Customer
+participant "Next.js" as UI
+participant PromotionsController as PC
+participant OrdersController as OC
+participant OrdersService as OS
+participant PromotionsService as PS
+database "PostgreSQL qua repository" as DB
+Customer -> UI : Nhập coupon
+UI -> PC : POST /coupons/validate + JWT
+PC -> PS : validateCoupon(...)
+PS -> DB : Đọc coupon / đếm lượt (không lock)
+DB --> PS : Dữ liệu
+PS --> UI : Quote dự kiến hoặc 422 COUPON_NOT_APPLICABLE
+note over UI,PS
+  Preview không giữ lượt. Checkout tính lại subtotal từ catalog;
+  không dùng giá/discount do client gửi. API preview hiện nhận subtotal
+  nên chỉ dùng hiển thị, không phải nguồn giá cho POST /orders.
+end note
+UI -> OC : POST /orders {items, couponCode} + JWT
+OC -> OS : createOrder(userId, dto)
+activate OS
+OS -> DB : BEGIN Serializable; đọc catalog/giá
+OS -> PS : quoteAndLock(tx, userId, code, subtotal, now)
+activate PS
+PS -> DB : SELECT coupon FOR UPDATE
+DB --> PS : Coupon (giữ lock tới commit/rollback)
+PS -> DB : COUNT redemptions RESERVED + CONSUMED\ncho coupon và user
+DB --> PS : Lượt dùng
+PS -> PS : Kiểm tra hạn, active, minOrderValue, limits;\ntính discount BigInt VND (total >= 0)
+alt Coupon không áp dụng
+  PS --> OS : COUPON_NOT_APPLICABLE
+  OS -> DB : ROLLBACK
+  OS --> UI : 422; giữ giỏ, sửa coupon
+else Hợp lệ
+  PS --> OS : CouponQuote
+  deactivate PS
+  OS -> DB : INSERT Order(PENDING), items/snapshot
+  DB --> OS : orderId
+  OS -> PS : reserve(tx, quote, orderId, expiresAt)
+  PS -> DB : INSERT CouponRedemption(RESERVED)
+  OS -> DB : Giữ tồn ACTIVE + history (SD-10)
+  alt Một bước thất bại
+    OS -> DB : ROLLBACK toàn tx (kể cả coupon/order/stock)
+    OS --> UI : Lỗi; giữ giỏ
+  else Tất cả thành công
+    OS -> DB : COMMIT
+    OS --> UI : 201 orderId / tổng tiền chuẩn
+  end
+end
+deactivate OS
+group Quyết toán trong transaction order/payment (SD-11 / SD-04)
+  alt Thanh toán thành công
+    OS -> PS : consumeRedemption(tx, orderId) [contract đích]
+    PS -> DB : RESERVED -> CONSUMED (compare-and-set)
+  else Gateway từ chối, còn hạn retry
+    note over OS,DB : Giữ RESERVED; không reserve lần hai khi retry payment
+  else Hủy / hết hạn, không có payment PROCESSING
+    OS -> PS : releaseRedemption(tx, orderId, isExpired) [contract đích]
+    PS -> DB : RESERVED -> RELEASED / EXPIRED đúng một lần
+  end
+end
+@enduml

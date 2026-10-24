@@ -1,0 +1,78 @@
+@startuml SD-06-login-rbac
+title SD-06: Đăng nhập & Xác thực JWT/RBAC (UC-02)
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam BoxPadding 10
+
+actor "Người dùng\n(Customer / Barista)" as User
+
+box "Frontend (apps/web)" #F8F9FA
+    participant "LoginForm\n(features/auth)" as FE
+end box
+
+box "Backend (apps/api - AuthModule)" #EBF5FB
+    participant "AuthController" as AC
+    participant "AuthService" as AS
+    participant "UserRepository" as UR
+    participant "BCrypt Library" as BC
+    participant "JwtService" as JWT
+    participant "JwtAuthGuard &\nRolesGuard" as SEC
+end box
+
+database "PostgreSQL\n(Prisma ORM)" as DB
+
+User -> FE: 1. Nhập username & password, bấm "Đăng nhập"
+activate FE
+FE -> AC: 2. POST /api/v1/auth/login (LoginDto)
+activate AC
+AC -> AS: 3. login(loginDto)
+activate AS
+AS -> UR: 4. findByUsername(username)
+activate UR
+UR -> DB: 5. prisma.user.findUnique({ where: { username } })
+activate DB
+
+alt Người dùng không tồn tại
+    DB --> UR: null
+    UR --> AS: null
+    AS --> AC: throw UnauthorizedException('INVALID_CREDENTIALS')
+    AC --> FE: 401 Unauthorized (INVALID_CREDENTIALS)
+    FE --> User: Thông báo tài khoản hoặc mật khẩu không đúng
+else Người dùng tồn tại
+    DB --> UR: User record (passwordHash, role, isActive)
+    deactivate DB
+    UR --> AS: User entity
+    deactivate UR
+
+    alt Tài khoản bị khóa (isActive == false)
+        AS --> AC: throw ForbiddenException('ACCOUNT_INACTIVE')
+        AC --> FE: 403 Forbidden (ACCOUNT_INACTIVE)
+        FE --> User: Thông báo tài khoản đã bị tạm khóa
+    else Tài khoản hoạt động
+        AS -> BC: 6. compare(plainPassword, passwordHash)
+        activate BC
+        
+        alt Mật khẩu sai
+            BC --> AS: false
+            AS --> AC: throw UnauthorizedException('INVALID_CREDENTIALS')
+            AC --> FE: 401 Unauthorized (INVALID_CREDENTIALS)
+            FE --> User: Thông báo tài khoản hoặc mật khẩu không đúng
+        else Mật khẩu đúng
+            BC --> AS: true
+            deactivate BC
+            AS -> JWT: 7. signAsync({ sub: id, username, role })
+            activate JWT
+            JWT --> AS: accessToken (JWT)
+            deactivate JWT
+            AS --> AC: 8. AuthResultDto { user, accessToken, expiresIn: 900 }
+            deactivate AS
+            AC --> FE: 9. 200 OK (AuthResultDto)
+            deactivate AC
+            
+            FE -> FE: 10. Lưu accessToken, phân luồng điều hướng theo Role\n(CUSTOMER -> /menu, BARISTA -> màn hình vận hành UC-10 khi triển khai)
+            FE --> User: 11. Chuyển hướng thành công
+            deactivate FE
+        end
+    end
+end
+@enduml

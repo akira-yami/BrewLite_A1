@@ -5,12 +5,13 @@ import { InventoryService } from '../inventory/inventory.service.js';
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../database/prisma.module.js';
 import { PromotionsModule } from '../promotions/promotions.module.js';
+import { InventoryModule } from '../inventory/inventory.module.js';
 import { OrdersRepository } from './repositories/orders.repository.js';
 import { OrdersService } from './services/orders.service.js';
 import { OrdersController } from './controllers/orders.controller.js';
 
 @Module({
-  imports: [PrismaModule, PromotionsModule, CatalogModule],
+  imports: [PrismaModule, PromotionsModule, CatalogModule,  InventoryModule,],
   controllers: [OrdersController],
   providers: [OrdersRepository, OrdersService, InventoryService, UsersService],
   exports: [OrdersService],

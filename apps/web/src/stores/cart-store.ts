@@ -33,7 +33,7 @@ export interface AddCartItemInput {
   note?: string | null;
 }
 
-interface CartSnapshot {
+export interface CartSnapshot {
   items: CartItem[];
   totalQuantity: number;
   subtotal: number;
@@ -49,6 +49,14 @@ const emptySnapshot: CartSnapshot = {
 let currentSnapshot = emptySnapshot;
 let hydrated = false;
 const listeners = new Set<() => void>();
+
+const MAX_ITEM_QUANTITY = 20;
+
+function assertValidQuantity(quantity: number) {
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_ITEM_QUANTITY) {
+    throw new RangeError(`Số lượng mỗi món phải là số nguyên từ 1 đến ${MAX_ITEM_QUANTITY}.`);
+  }
+}
 
 function normalizeLevel(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 100
@@ -79,6 +87,7 @@ function formatCartItemId(
 }
 
 function buildCartItem(input: AddCartItemInput): CartItem {
+  assertValidQuantity(input.quantity);
   const sugarLevel = normalizeLevel(input.sugarLevel);
   const iceLevel = normalizeLevel(input.iceLevel);
   const note = normalizeNote(input.note);
@@ -159,7 +168,15 @@ function hydrateCart() {
     if (!Array.isArray(parsed)) return;
 
     currentSnapshot = calculateSnapshot(
-      parsed.filter((item) => item && item.id && item.productId && item.quantity > 0),
+      parsed.filter(
+        (item) =>
+          item
+          && item.id
+          && item.productId
+          && Number.isInteger(item.quantity)
+          && item.quantity >= 1
+          && item.quantity <= MAX_ITEM_QUANTITY,
+      ),
     );
   } catch {
     currentSnapshot = emptySnapshot;
@@ -189,6 +206,11 @@ export function useCartStore() {
 }
 
 export const cartStore = {
+  getSnapshot(): CartSnapshot {
+    hydrateCart();
+    return currentSnapshot;
+  },
+
   getOrderItems(): CreateOrderItemInput[] {
     hydrateCart();
     return currentSnapshot.items.map((item) => ({
@@ -207,6 +229,7 @@ export const cartStore = {
     const existing = currentSnapshot.items.find((item) => item.id === nextItem.id);
 
     if (existing) {
+      assertValidQuantity(existing.quantity + nextItem.quantity);
       emit(
         currentSnapshot.items.map((item) =>
           item.id === nextItem.id
@@ -227,6 +250,7 @@ export const cartStore = {
     const sameConfiguration = withoutOriginal.find((item) => item.id === replacement.id);
 
     if (sameConfiguration) {
+      assertValidQuantity(sameConfiguration.quantity + replacement.quantity);
       emit(
         withoutOriginal.map((item) =>
           item.id === replacement.id
@@ -242,10 +266,12 @@ export const cartStore = {
 
   updateQuantity(id: string, quantity: number) {
     hydrateCart();
-    if (quantity <= 0) {
+    if (quantity === 0) {
       this.removeItem(id);
       return;
     }
+
+    assertValidQuantity(quantity);
 
     emit(
       currentSnapshot.items.map((item) =>

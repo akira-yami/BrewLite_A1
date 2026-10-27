@@ -105,21 +105,30 @@ export class OrdersRepository {
     orderTotal: bigint,
     tx: Prisma.TransactionClient,
   ) {
+    // 1. Đổi trạng thái đơn hàng sang PAID
     await tx.order.update({
       where: { id: orderId, status: currentStatus },
       data: { status: OrderStatus.PAID },
     });
 
+    // 2. BỔ SUNG: Ghi nhận lịch sử chuyển trạng thái (A1-8.3)
+    await tx.orderStatusHistory.create({
+      data: {
+        orderId,
+        fromStatus: currentStatus,
+        toStatus: OrderStatus.PAID,
+        changedByUserId: userId,
+        reason: 'Thanh toán thành công',
+      },
+    });
+
+    // 3. Xử lý tồn kho
     await tx.inventoryReservation.updateMany({
       where: { orderId, status: 'ACTIVE' },
       data: { status: 'CONSUMED' },
     });
 
-    await tx.couponRedemption.updateMany({
-      where: { orderId, status: 'RESERVED' },
-      data: { status: 'CONSUMED', consumedAt: new Date() },
-    });
-
+    // 4. Tích điểm Loyalty
     const earnedPoints = Number(orderTotal / 10n);
 
     const user = await tx.user.update({

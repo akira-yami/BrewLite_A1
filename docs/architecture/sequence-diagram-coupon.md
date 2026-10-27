@@ -21,22 +21,22 @@ Thiết kế này đã áp dụng 4 khuyến nghị từ `docs/reviews/huy-revie
 ```mermaid
 %%{init: { 
   'theme': 'dark', 
-  'themeVariables': {
-    'background': 'transparent',
-    'actorBkg': 'rgba(44, 62, 80, 0.6)',
-    'actorBorder': 'rgba(93, 173, 226, 0.8)',
-    'actorTextColor': '#E5E8E8',
-    'signalColor': '#F2F3F4',
-    'signalLineColor': 'rgba(170, 183, 184, 0.6)',
-    'labelBoxBkgColor': 'transparent',
-    'labelBoxBorderColor': 'transparent',
-    'labelTextColor': '#F2F3F4',
-    'noteBkgColor': 'rgba(244, 208, 63, 0.15)',
-    'noteBorderColor': 'rgba(244, 208, 63, 0.6)',
-    'noteTextColor': '#F9E79F',
-    'activationBkgColor': 'rgba(82, 190, 128, 0.25)',
-    'activationBorderColor': 'rgba(82, 190, 128, 0.7)'
-  }
+  'themeVariables': { 
+    'background': '#1C1C1E', 
+    'actorBkg': 'rgba(44, 62, 80, 0.6)', 
+    'actorBorder': 'rgba(93, 173, 226, 0.8)', 
+    'actorTextColor': '#E5E8E8', 
+    'signalColor': '#F2F3F4', 
+    'signalLineColor': 'rgba(170, 183, 184, 0.6)', 
+    'labelBoxBkgColor': 'transparent', 
+    'labelBoxBorderColor': 'transparent', 
+    'labelTextColor': '#F2F3F4', 
+    'noteBkgColor': 'rgba(244, 208, 63, 0.15)', 
+    'noteBorderColor': 'rgba(244, 208, 63, 0.6)', 
+    'noteTextColor': '#F9E79F', 
+    'activationBkgColor': 'rgba(82, 190, 128, 0.25)', 
+    'activationBorderColor': 'rgba(82, 190, 128, 0.7)' 
+  } 
 }}%%
 sequenceDiagram
     autonumber
@@ -54,28 +54,24 @@ sequenceDiagram
         C->>FE: Nhập mã giảm giá & Bấm "Áp dụng"
         activate C
         activate FE
-        FE->>PC: POST /api/v1/coupons/validate { code, items }
+        FE->>PC: POST /api/v1/coupons/validate { code, subtotal }
         activate PC
-        
-        PC->>PS: validateCoupon(code, items, userId)
+        PC->>PS: validateCoupon(code, subtotal, userId, now)
         activate PS
-        
         PS->>DB: Đọc thông tin Coupon & đếm Redemption (chỉ READ, không LOCK)
         activate DB
         DB-->>PS: Thông tin Coupon & Lượt dùng
         deactivate DB
         
-        alt Không hợp lệ / Hết hạn / Hết lượt / Không đủ subtotal
+        alt Không hợp lệ / Hết hạn / Hết lượt / Không đủ minOrderValue
             PS-->>PC: Throw UnprocessableEntity (COUPON_NOT_APPLICABLE)
             PC-->>FE: HTTP 422 Unprocessable Entity
         else Hợp lệ
             PS->>PS: Tính toán discountAmount (Server-side BigInt)
             PS-->>PC: Trả về Quote { discountAmount, code }
             deactivate PS
-            
             PC-->>FE: HTTP 200 OK
             deactivate PC
-            
             FE-->>C: Hiển thị mức giảm giá dự kiến
             deactivate FE
             deactivate C
@@ -90,25 +86,20 @@ sequenceDiagram
         activate FE
         FE->>OS: POST /api/v1/orders { items, couponCode }
         activate OS
-
         OS->>DB: BEGIN TRANSACTION (tx)
         activate DB
         DB-->>OS: OK
         deactivate DB
-
         OS->>PS: quoteAndLock(tx, userId, couponCode, subtotal, now)
         activate PS
-        
         PS->>DB: SELECT * FROM coupons WHERE code = couponCode FOR UPDATE (Khóa dòng Coupon)
         activate DB
         DB-->>PS: Dữ liệu Coupon
         deactivate DB
-        
         PS->>DB: Đếm số REDEMPTION (RESERVED + CONSUMED) theo couponId và userId
         activate DB
         DB-->>PS: Số lượt đã dùng
         deactivate DB
-        
         PS->>PS: Kiểm tra usageLimit, perUserLimit, minOrderValue
         
         alt Vi phạm điều kiện
@@ -124,13 +115,11 @@ sequenceDiagram
             PS->>PS: Tính discountAmount
             PS-->>OS: Trả về CouponQuote
             deactivate PS
-
-            Note over OS,DB: Sửa lỗi khóa ngoại:<br/>Insert Order TRƯỚC
+            note over OS,DB: Giải quyết phản biện khóa ngoại:<br/>Insert Order TRƯỚC
             OS->>DB: INSERT orders (PENDING)
             activate DB
             DB-->>OS: orderId
             deactivate DB
-
             OS->>PS: reserve(tx, quote, orderId, expiresAt)
             activate PS
             PS->>DB: INSERT coupon_redemptions (status = RESERVED, orderID)
@@ -139,12 +128,10 @@ sequenceDiagram
             deactivate DB
             PS-->>OS: Lượt đã được giữ
             deactivate PS
-
             OS->>DB: COMMIT
             activate DB
             DB-->>OS: OK
             deactivate DB
-            
             OS-->>FE: HTTP 201 Created (Kèm discountAmount)
             deactivate OS
             FE-->>C: Chuyển sang màn hình Thanh toán
@@ -156,6 +143,7 @@ sequenceDiagram
     %% Khối 3: Xanh Lá Pastel Neon mờ cho Vòng đời đơn hàng
     rect rgba(130, 224, 170, 0.06)
         note right of C: 3. Quyết toán Coupon theo vòng đời Đơn hàng (SD-11 & SD-04)
+        
         alt Thanh toán THÀNH CÔNG (PaymentsService → OrdersService)
             OS->>PS: consumeRedemption(tx, orderId)
             activate OS
@@ -167,7 +155,9 @@ sequenceDiagram
             PS-->>OS: Done
             deactivate PS
             deactivate OS
-        else Hủy đơn / Hết hạn 15 phút
+        else Thanh toán THẤT BẠI nhưng còn hạn 15 phút (Khách Retry)
+            note over OS,DB: KHÔNG gọi API hủy hay giải phóng.<br/>Giữ nguyên trạng thái RESERVED.<br/>Đảm bảo khách retry thanh toán<br/>không bị mất lượt.
+        else Hủy đơn / Hết hạn 15 phút (Hoặc CronJob dọn dẹp)
             OS->>PS: releaseRedemption(tx, orderId, isExpired)
             activate OS
             activate PS

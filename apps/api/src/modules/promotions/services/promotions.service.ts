@@ -194,4 +194,17 @@ export class PromotionsService {
         tx,
         );
     }
+
+    async consumeRedemption(tx: Prisma.TransactionClient, orderId: string): Promise<void> {
+        await this.repository.consumeByOrderId(orderId, new Date(), tx);
+    }
+
+    async releaseRedemption(
+        tx: Prisma.TransactionClient,
+        orderId: string,
+        isExpired: boolean,
+    ): Promise<void> {
+        const targetStatus = isExpired ? 'EXPIRED' : 'RELEASED';
+        await this.repository.releaseByOrderId(orderId, targetStatus, new Date(), tx);
+    }
 }

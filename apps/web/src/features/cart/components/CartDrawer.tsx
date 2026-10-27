@@ -1,7 +1,9 @@
 'use client';
-
+import { useState, useEffect } from 'react';
+// import { CheckoutAPI } from '@/services/checkout.api';
 import Image from 'next/image';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import { validateCoupon } from '@/api/coupons.api'; // Nhập đúng đường dẫn file của em
 
 interface CartDrawerProps {
   open: boolean;
@@ -11,6 +13,52 @@ interface CartDrawerProps {
 
 export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
   const { items, subtotal, totalQuantity } = useCartStore();
+
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
+
+  // Tự động xóa coupon nếu giỏ hàng thay đổi khiến subtotal thay đổi
+  useEffect(() => {
+    if (appliedCoupon) {
+      setAppliedCoupon(null);
+      setDiscountAmount(0);
+      setCouponError('Giỏ hàng thay đổi, vui lòng áp dụng lại mã giảm giá.');
+    }
+  }, [subtotal]);
+
+  const handleApplyCoupon = async () => {
+    setCouponError(null);
+    if (!couponInput.trim()) {
+      setCouponError('Vui lòng nhập mã giảm giá.');
+      return;
+    }
+
+    setIsApplying(true);
+    try {
+      // Gọi trực tiếp hàm validateCoupon đã import từ @/api/coupons.api
+      const data = await validateCoupon(couponInput.trim(), subtotal);
+
+      setAppliedCoupon(couponInput.trim()); // Backend xác nhận hợp lệ thì mới set trạng thái
+      setDiscountAmount(data.discountAmount); // Lấy tiền giảm giá từ Backend
+      setCouponInput(''); // Xóa trắng ô input sau khi áp dụng thành công
+    } catch (error: any) {
+      // Bắt lỗi 422 từ API và hiển thị thân thiện cho khách hàng
+      setCouponError(error.message || 'Mã giảm giá không hợp lệ hoặc chưa đủ điều kiện.');
+      setAppliedCoupon(null);
+      setDiscountAmount(0);
+    } finally {
+      setIsApplying(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setDiscountAmount(0);
+    setCouponError(null);
+  };
 
   return (
     <>
@@ -167,15 +215,53 @@ export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
                   <span>Tạm tính ({totalQuantity} món)</span>
                   <strong className="font-mono text-[#1E1813]">{formatVnd(subtotal)}</strong>
                 </div>
-                <div className="flex items-center justify-between text-[#756A63]">
-                  <span>Khuyến mãi</span>
-                  <span>Áp dụng ở bước thanh toán</span>
+
+                {/* Khu vực Coupon */}
+                <div className="py-2">
+                  {!appliedCoupon ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nhập mã giảm giá..."
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value)}
+                        className="flex-1 rounded-md border border-[#E5DCD2] px-3 py-1.5 text-sm outline-none focus:border-[#163E2B]"
+                        disabled={isApplying}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={isApplying}
+                        className="rounded-md bg-[#163E2B] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-[#1f4f38] disabled:opacity-50"
+                      >
+                        {isApplying ? 'Đang kiểm tra...' : 'Áp dụng'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between rounded-md bg-[#E8F1EC] px-3 py-2 text-sm text-[#163E2B]">
+                      <div>
+                        <span className="font-bold">{appliedCoupon}</span>
+                        <span className="ml-2 font-mono text-xs">(-{formatVnd(discountAmount)})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="text-[11px] font-bold text-[#9f3f2f] hover:underline"
+                      >
+                        Xóa mã
+                      </button>
+                    </div>
+                  )}
+                  {couponError && (
+                    <p className="mt-1 text-xs text-[#9f3f2f]">{couponError}</p>
+                  )}
                 </div>
+
                 <div className="border-t border-[#E5DCD2] pt-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-[#163E2B]">Tổng tạm tính</span>
+                    <span className="font-black text-[#163E2B]">Tổng thanh toán</span>
                     <strong className="font-mono text-lg text-[#163E2B]">
-                      {formatVnd(subtotal)}
+                      {formatVnd(Math.max(0, subtotal - discountAmount))}
                     </strong>
                   </div>
                 </div>
@@ -183,6 +269,10 @@ export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
 
               <button
                 type="button"
+                onClick={() => {
+                  // TODO: Nối logic gọi API tạo đơn và thanh toán (Sẽ làm ở Sprint 3)
+                  alert('Tính năng Checkout sẽ được hoàn thiện ở Phase tiếp theo!');
+                }}
                 className="mt-3 w-full rounded-full bg-[#163E2B] py-3 text-sm font-black text-white shadow-md transition hover:bg-[#1f4f38] active:scale-[0.99]"
               >
                 Tiến hành đặt & thanh toán

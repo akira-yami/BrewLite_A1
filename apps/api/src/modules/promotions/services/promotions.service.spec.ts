@@ -25,11 +25,13 @@ describe('PromotionsService (Unit Test - TDD)', () => {
 
     beforeEach(() => {
         repositoryMock = {
-        findByCode: vi.fn(),
-        lockCoupon: vi.fn(),
-        countRedemptions: vi.fn(),
-        countTotalRedemptions: vi.fn(),
-        createRedemption: vi.fn(),
+            findByCode: vi.fn(),
+            lockCoupon: vi.fn(),
+            countRedemptions: vi.fn(),
+            countTotalRedemptions: vi.fn(),
+            createRedemption: vi.fn(),
+            consumeByOrderId: vi.fn(),
+            releaseByOrderId: vi.fn(),
         };
         service = new PromotionsService(repositoryMock as unknown as PromotionsRepository);
     });
@@ -143,6 +145,51 @@ describe('PromotionsService (Unit Test - TDD)', () => {
             discountAmount: 15000n,
             expiresAt,
         }, txMock);
+        });
+    });
+
+    describe('consumeRedemption (UC-08 Transaction)', () => {
+        it('Nên gọi repository.consumeByOrderId với đúng tx và orderId', async () => {
+            const txMock = {} as any;
+            repositoryMock.consumeByOrderId.mockResolvedValue(1);
+
+            await service.consumeRedemption(txMock, 'order-123');
+
+            expect(repositoryMock.consumeByOrderId).toHaveBeenCalledWith(
+                'order-123',
+                expect.any(Date),
+                txMock,
+            );
+        });
+    });
+
+    describe('releaseRedemption (UC-06 / Khách hủy đơn / CronJob)', () => {
+        it('Nên gọi repository.releaseByOrderId với status EXPIRED nếu isExpired = true', async () => {
+            const txMock = {} as any;
+            repositoryMock.releaseByOrderId.mockResolvedValue(1);
+
+            await service.releaseRedemption(txMock, 'order-123', true);
+
+            expect(repositoryMock.releaseByOrderId).toHaveBeenCalledWith(
+                'order-123',
+                'EXPIRED',
+                expect.any(Date),
+                txMock,
+            );
+        });
+
+        it('Nên gọi repository.releaseByOrderId với status RELEASED nếu isExpired = false', async () => {
+            const txMock = {} as any;
+            repositoryMock.releaseByOrderId.mockResolvedValue(1);
+
+            await service.releaseRedemption(txMock, 'order-123', false);
+
+            expect(repositoryMock.releaseByOrderId).toHaveBeenCalledWith(
+                'order-123',
+                'RELEASED',
+                expect.any(Date),
+                txMock,
+            );
         });
     });
 });

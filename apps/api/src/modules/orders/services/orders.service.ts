@@ -523,6 +523,7 @@ export class OrdersService {
     orderTotal: bigint,
     tx: Prisma.TransactionClient,
   ) {
+    // 1. Đánh dấu đơn hàng là PAID và xử lý Loyalty, Inventory (bên trong repository)
     await this.repository.markAsPaid(
       orderId,
       OrderStatus.PENDING,
@@ -530,6 +531,9 @@ export class OrdersService {
       orderTotal,
       tx,
     );
+
+    // 2. Quyết toán Coupon: Gọi chéo sang PromotionsService theo đúng chuẩn Dependency Map (ADR-001)
+    await this.promotionsService.consumeRedemption(tx, orderId);
   }
 
   async markOrderPaymentFailed(
@@ -546,5 +550,24 @@ export class OrdersService {
       reason,
       tx,
     );
+  }
+
+  // =====================================================================
+  // 4. HỦY ĐƠN HÀNG VÀ GIẢI PHÓNG TÀI NGUYÊN (UC-06 / CRONJOB)
+  // =====================================================================
+  async cancelOrder(
+    orderId: string,
+    userId: string,
+    reason: string,
+    isExpired: boolean,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const client = tx ?? this.prisma;
+
+    // Nhả (release) lượt dùng Coupon để khách có thể sử dụng lại cho đơn khác
+    await this.promotionsService.releaseRedemption(client, orderId, isExpired);
+
+    // (Logic đổi trạng thái đơn hàng sang CANCELLED và nhả tồn kho
+    // sẽ được tích hợp thêm vào đây khi hoàn thiện toàn bộ luồng Hủy đơn)
   }
 }

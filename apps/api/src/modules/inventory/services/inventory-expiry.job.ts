@@ -7,6 +7,7 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { InventoryService } from './inventory.service.js';
+import { ReservationStatus } from '../../../generated/prisma/enums.js';
 
 @Injectable()
 export class InventoryExpiryJob {
@@ -30,14 +31,11 @@ export class InventoryExpiryJob {
     this.isRunning = true;
 
     try {
-      const now = new Date();
-
       // Lấy tối đa 100 reservation ACTIVE đã đến hạn.
-      const reservations =
-        await this.prisma.inventoryReservation.findMany({
+      const reservations = await this.prisma.inventoryReservation.findMany({
           where: {
-            status: 'ACTIVE',
-            expiresAt: { lte: now },
+            status: ReservationStatus.ACTIVE,
+            expiresAt: { lte: new Date() },
           },
           select: { id: true },
           orderBy: { expiresAt: 'asc' },

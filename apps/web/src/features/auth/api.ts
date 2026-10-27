@@ -37,7 +37,7 @@ async function request<T>(
   if (res.status === 401 && token) authSession.invalidate(token);
   const json = await res.json().catch(() => null);
   if (!res.ok) {
-    const raw = json?.error?.message ?? json?.message;
+    const raw = json?.error?.message ?? json?.error ?? json?.message;
     const code = json?.error?.code;
     const message = Array.isArray(raw)
       ? raw.filter((value) => typeof value === 'string').join('. ')

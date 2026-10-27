@@ -17,7 +17,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
   let service: OrdersService;
   let prismaMock: any;
   let txMock: any;
-  let promotionsServiceMock: any;
+  let promotionsService: any;
 
   // Bổ sung mock cho các hàm mới của Payment và Order History
   const repository = {
@@ -31,7 +31,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    const prisma = {
+    const _prisma = {
   $transaction: vi.fn(),
 };
 
@@ -56,9 +56,11 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       $transaction: vi.fn(async (cb: any) => cb(txMock)),
     };
 
-    promotionsServiceMock = {
+    promotionsService = {
       quoteAndLock: vi.fn(),
       reserve: vi.fn(),
+      consumeRedemption: vi.fn(),
+      releaseRedemption: vi.fn(),
     };
 
     const catalog = new CatalogService({} as any);
@@ -66,7 +68,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     service = new OrdersService(
       repository as unknown as OrdersRepository,
       prismaMock as unknown as PrismaService,
-      promotionsServiceMock as unknown as PromotionsService,
+      promotionsService as unknown as PromotionsService,
       catalog,
       new InventoryService(catalog),
       new UsersService(),
@@ -372,21 +374,21 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       };
       txMock.order.create.mockResolvedValue(mockOrderWithCoupon);
       txMock.productVariant.updateMany.mockResolvedValue({ count: 1 });
-      promotionsServiceMock.quoteAndLock.mockResolvedValue({
+      promotionsService.quoteAndLock.mockResolvedValue({
         couponId: 'c-1',
         discountAmount: 10000n,
       });
 
       const result = await service.createOrder('u-1', dtoWithCoupon as any);
 
-      expect(promotionsServiceMock.quoteAndLock).toHaveBeenCalledWith(
+      expect(promotionsService.quoteAndLock).toHaveBeenCalledWith(
         txMock,
         'u-1',
         'SALE10',
         86000n,
         expect.any(Date),
       );
-      expect(promotionsServiceMock.reserve).toHaveBeenCalledWith(
+      expect(promotionsService.reserve).toHaveBeenCalledWith(
         txMock,
         expect.objectContaining({ couponId: 'c-1' }),
         'order-uuid-1',
@@ -583,6 +585,30 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       expect(result.timeline).toHaveLength(2);
       expect(result.timeline[0].toStatus).toBe(OrderStatus.PENDING);
       expect(result.timeline[1].toStatus).toBe(OrderStatus.PAID);
+    });
+  });
+
+  describe('Quyết toán Coupon (UC-08 / SD-12)', () => {
+    it('Nên gọi promotionsService.consumeRedemption khi markOrderPaid được gọi', async () => {
+      const txMock = {} as any;
+
+      // Giả lập chưa có implementation
+      await service.markOrderPaid('order-123', 'user-1', 100000n, txMock);
+
+      // Bắt buộc OrdersService phải gọi sang PromotionsService để consume
+      expect(promotionsService.consumeRedemption).toHaveBeenCalledWith(txMock, 'order-123');
+    });
+  });
+
+  describe('Hủy đơn / Hết hạn để nhả Coupon (UC-06 / SD-12)', () => {
+    it('Nên gọi promotionsService.releaseRedemption khi cancelOrder được gọi', async () => {
+      const txMock = {} as any;
+
+      // Giả lập gọi hàm hủy đơn (isExpired = true)
+      await service.cancelOrder('order-123', 'user-1', 'Hết hạn thanh toán 15 phút', true, txMock);
+
+      // Bắt buộc OrdersService phải gọi sang PromotionsService để giải phóng (release) coupon
+      expect(promotionsService.releaseRedemption).toHaveBeenCalledWith(txMock, 'order-123', true);
     });
   });
 });

@@ -1,42 +1,49 @@
-# 🚀 Handover Report - Sprint 2 / Tuần 3
+# Biên Bản Bàn Giao Kỹ Thuật - Tuần 3 (Sprint 2)
 
-**Người thực hiện:** Huỳnh Thái Kiệt
-**Vai trò:** Backend Engineer
-**Phân hệ phụ trách:** Promotions (Coupon) & Payments
-**Ngày báo cáo:** 22/10/2026
-
----
-
-## 1. Hạng mục hoàn thành (Tasks Completed)
-
-### 🎟️ Module Promotions (Hoàn tất 100%)
-- Triển khai `PromotionsService` với quy tắc Business Logic (TDD): Kiểm tra thời hạn, áp trần discount, giới hạn số lần sử dụng.
-- Hoàn thiện 2 cổng giao tiếp `quoteAndLock` và `reserve` để tích hợp với Transaction của `OrdersService`.
-- Mở API Endpoint: `POST /api/v1/coupons/validate` (Được bảo vệ bởi JwtAuthGuard & RolesGuard).
-
-### 💳 Module Payments (Hoàn tất 100%)
-- Triển khai `PaymentsRepository` và `OrdersService` transition ports (Fail-fast chống truy cập chéo, quản lý trạng thái).
-- Xây dựng `PaymentsService` với cơ chế chống Double-Charge:
-  - Băm dữ liệu `requestHash` bằng thuật toán SHA-256 để chống thay đổi payload.
-  - Xử lý Idempotency triệt để (Ném 409 khi trùng key khác dữ liệu, hoặc giao dịch đang `PROCESSING`).
-- Cấu hình gọi `MockGatewayService` độc lập với Database Transaction nhằm ngăn chặn cạn kiệt Connection Pool.
-- Mở API Endpoint: `POST /api/v1/payments`.
-
-### 🤝 Frontend Contracts
-- Cập nhật file types: `checkout.contract.ts`.
-- Cung cấp HTTP Client helper: `checkout.api.ts` (Sử dụng `authenticatedRequest` và bắt buộc kèm header `Idempotency-Key`) để bàn giao cho Khải ghép giao diện.
+**Dự án:** BrewLite (Monorepo)
+**Người thực hiện:** Huỳnh Thái Kiệt (MSSV: 3124410172)
+**Ngày bàn giao:** 27/10/2026
+**Trạng thái:** Hoàn tất ✅
 
 ---
 
-## 2. Chỉ số chất lượng (Definition of Done)
-- [x] Linter (`oxlint`): **0 errors, 0 warnings** (Đã fix triệt để Type Widening).
-- [x] Typecheck: **PASS**.
-- [x] Unit Test & Integration Test: **PASS 100%**.
-- [x] Test Coverage: **>= 80%** (Đính kèm screenshot hoặc terminal log trong PR).
+## 1. Các Thẻ Tính Năng (Jira/Trello Cards) Đã Hoàn Tất
+
+*   **[A1-10.5] Xử lý vòng đời Coupon, Payment Retry an toàn và Tích hợp Frontend UI:** Đã hoàn thiện luồng xử lý mã giảm giá, bảo vệ chống thanh toán lặp và tích hợp giao diện Giỏ hàng (Cart).
+*   **[A1-8.3] (Bug Fix) Lưu vết vòng đời trạng thái Đơn hàng:** Vá thành công lỗ hổng thiếu lịch sử khi đơn hàng chuyển sang `PAID`.
 
 ---
 
-## 3. Pull Request & Reviewers
-Mã nguồn đã sẵn sàng để merge vào branch `develop`.
-- **Reviewer 1:** @huy-dev (Yêu cầu review kỹ logic nghiệp vụ tính toán của Coupon tại `PromotionsService`).
-- **Reviewer 2:** @khang-dev (Yêu cầu review luồng Transaction thay đổi trạng thái PENDING -> PAID và luồng Idempotency tại `PaymentsService`).
+## 2. Chi Tiết Triển Khai Kỹ Thuật
+
+### 2.1. Backend Architecture (NestJS + Prisma)
+*   **Promotions Module:** Hoàn thiện public API cho `PromotionsService` với 2 hàm `consumeRedemption` (khi PAID) và `releaseRedemption` (khi Cancel/Hết hạn). Tuân thủ nghiêm ngặt ranh giới module (ADR-001).
+*   **Orders Module:** 
+    *   Tích hợp gọi chéo an toàn sang `PromotionsService` trong hàm `markOrderPaid`.
+    *   Xây dựng hàm `cancelOrder` hỗ trợ nhả lượt (release) coupon khi hết hạn 15 phút.
+    *   Bổ sung `tx.orderStatusHistory.create` ghi nhận lịch sử chuyển trạng thái về `PAID`.
+*   **Payments Module & Bảo mật Idempotency:**
+    *   Hỗ trợ luồng **Payment Retry**: Cho phép đơn hàng ở trạng thái `PAYMENT_FAILED` được thanh toán lại bằng `Idempotency-Key` mới thông qua hàm `transitionForPaymentRetry`.
+    *   Bảo vệ hệ thống thành công trước lỗi *Replay Attack* và *Unique Constraint* trùng mã giao dịch.
+
+### 2.2. Frontend UI (Next.js + Tailwind CSS)
+*   Tích hợp API `POST /api/v1/coupons/validate` vào Component `CartDrawer.tsx`.
+*   Xử lý tinh tế UX/UI: 
+    *   Bắt mã lỗi HTTP 422 (`COUPON_NOT_APPLICABLE`, `COUPON_EXPIRED`) và ánh xạ thành thông báo tiếng Việt thân thiện chữ đỏ.
+    *   Tự động gỡ bỏ Coupon hiện tại nếu người dùng thay đổi số lượng món trong giỏ (làm thay đổi `subtotal`).
+
+---
+
+## 3. Kết Quả Kiểm Thử (TDD & Regression)
+
+*   **Unit Tests (Vitest):** Đạt 100% Pass Rate (Màu xanh).
+    *   `orders.service.spec.ts`: PASS 20/20 cases.
+    *   `payments.service.spec.ts`: PASS 8/8 cases.
+*   **Integration Tests (DB Thật):** 
+    *   Môi trường: PostgreSQL Disposable (`brewlite_foundation_smoke_test`).
+    *   Kết quả: PASS 10/10 kịch bản, bao gồm kiểm tra Race Condition, Giới hạn sử dụng, Retry thanh toán, và Rollback khi lỗi.
+
+---
+
+## 4. Ghi Chú cho Reviewer
+*   Kiến trúc đã được đảm bảo tính toàn vẹn State Machine của Order và vòng đời của CouponRedemption. Code đã push lên nhánh `feature/A1-10.5` sẵn sàng cho thao tác Merge Pull Request.

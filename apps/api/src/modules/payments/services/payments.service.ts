@@ -71,11 +71,20 @@ export class PaymentsService {
             });
         }
 
-        if (order.status !== OrderStatus.PENDING) {
+        if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
             throw new ConflictException({
                 code: 'ORDER_INVALID_TRANSITION',
                 message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
             });
+        }
+
+        // Hỗ trợ luồng Retry: Nếu đơn đang nợ (PAYMENT_FAILED), reset về PENDING để thanh toán lại
+        if (order.status === OrderStatus.PAYMENT_FAILED) {
+            await this.ordersService.transitionForPaymentRetry(
+                orderId,
+                userId,
+                'Khách hàng thử thanh toán lại'
+            );
         }
 
         // 4. Khởi tạo trạng thái PROCESSING trong DB (Thực thi NGÀY LẬP TỨC ngoài transaction chính)

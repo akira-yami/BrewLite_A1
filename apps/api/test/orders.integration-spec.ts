@@ -423,4 +423,94 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       ).expect(400);
     }
   });
+  it('Regression: Xử lý Payment Fail, Retry an toàn và Expiry Coupon (UC-06, UC-08, SD-12)', async () => {
+    // Để mock Gateway, ta lấy instance từ app (chỉ mock cổng bên ngoài)
+    const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');
+    const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
+    const { OrdersService } = await import('../src/modules/orders/services/orders.service.js');
+
+    const paymentsService = app.get(PaymentsService);
+    const mockGateway = app.get(MockGatewayService);
+    const ordersService = app.get(OrdersService);
+
+    // ==========================================
+    // KỊCH BẢN 1: TẠO ĐƠN & THANH TOÁN THẤT BẠI
+    // ==========================================
+    const variant = await product();
+    const promotion = await coupon(); // Tạo coupon với usageLimit = 1
+
+    const orderRes = await post(
+      [{ productVariantId: variant.id, quantity: 1 }],
+      promotion.code,
+    ).expect(201);
+
+    const orderId = orderRes.body.data.id;
+    const totalAmount = orderRes.body.data.total;
+
+    // Xác nhận coupon đang bị giữ (RESERVED)
+    let redemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId } });
+    expect(redemption.status).toBe('RESERVED');
+
+    // Thanh toán lần 1: Bị từ chối do hết tiền
+    vi.spyOn(mockGateway, 'charge').mockResolvedValueOnce({ success: false, errorCode: 'INSUFFICIENT_FUNDS' });
+
+    await paymentsService.processPayment({
+      idempotencyKey: `fail-key-${randomUUID()}`,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: BigInt(totalAmount),
+    });
+
+    // ÉP NGHIỆP VỤ: Đơn hàng thành PAYMENT_FAILED, nhưng Coupon VẪN PHẢI LÀ RESERVED (để khách retry)
+    const failedOrder = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    expect(failedOrder.status).toBe('PAYMENT_FAILED');
+
+    redemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId } });
+    expect(redemption.status).toBe('RESERVED');
+
+    // ==========================================
+    // KỊCH BẢN 2: RETRY THANH TOÁN THÀNH CÔNG
+    // ==========================================
+    // Khách dùng Idempotency-Key mới để retry
+    vi.spyOn(mockGateway, 'charge').mockResolvedValueOnce({ success: true, gatewayTransactionId: `GW-RETRY-${randomUUID()}` });
+
+    await paymentsService.processPayment({
+      idempotencyKey: `success-key-${randomUUID()}`,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: BigInt(totalAmount),
+    });
+
+    // ÉP NGHIỆP VỤ: Đơn hàng thành PAID, Coupon ĐÃ ĐƯỢC QUYẾT TOÁN (CONSUMED)
+    const paidOrder = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    expect(paidOrder.status).toBe('PAID');
+
+    redemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId } });
+    expect(redemption.status).toBe('CONSUMED');
+
+    // ==========================================
+    // KỊCH BẢN 3: HẾT HẠN (EXPIRY) VÀ NHẢ LƯỢT
+    // ==========================================
+    const promotion2 = await coupon();
+    const orderRes3 = await post(
+      [{ productVariantId: variant.id, quantity: 1 }],
+      promotion2.code,
+    ).expect(201);
+    const orderId3 = orderRes3.body.data.id;
+
+    // Dùng Prisma ép thời gian `expiresAt` về quá khứ 16 phút (cách Senior lách luật Fake Timers)
+    await prisma.couponRedemption.updateMany({
+      where: { orderId: orderId3 },
+      data: { expiresAt: new Date(Date.now() - 16 * 60 * 1000) }
+    });
+
+    // Kích hoạt hàm hủy đơn (Mô phỏng CronJob hoặc Khách ấn Hủy)
+    await ordersService.cancelOrder(orderId3, userId, 'Quá hạn thanh toán', true);
+
+    // ÉP NGHIỆP VỤ: Coupon phải được nhả ra (EXPIRED) để khách khác có thể dùng
+    const expiredRedemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId: orderId3 } });
+    expect(expiredRedemption.status).toBe('EXPIRED');
+  });
 });

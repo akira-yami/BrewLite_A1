@@ -146,5 +146,26 @@ describe('PaymentsService (Unit Test - TDD)', () => {
 
             expect(result.success).toBe(false);
         });
+
+        it('8. Nên gọi transitionForPaymentRetry và tiếp tục thanh toán nếu đơn đang ở PAYMENT_FAILED', async () => {
+            // Giả lập chưa có giao dịch nào với key mới này
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            // Giả lập đơn hàng đang ở trạng thái thanh toán xịt lần trước
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({status: OrderStatus.PAYMENT_FAILED});
+            paymentsRepoMock.createProcessingPayment.mockResolvedValue({ id: 'p-retry' });
+            gatewayMock.charge.mockResolvedValue({ success: true, gatewayTransactionId: 'GW-RETRY-123' });
+
+            const result = await service.processPayment({ idempotencyKey: 'idemp-new', orderId, userId, method, amount });
+
+            // Bắt buộc hệ thống phải gọi hàm reset trạng thái đơn về PENDING để giữ an toàn vòng đời
+            expect(ordersServiceMock.transitionForPaymentRetry).toHaveBeenCalledWith(
+                orderId,
+                userId,
+                'Khách hàng thử thanh toán lại'
+            );
+            // Bắt buộc phải được đi tiếp tới bước gọi cổng thanh toán
+            expect(gatewayMock.charge).toHaveBeenCalledWith(Number(amount), method);
+            expect(result.success).toBe(true);
+        });
     });
 });

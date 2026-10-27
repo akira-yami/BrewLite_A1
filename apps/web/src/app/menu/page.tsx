@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Product } from '@/features/catalog/types';
 import { useMenuProducts } from '@/features/catalog/hooks/useMenuProducts';
 import { useScrollHeader } from '@/features/catalog/hooks/useScrollHeader';
@@ -19,6 +20,7 @@ export default function MenuPage() {
   const [previewingProduct, setPreviewingProduct] = useState<Product | null>(null);
   const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const router = useRouter();
   const cart = useCartStore();
   const menuSectionRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLElement>(null);
@@ -140,6 +142,12 @@ export default function MenuPage() {
               className="transition hover:text-[#153D2C]"
             >
               Liên hệ
+            </Link>
+            <Link
+              href="/orders"
+              className="transition hover:text-[#153D2C]"
+            >
+              Đơn hàng
             </Link>
           </nav>
 
@@ -368,6 +376,9 @@ export default function MenuPage() {
             <Link href="#contact" className="hover:text-[#153D2C]">
               Liên hệ
             </Link>
+            <Link href="/orders" className="hover:text-[#153D2C]">
+              Đơn hàng
+            </Link>
           </div>
         </footer>
 
@@ -396,7 +407,9 @@ export default function MenuPage() {
 
       <CartDrawer
         open={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
+        onClose={() => {
+          setIsCartOpen(false);
+        }}
         onEditOptions={(item) => {
           const product = products.find((candidate) => candidate.id === item.productId);
           if (!product) return;
@@ -404,6 +417,10 @@ export default function MenuPage() {
           setEditingCartItem(item);
           setPreviewingProduct(product);
           setIsCartOpen(false);
+        }}
+        onCheckout={() => {
+          setIsCartOpen(false);
+          router.push('/checkout');
         }}
       />
     </div>

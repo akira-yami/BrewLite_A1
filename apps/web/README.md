@@ -35,5 +35,5 @@ Chi tiết món cho chọn độc lập mức đường/đá: công thức chu�
 
 Chi tiết món có ô ghi chú tối đa 500 ký tự. Giỏ hiển thị văn bản thuần, trim ghi chú và chuyển rỗng thành null, persist khi reload và tách dòng khác note. Giỏ cũ thiếu note được đọc với null.
 
-`cartStore.getOrderItems()` cung cấp payload cho checkout gồm `productVariantId`, `quantity`, `toppingIds`, `sugarLevel`, `iceLevel`, `note`, không gửi giá từ client. Type tạo đơn và item response nằm ở `src/features/orders/types.ts`; checkout/API tạo đơn chưa triển khai. `npm test` chạy test giỏ bằng Node.js 24.
+`cartStore.getOrderItems()` cung cấp payload cho checkout gồm `productVariantId`, `quantity`, `toppingIds`, `sugarLevel`, `iceLevel`, `note`, không gửi giá từ client. Luồng `/checkout` tạo order, gọi `POST /payments` với `Idempotency-Key`, chỉ xóa giỏ sau `SUCCEEDED`, rồi chuyển đến confirmation. Lịch sử/chi tiết đơn nằm ở `/orders` và `/orders/:id`; các màn có loading, empty và error/retry. `npm test` chạy test giỏ bằng Node.js 24.
 

@@ -29,9 +29,49 @@ test('different sugar/ice preferences stay separate; identical options merge wit
   assert.equal(read().length, 3);
   assert.equal(read()[0].quantity, 2);
   assert.equal(read()[0].lineTotal, 90000);
+  assert.equal(cartStore.getSnapshot().totalQuantity, 4);
+  assert.equal(cartStore.getSnapshot().subtotal, 180000);
   assert.deepEqual(cartStore.getOrderItems()[0], {
     productVariantId: 'variant', quantity: 2, toppingIds: ['pearl'], sugarLevel: 0, iceLevel: 50, note: null,
   });
+});
+
+test('subtotal and totalQuantity recalculate after quantity and line changes', async () => {
+  const { cartStore } = await setup();
+  cartStore.addItem(input);
+  cartStore.addItem({
+    ...input,
+    variantId: 'variant-large',
+    size: 'L',
+    unitPrice: 50000,
+    quantity: 2,
+    toppings: [],
+  });
+
+  assert.equal(cartStore.getSnapshot().totalQuantity, 3);
+  assert.equal(cartStore.getSnapshot().subtotal, 145000);
+
+  const firstId = cartStore.getSnapshot().items[0].id;
+  cartStore.updateQuantity(firstId, 3);
+  assert.equal(cartStore.getSnapshot().totalQuantity, 5);
+  assert.equal(cartStore.getSnapshot().subtotal, 235000);
+});
+
+test('invalid quantities are rejected and leave the cart unchanged', async () => {
+  const { cartStore } = await setup();
+  assert.throws(() => cartStore.addItem({ ...input, quantity: 0 }), RangeError);
+  assert.throws(() => cartStore.addItem({ ...input, quantity: 1.5 }), RangeError);
+  assert.throws(() => cartStore.addItem({ ...input, quantity: Number.NaN }), RangeError);
+
+  cartStore.addItem(input);
+  const itemId = cartStore.getSnapshot().items[0].id;
+  assert.throws(() => cartStore.updateQuantity(itemId, -1), RangeError);
+  assert.throws(() => cartStore.updateQuantity(itemId, 21), RangeError);
+  assert.equal(cartStore.getSnapshot().items[0].quantity, 1);
+
+  cartStore.updateQuantity(itemId, 0);
+  assert.equal(cartStore.getSnapshot().totalQuantity, 0);
+  assert.equal(cartStore.getSnapshot().subtotal, 0);
 });
 
 test('omitted and null preferences merge, while explicit 100% remains separate', async () => {

@@ -7,9 +7,15 @@ interface CartDrawerProps {
   open: boolean;
   onClose: () => void;
   onEditOptions: (item: CartItem) => void;
+  onCheckout: () => void;
 }
 
-export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
+export function CartDrawer({
+  open,
+  onClose,
+  onEditOptions,
+  onCheckout,
+}: CartDrawerProps) {
   const { items, subtotal, totalQuantity } = useCartStore();
 
   return (
@@ -145,7 +151,8 @@ export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
                           <button
                             type="button"
                             onClick={() => cartStore.updateQuantity(item.id, item.quantity + 1)}
-                            className="flex h-8 w-8 items-center justify-center text-sm font-black text-[#163E2B]"
+                            disabled={item.quantity >= 20}
+                            className="flex h-8 w-8 items-center justify-center text-sm font-black text-[#163E2B] disabled:cursor-not-allowed disabled:opacity-35"
                             aria-label={`Tăng số lượng ${item.name}`}
                           >
                             +
@@ -183,6 +190,7 @@ export function CartDrawer({ open, onClose, onEditOptions }: CartDrawerProps) {
 
               <button
                 type="button"
+                onClick={onCheckout}
                 className="mt-3 w-full rounded-full bg-[#163E2B] py-3 text-sm font-black text-white shadow-md transition hover:bg-[#1f4f38] active:scale-[0.99]"
               >
                 Tiến hành đặt & thanh toán

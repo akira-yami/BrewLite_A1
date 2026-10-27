@@ -24,3 +24,33 @@ export interface OrderItem {
   toppings: Array<{ name: string; unitPrice: number; quantity: number }>;
   lineTotal: number;
 }
+
+export type OrderStatus =
+  | 'PENDING'
+  | 'PAID'
+  | 'PREPARING'
+  | 'READY'
+  | 'COMPLETED'
+  | 'PAYMENT_FAILED'
+  | 'CANCELLED';
+
+export interface OrderSummary {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  total: number;
+  currency: string;
+  createdAt: string;
+}
+
+export interface OrderDetail extends OrderSummary {
+  items: OrderItem[];
+  subtotal: number;
+  discountAmount: number;
+  reservationExpiresAt?: string | null;
+}
+
+export interface OrderListResponse {
+  items: OrderSummary[];
+  nextCursor?: string | null;
+}

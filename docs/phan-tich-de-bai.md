@@ -1,10 +1,12 @@
 # Phân tích đề bài BrewLite
 
+Nguồn: [BrewLite v1.0](./BrewLite-CongNghePhanMem.pdf), trang PDF 4–8 (số trang in 3–7). Các mã FR/NFR/US là mã nội bộ của repo. [Ma trận truy vết](./traceability-matrix.md) phân biệt 10 task của đề với các đầu việc trong workbook; không đổi mã hoặc phân công đã gửi nhóm. Trạng thái triển khai được chốt riêng trong [báo cáo ngày 22/10/2026](./scrum/progress-report.md).
+
 ## 1. Mục tiêu sản phẩm
 
 BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt. Giá trị cốt lõi là rút ngắn thời gian xếp hàng: khách chọn món, tùy chọn size/topping/đường/đá, thanh toán và nhận mã đơn trước khi đến quầy.
 
-Công nghệ bắt buộc từ đề bài:
+Công nghệ: đề bắt buộc Next.js và NestJS; PostgreSQL/Prisma là lựa chọn nhóm trong các gợi ý của đề. Stack đã chọn:
 
 - Frontend: Next.js, React, TypeScript.
 - Backend: NestJS, TypeScript, REST API.
@@ -64,16 +66,32 @@ Các mục ngoài phạm vi có thể bổ sung sau mà không đổi cấu trú
 
 ## 5. Yêu cầu phi chức năng
 
-| Mã | Mục tiêu có thể kiểm thử | Cách đáp ứng |
+Các ngưỡng dưới đây là **mục tiêu nghiệm thu**, không phải số đo đã đạt. Riêng <500 ms lấy từ đề; p95, tải, thời gian phục hồi và cửa sổ đo là quy ước nhóm đề xuất. Giữ mã NFR-01..08, bổ sung NFR-09..11 để truy vết availability/security/deployment. Owner kiểm chứng: Khang (01/04/06/07/09/11), Huy (02/03/10), Khải (08), Kiệt (05); review NFR thuộc A2-1.2.2 do Kiệt.
+
+| Mã / nhóm | Mục tiêu và điều kiện đạt | Phép kiểm chứng / minh chứng phải lưu |
 |---|---|---|
-| NFR-01 | API đọc/ghi thông thường p95 < 500 ms với dữ liệu mẫu | Index đúng, phân trang, tránh N+1, đo bằng integration/load test |
-| NFR-02 | Không lưu mật khẩu rõ | Băm bằng bcrypt với cost phù hợp và được đo trên môi trường chạy |
-| NFR-03 | Dữ liệu đầu vào được kiểm tra | DTO + `class-validator`, whitelist và transform |
-| NFR-04 | Không bán quá tồn kho khi có request đồng thời | Transaction + optimistic locking `version` + điều kiện `stock >= quantity`; retry có giới hạn |
-| NFR-05 | Retry thanh toán không tạo giao dịch kép | Unique `idempotency_key` và trả lại kết quả đã lưu |
-| NFR-06 | Chạy nhất quán trên máy thành viên | Docker Compose, migration và seed có version |
-| NFR-07 | Quan sát được lỗi | Correlation ID, log có cấu trúc, không log bí mật |
-| NFR-08 | Tương thích trình duyệt hiện đại | Responsive UI; kiểm thử Chrome/Edge/Firefox bản hiện hành |
+| NFR-01 / performance | Mỗi API thông thường có p95 <500 ms và tỷ lệ 5xx <1%; không gộp thời gian mock gateway vào mẫu này | Dataset 100 product/300 variant/30 topping/1.000 order, 20 client đồng thời; warm-up 30s, đo 5 phút. Đo riêng GET /products, GET /products/:id, GET /orders/me và POST /orders hợp lệ; ghi count, p50/p95/p99, 5xx, CPU/RAM và thông số máy. Dùng database test, reset stock giữa lượt tạo đơn; báo cáo request nghiệp vụ bị từ chối riêng, không tính là thành công. |
+| NFR-02 / security | 0 mật khẩu rõ trong DB/response/log; bcrypt cost hiện hành >=10; đăng nhập so sánh hash đúng | Unit Auth + integration đăng ký/đăng nhập trên DB test; kiểm tra passwordHash khác input và bcrypt.compare thành công. Ghi cost và thời gian hash trên máy đo, che input/hash/token trong evidence. |
+| NFR-03 / security | 100% bộ ca sai DTO bị từ chối 400; 0 ghi DB khi validation thất bại | Ca thiếu field, sai kiểu, UUID sai, quantity 0/21, topping trùng, đường/đá ngoài 0..100, note >500 ký tự, field giá/userId lạ. Gửi qua HTTP ValidationPipe, kiểm tra response và DB trước/sau. |
+| NFR-04 / consistency | 0 stock âm, không reserve vượt tồn; rollback không để order/reservation/coupon mồ côi | PostgreSQL thật: stock=5, 20 request đồng thời mỗi request mua 1; đúng 5 đơn thành công, tổng reserve=5, stock=0. Thêm ca lỗi sau giữ tồn và assert toàn transaction rollback; chạy lại >=3 lượt, lưu kết quả từng lượt. |
+| NFR-05 / consistency | Cùng key/payload chỉ 1 payment/gateway call; tối đa 1 SUCCEEDED và 1 EARN/order; payload khác cùng key trả 409 | Gửi 20 request đồng thời cùng key, replay sau hoàn tất; kiểm tra call count và DB. Thử khác method/order cùng key; FAILED retry dùng key mới; kiểm tra inventory/coupon/loyalty không ghi kép. Unique constraint đơn lẻ chưa đủ chứng minh. |
+| NFR-06 / deployment local | Checkout sạch chạy theo README; migration/seed chạy lặp an toàn; web/API/DB healthy trong <=180s sau build trên máy đo | `docker compose config`, build/up, `ps -a`, /health 200; migrate exit 0, apply lại không lỗi, seed lại không trùng. Ghi cold build riêng, phiên bản Node/Docker/OS, commit và thời gian khởi động; mua thử một đơn qua stack thật. |
+| NFR-07 / observability | Mọi lỗi HTTP có requestId để truy log; 0 stack trace/password/JWT/secret trong response và log mẫu | Gây 400/401/403/404/409/500/503 trên môi trường test; so khớp requestId response/log và error envelope. Lưu log đã che dữ liệu; filter/unit test chỉ là bằng chứng phạm vi tương ứng. |
+| NFR-08 / usability | Menu/detail/cart/auth/checkout/history dùng được ở 375×812 và 1440×900; không tràn ngang, không mất tùy chọn khi reload | Ma trận Chrome/Edge/Firefox với version/ngày; chạy luồng UC-03..09, loading/empty/error, keyboard/focus và chụp từng lỗi/kết quả. Thiết bị thật hoặc viewport được ghi rõ. |
+| NFR-09 / availability | Trong smoke 30 phút: >=99% probe /health trả 200 (1 probe/5s, timeout 2s); sau restart API phục hồi <=60s, đơn đã commit không mất | Sau startup đo steady-state riêng; kill/restart container API trên stack test, đếm probe lỗi và thời gian tới 3 probe 200 liên tiếp. Dừng DB: /health phải 503, bật DB và đo phục hồi; kiểm tra order ID/snapshot trước/sau. Đây là mục tiêu demo, chưa phải SLA production 24/7 hoặc kiến trúc HA. |
+| NFR-10 / security access | Thiếu/sai/hết hạn JWT trả 401; sai role 403; user B không đọc/trả tiền đơn A; 0 secret thật trong Git/artifact | HTTP auth/RBAC/ownership trên route thật, kiểm tra DB không đổi sau request bị từ chối; scan diff/artifact, kiểm tra env bắt buộc. HTTPS production: TLS hợp lệ, HTTP chuyển HTTPS, không mixed content; chỉ đánh giá khi có URL deploy. |
+| NFR-11 / deployment release | PR lỗi lint/unit/build bị chặn merge; deploy gắn commit/image digest, migration trước API; rollback ứng dụng <=10 phút trên test và không mất đơn đã commit | Lưu workflow/run pass và fail, required checks đọc từ GitHub cùng target branch/bypass. Với release: health/smoke sau deploy, backup DB test + restore vào DB mới và đối chiếu số lượng/order ID; diễn tập rollback image tương thích schema, không chạy migration down tự động. CI chưa chứng minh CD/restore/HTTPS. |
+
+### 5.1. Quy trình đo và ghi nhận
+
+1. Dùng DB riêng cho kiểm thử, ghi commit, cấu hình CPU/RAM, OS, phiên bản runtime, dataset/seed và công cụ đo trước khi chạy. Không chạy load/fault injection trên DB dùng chung.
+2. Chạy unit/integration/HTTP hiện có; sau đó thực hiện phép đo của từng dòng. Chọn endpoint, số mẫu và cửa sổ đo trước, không bỏ request chậm khỏi mẫu. Tách cold start, steady-state, lỗi nghiệp vụ và thời gian gateway.
+3. Lưu báo cáo trong `docs/testing/evidence/` gồm NFR, lệnh, start/end UTC, kết quả thô đã che bí mật, số đo, ngưỡng, pass/fail và người review. Availability = probe 200 / tổng probe trong cửa sổ; recovery = thời điểm fault tới probe đầu của chuỗi 3 probe 200.
+4. Trạng thái chỉ là **chưa đo / đạt / không đạt / chưa áp dụng**; chưa áp dụng phải có lý do (ví dụ chưa có production URL), không được đổi thành đạt. Reviewer xác nhận riêng với hoàn thành đặc tả.
+
+### 5.2. Hiện trạng bằng chứng ngày 24/10/2026
+
+Bộ [evidence tuần 3](./scrum/evidence/khang-week3-2026-10-23/manifest.json) chứa static/unit/HTTP/integration và migration tại commit ghi trong manifest; không phải báo cáo latency, uptime, recovery hoặc browser E2E. NFR-01/08/09 và phần deploy/restore/HTTPS của NFR-11 **chưa đo**. NFR-02..07/10 có kiểm tra từng phần trong code/test, chỉ ghi đạt toàn NFR sau khi có đủ ca ở bảng. CI run pass/fail và tình trạng required checks được ghi riêng trong [hồ sơ CI](./deployment/ci-quality-gates.md).
 
 ## 6. Quy tắc nghiệp vụ quan trọng
 
@@ -132,3 +150,45 @@ stateDiagram-v2
 - Access token ngắn hạn; refresh token là phần khuyến nghị, không phải endpoint tối thiểu của đề bài.
 
 Nếu một giả định thay đổi, cập nhật ADR và ERD trước khi sửa migration để tránh lệch giữa thiết kế và mã nguồn.
+
+## 10. Stakeholder, kỳ vọng và rủi ro
+
+| Bên liên quan | Kỳ vọng cần kiểm chứng | Rủi ro chính | Cách lấy/ghi phản hồi |
+|---|---|---|---|
+| Khách hàng | Chọn đúng món, tổng tiền chính xác, không trả tiền lặp, chỉ xem đơn của mình | Giá client sai, timeout, lộ đơn | Demo US-01..07 và ghi kết quả AC |
+| Barista | Đọc đúng tùy chọn/ghi chú, chuyển trạng thái đúng quyền | Nhận nhầm đơn hoặc chuyển trạng thái sai | Review UC-10/state machine; UI quầy là mở rộng |
+| Quản lý cửa hàng/PO | Tồn, coupon và điểm nhất quán | Bán vượt tồn, vượt lượt coupon, cộng điểm lặp | Integration test đồng thời và Sprint Review |
+| Giảng viên | Truy được yêu cầu tới sản phẩm, test và đóng góp | Hồ sơ ghi Done nhưng thiếu demo/review | Ma trận truy vết, bảng phân công gốc, PR và biên bản |
+| Nhóm phát triển | Contract và ownership rõ, chạy được từ checkout sạch | Lệch API/UI, trùng việc, tích hợp muộn | ADR/contract, review chéo, CI và handover |
+| Cổng thanh toán giả lập | Nhận amount do server xác nhận, kết quả xử lý được khi lặp/lỗi | Gateway đã thành công nhưng DB chưa ghi nhận | SD-11, idempotency và test khôi phục; không giao dịch tiền thật |
+
+Đây là kỳ vọng phân tích từ đề và rủi ro kỹ thuật, chưa phải kết quả phỏng vấn stakeholder.
+
+## 11. Ưu tiên MoSCoW
+
+Ưu tiên dưới đây không thay task/SP hoặc owner đã giao. Mục Must vẫn cần hoàn thiện dù chưa có runtime.
+
+| Mức | Phạm vi | Căn cứ |
+|---|---|---|
+| Must | FR-01..08; state machine, idempotency, concurrency, coupon và loyalty của FR-09/10; hash/JWT/validation; Docker/README/demo | Chức năng, Task 1–10 và DoD trong đề v1.0 |
+| Should | Lỗi rõ ràng, requestId, kiểm chứng responsive/trình duyệt, phân trang lịch sử | Khả năng sử dụng và kiểm chứng NFR; phân trang là thiết kế nhóm |
+| Could | Refresh token, UI Barista đầy đủ, cập nhật trạng thái thời gian thực | Phần khuyến nghị/mở rộng, không chặn MVP khách hàng |
+| Won't trong MVP | Cổng tiền thật, giao hàng, nhiều chi nhánh, thuế/hóa đơn và tồn theo công thức nguyên liệu | Ngoài phạm vi đã nêu ở mục 2 |
+
+HTTPS production và CD được theo dõi riêng trong hồ sơ A2 theo trao đổi; đề BrewLite v1.0 trong repo chưa nêu các yêu cầu này. Chưa chốt nhà cung cấp hoặc có minh chứng triển khai.
+
+## 12. Acceptance Criteria có thể đối chiếu
+
+| FR | Điều kiện nghiệm thu | Test/UC và hiện trạng |
+|---|---|---|
+| FR-01 | Menu chỉ có product/variant active, có tên/ảnh/giá; UI có loading/empty/error | UC-03, US-01, TC-01; còn đối chiếu demo UI và option inactive ở list |
+| FR-02/03 | Detail hợp lệ trả size/topping; lựa chọn tính đúng giá; null khác 0%; note trim ≤500 ký tự | UC-04, US-02, TC-01/11/12; có code/test từng phần |
+| FR-04 | Thêm/sửa/xóa và badge/tổng đúng; reload giữ tùy chọn/note; dòng khác tùy chọn không gộp | UC-05, US-03, test cart; giữ giỏ khi lỗi payment còn cần E2E |
+| FR-05 | Username unique, password băm; login cấp JWT; thiếu/sai/hết hạn token bị từ chối; chỉ đọc tài nguyên được cấp quyền | UC-01/02, US-04, TC-02; auth có test, ownership đơn chưa có API để kiểm chứng |
+| FR-06 | JWT quyết định user; DB quyết định giá; commit tạo đúng một bộ order PENDING/items/reservations/history; lỗi rollback toàn bộ | UC-06, US-05, TC-03/07; mới có DTO/mapper/pricing, chưa đạt AC lưu đơn |
+| FR-07 | Cùng key/payload trả cùng kết quả, khác payload trả 409; PAID/FAILED nhất quán; khách A không trả tiền đơn B | UC-08, US-06, TC-05/06; mock gateway riêng chưa chứng minh orchestration |
+| FR-08 | Chỉ trả đơn của user JWT, mới nhất trước; detail giữ snapshot và timeline; confirmation hiển thị mã đơn sau thanh toán | UC-09, US-07, TC-10; chưa có API/UI hoàn chỉnh |
+| FR-09 | PENDING → READY trực tiếp trả 409, DB/history không đổi; transition hợp lệ ghi actor/thời gian | UC-10, US-08, TC-04; chưa có transition service |
+| FR-10 | Coupon đúng hạn/điều kiện/hạn mức; total không âm; EARN đúng một lần sau PAID kể cả request lặp | UC-07/08, US-09, TC-08/09; có schema/thiết kế, thiếu runtime |
+
+Với NFR-01, đề chỉ nêu phản hồi API <500 ms với dữ liệu mẫu. p95 là quy ước đo nhóm đề xuất: báo cáo phải ghi endpoint, dataset, số request/concurrency, máy chạy và phân vị; tách độ trễ mock gateway khỏi API thông thường. Chưa có báo cáo đo thì chưa ghi đạt. NFR-04/05 cần test request đồng thời ở tầng service/API trên PostgreSQL thật; CHECK/unique index đơn lẻ chưa đủ.

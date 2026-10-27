@@ -1,6 +1,6 @@
 # Hướng dẫn Docker cho BrewLite
 
-> Foundation có PrismaService, schema và migration. Docker chạy migration one-shot trước backend; backend readiness kiểm tra PostgreSQL.
+> Có cấu hình frontend/backend/PostgreSQL và migration one-shot; readiness kiểm tra PostgreSQL. Cấu hình này chưa chứng minh demo đặt hàng/thanh toán hoàn chỉnh. Topology theo source và phương án production nằm tại [Deployment Diagram](../architecture/deployment-diagram.md); minh chứng còn thiếu tại [release checklist](./release-checklist.md).
 
 ## 1. Topology
 
@@ -14,12 +14,12 @@ flowchart LR
 
 | Service | Port host | Healthcheck | Phụ thuộc |
 |---|---:|---|---|
-| `frontend` | 3000 | HTTP `/` hoặc `/health` | `backend` healthy |
-| `backend` | 3001 | HTTP `/api/v1/health` | `postgres` healthy |
+| `frontend` | 3000 | HTTP `/` | `backend` healthy |
+| `backend` | 3001 | HTTP `/api/v1/health` | `postgres` healthy, `migrate` exit 0 |
 | `migrate` | Không mở port | Exit 0 | `postgres` healthy; backend chờ migration hoàn tất |
-| `postgres` | chỉ mở 5432 khi dev cần | `pg_isready` | volume dữ liệu |
+| `postgres` | 5432 mặc định, cấu hình được qua POSTGRES_PORT | `pg_isready` | volume dữ liệu |
 
-Trong production không công khai trực tiếp PostgreSQL. Reverse proxy/TLS termination nằm ngoài phạm vi MVP.
+Compose hiện publish PostgreSQL ra host; cần bỏ hoặc giới hạn binding khi chuyển môi trường production. Local dùng HTTP, chưa có reverse proxy/TLS. Hồ sơ A2 theo trao đổi có mục HTTPS/CD; phương án đích chưa phải cấu hình đang hoạt động.
 
 ## 2. Biến môi trường tối thiểu
 
@@ -73,7 +73,7 @@ Service `migrate` dùng target `migration` trong Dockerfile API và chạy `npm 
 - PostgreSQL dùng named volume trong local để giữ dữ liệu qua lần restart.
 - `docker compose down` không xóa volume; chỉ `down -v` khi chủ động reset dữ liệu local.
 - Migration nằm trong source control và chạy từ database rỗng trong CI.
-- Seed dùng upsert để chạy lặp an toàn.
+- Seed có kiểm thử chạy lặp không ghi đè stock/giá/ID đã có. Compose migrate chỉ chạy migration, không tự seed. Image backend runtime hiện không copy thư mục prisma/seed.ts; cần chạy `npm run db:seed` từ checkout trên host tại `apps/api`, sau khi cài dependencies/generate Prisma theo [README API](../../apps/api/README.md), với DATABASE_URL dùng localhost và POSTGRES_PORT của DB local. Không dùng hostname `postgres` của mạng container cho lệnh chạy trên host. Cần đóng gói bước seed phù hợp trước khi ghi “một lệnh chạy đủ demo”.
 
 ## 6. Kiểm tra bàn giao Task 9
 

@@ -1,0 +1,42 @@
+Recorded: 2026-10-23T16:29:55.4784785+07:00
+Command: prisma migrate deploy
+Database: fresh disposable brewlite_foundation_smoke_handoff_20261023_1630
+◇ injected env (3) from .env
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+Datasource "db": PostgreSQL database "brewlite_foundation_smoke_handoff_20261023_1630", schema "public" at "127.0.0.1:55432"
+
+8 migrations found in prisma/migrations
+
+Applying migration `20260925100913_init`
+Applying migration `20261009090000_foundation_constraints`
+Applying migration `20261009110000_customer_barista_roles`
+Applying migration `20261010090000_order_item_sugar_ice_levels`
+Applying migration `20261010100000_order_item_note`
+Applying migration `20261011112900_preserve_barista_role_mapping`
+Applying migration `20261011113000_unify_user_admin_roles`
+Applying migration `20261011120000_restore_customer_barista_roles`
+
+The following migration(s) have been applied:
+
+migrations/
+  └─ 20260925100913_init/
+    └─ migration.sql
+  └─ 20261009090000_foundation_constraints/
+    └─ migration.sql
+  └─ 20261009110000_customer_barista_roles/
+    └─ migration.sql
+  └─ 20261010090000_order_item_sugar_ice_levels/
+    └─ migration.sql
+  └─ 20261010100000_order_item_note/
+    └─ migration.sql
+  └─ 20261011112900_preserve_barista_role_mapping/
+    └─ migration.sql
+  └─ 20261011113000_unify_user_admin_roles/
+    └─ migration.sql
+  └─ 20261011120000_restore_customer_barista_roles/
+    └─ migration.sql
+
+All migrations have been successfully applied.
+Exit code: 0

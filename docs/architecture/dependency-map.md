@@ -1,5 +1,11 @@
 # BrewLite — Module Dependency Map
 
+Đối chiếu bổ sung 24/10/2026 (`2bb2011`): Orders đã gọi public UsersService/CatalogService/PromotionsService và InventoryService bản tại `modules/inventory/inventory.service.ts`; InventoryModule còn một provider cùng tên trong `services/` và job hết hạn riêng. Payments đã gọi OrdersService; loyalty hiện ghi trong OrdersRepository.markAsPaid, chưa có LoyaltyService. Sơ đồ/bảng dưới đây là boundary đích, không phải toàn bộ import runtime; xem [CD-02 hiện hành](./class-diagram.md) để review các khác biệt. Phần 22/10 ngay dưới giữ làm lịch sử.
+
+Phạm vi: boundary đích để review triển khai. Đối chiếu 22/10/2026, Auth hiện gọi UserRepository nội bộ module auth; Orders pricing hiện truy vấn Catalog qua OrdersRepository, chưa dùng public CatalogService; các call UsersService/InventoryService/PromotionsService bên dưới chưa tồn tại ở runtime. Đây là các điểm cần owner thống nhất khi tích hợp, không phải mô tả toàn bộ import hiện hành.
+
+Loyalty phải ghi EARN đúng một lần sau PAID theo ADR-004. Sơ đồ hiện quy định `loyalty → orders`; chưa có contract điều phối việc ghi loyalty cùng transaction thanh toán được triển khai. Cần chốt public service/transaction boundary trong review trước khi code; không tự thêm dependency `orders → loyalty` gây vòng tròn. Xem [Class Diagram hiện trạng](./class-diagram.md).
+
 ## 1. Mục đích
 
 Tài liệu này quy định **module nào được phép phụ thuộc/gọi module nào** trong backend NestJS của BrewLite.
@@ -209,11 +215,11 @@ kiểm tra user
         ↓
 kiểm tra product / variant
         ↓
-kiểm tra coupon
+quote/lock coupon
         ↓
-reserve stock
+tạo Order + OrderItem trong tx
         ↓
-tạo Order + OrderItem
+reserve coupon/stock sau khi có orderId
 ```
 
 ---
@@ -250,7 +256,7 @@ loyalty
 orders
 ```
 
-Chỉ cộng điểm khi đơn đạt trạng thái phù hợp, ví dụ `PAID` hoặc `COMPLETED` tùy rule nhóm chốt.
+Chỉ cộng EARN sau `PAID`, đúng một lần cho mỗi order; không đợi `COMPLETED`. Việc đọc order và ghi ledger/số dư phải tuân thủ transaction/idempotency trong [ADR-004](../decisions/ADR-004-payment-inventory-consistency.md).
 
 ---
 

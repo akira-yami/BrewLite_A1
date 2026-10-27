@@ -29,6 +29,19 @@ npm run build
 
 Build production dùng `output: "standalone"` để Docker image chỉ chứa các file runtime cần thiết.
 
+## Phiên đăng nhập (Huy S1-W2)
+
+- `/login` và `/register` thiết lập phiên dùng chung rồi chuyển sang `/menu`.
+- Menu có liên kết Đăng nhập cho khách, tên tài khoản và nút Đăng xuất khi đã đăng nhập.
+- Tải lại trang kiểm tra token qua `GET /auth/me`, không tin role/user cũ trong localStorage. Phiên cũ dùng `brewlite_token` vẫn được đọc.
+- Token hết hạn hoặc API có xác thực trả 401: xóa `brewlite_token`/`brewlite_user`, hủy cache truy vấn và chuyển về Login kèm thông báo. Đăng xuất ở tab khác cũng đồng bộ; giỏ hàng được giữ nguyên.
+- Lỗi mạng/5xx khi kiểm tra phiên không tự xóa token; Menu có nút thử lại. Sai mật khẩu ở form Login chỉ hiển thị lỗi đăng nhập.
+- Request nghiệp vụ cần đăng nhập dùng `authenticatedRequest` tại `src/features/auth/api.ts` để gửi Bearer token và xử lý 401 nhất quán.
+
+Logout ở MVP là kết thúc phiên trên trình duyệt. JWT không được thu hồi ở server trước `exp`; không có endpoint logout/refresh mới trong phần này. Giải mã `exp` phía client chỉ phục vụ UX, backend vẫn xác minh JWT bằng signature/issuer/audience/expiration.
+
+Kiểm tra riêng auth: `node --test tests/auth-*.test.mjs`. [Bằng chứng bàn giao](../../docs/scrum/huy-week-02-handover.md).
+
 ## Tùy chọn đường/đá
 
 Chi tiết món cho chọn độc lập mức đường/đá: công thức chuẩn (null) hoặc 0/25/50/75/100%. Giỏ hiển thị và persist cả hai trường, giữ 0% và tự đọc giỏ cũ thiếu trường thành null. Dòng chỉ gộp khi cùng variant, tập topping và đường/đá; tùy chọn không thay đổi giá.

@@ -8,6 +8,8 @@
 > **Người duyệt (Reviewer):** Dev Khang (Tech Lead / Product Owner)
 > **Trạng thái:** ⏳ Chờ Dev Khang duyệt (Design Gate S1-W2)
 
+Đối chiếu 22/10/2026: DTO và mock gateway đã có code/test; `PaymentsService.processPayment` vẫn ném NotImplementedException, route @Post chưa bật. Các service/repository call bên dưới là thiết kế đích. Trang SD-11 trong `tutorial_new.drawio` vẫn chứa bản cũ đặt idempotency ở gateway, nên chưa đồng bộ với source trong tài liệu này; khi review dùng contract dưới đây. Race cùng key/khác key trên cùng order, rollback, timeout và boundary loyalty cần test/contract chi tiết trước khi nghiệm thu.
+
 ---
 
 ## 1. Bối cảnh & Mục tiêu thiết kế
@@ -246,141 +248,13 @@ Khi xử lý hoàn tất (kể cả khi cổng thanh toán duyệt `SUCCEEDED` h
 
 ---
 
-## 4. Mã nguồn PlantUML (Đồng bộ với Draw.io Master)
+## 4. Mã nguồn PlantUML (bản contract để đồng bộ Draw.io)
 
 Đoạn mã PlantUML dưới đây dùng để nhúng trực tiếp vào file Draw.io tổng thể của nhóm:
 
-```plantuml
-@startuml SD-11_Payment_And_Retry
-skinparam maxMessageSize 160
-skinparam responseMessageBelowArrow true
-autonumber
-title SD-11: Thực hiện thanh toán & Retry (Đồng bộ 100% với UC-08, API Spec & SD-04)
+[Nguồn PlantUML](./diagrams/SD-11-payment-retry.puml) · [PNG](./diagrams/SD-11-payment-retry.png)
 
-actor "Khách hàng\n(CUSTOMER)" as Client
-participant "PaymentsController" as Controller
-participant "PaymentsService" as PayService
-participant "OrdersService" as OrderService
-participant "MockGatewayService\n(Mock Payment Gateway)" as Gateway
-database "PostgreSQL\n(Prisma)" as DB
-
-Client -> Controller: POST /api/v1/payments\nHeader: Authorization (JWT), Idempotency-Key\nBody: CreatePaymentDto { orderId, method }
-activate Controller
-
-Controller -> Controller: Validate JWT (CUSTOMER), Header Idempotency-Key\n& ValidationPipe (whitelist, forbidNonWhitelisted)
-
-Controller -> PayService: processPayment(dto, idempotencyKey, userId)
-activate PayService
-
-note over PayService, OrderService: Bước 1 & 2 (UC-08): Kiểm tra đơn hàng, lấy amount chuẩn từ Server & tính requestHash
-PayService -> OrderService: Lấy thông tin Order & kiểm tra ownership (orderId, userId)
-activate OrderService
-OrderService -> DB: Truy vấn Order (status, total, reservationExpiresAt, userId)
-activate DB
-DB --> OrderService: Order record
-deactivate DB
-OrderService --> PayService: Order { status, total, reservationExpiresAt }
-deactivate OrderService
-
-PayService -> PayService: Chuẩn hóa (orderId + method + amount=order.total)\n& tính SHA-256 requestHash
-
-PayService -> DB: Tìm Payment theo idempotencyKey
-activate DB
-DB --> PayService: Kết quả tra cứu Payment
-deactivate DB
-
-alt Khóa Idempotency-Key ĐÃ TỒN TẠI (Gửi trùng cùng Key)
-    PayService -> PayService: So sánh requestHash mới với payment.requestHash đã lưu
-
-    alt Hash KHÔNG KHỚP (Cùng Key nhưng khác Payload)
-        PayService --> Controller: Throw ConflictException (IDEMPOTENCY_KEY_REUSED)
-        Controller --> Client: HTTP 409 Conflict (code: IDEMPOTENCY_KEY_REUSED)
-    else Hash KHỚP (Cùng Key, cùng Payload)
-        alt Attempt đang xử lý (payment.status == PROCESSING)
-            PayService --> Controller: Throw ConflictException (PAYMENT_IN_PROGRESS)
-            Controller --> Client: HTTP 409 Conflict (code: PAYMENT_IN_PROGRESS)
-        else Attempt đã hoàn tất (SUCCEEDED hoặc FAILED)
-            PayService --> Controller: Trả về kết quả Payment đã lưu (isRetried: true, không gọi lại Gateway)
-            Controller --> Client: HTTP 200 OK (paymentStatus: SUCCEEDED/FAILED đã lưu)
-        end
-    end
-
-else Khóa Idempotency-Key MỚI (Thanh toán lần đầu hoặc Retry sau thất bại)
-    alt Đơn đã PAID trước đó
-        PayService --> Controller: Throw ConflictException (ORDER_ALREADY_PAID)
-        Controller --> Client: HTTP 409 Conflict (code: ORDER_ALREADY_PAID)
-    else Đơn đã hết hạn giữ tồn hoặc đã CANCELLED
-        PayService --> Controller: Throw ConflictException (ORDER_INVALID_TRANSITION)
-        Controller --> Client: HTTP 409 Conflict (code: ORDER_INVALID_TRANSITION)
-    else Đơn hợp lệ (PENDING hoặc PAYMENT_FAILED còn hạn reservation)
-
-        opt Đơn đang ở PAYMENT_FAILED (Khách Retry bằng Idempotency-Key mới)
-            PayService -> OrderService: Khóa Order & chuyển trạng thái PAYMENT_FAILED -> PENDING
-            activate OrderService
-            OrderService -> DB: UPDATE Order (PENDING) + INSERT OrderStatusHistory
-            activate DB
-            DB --> OrderService: OK (Không trừ tồn kho lần 2)
-            deactivate DB
-            OrderService --> PayService: Order đã về PENDING
-            deactivate OrderService
-        end
-
-        PayService -> DB: INSERT Payment (status: PROCESSING, idempotencyKey, requestHash, amount)
-        activate DB
-        DB --> PayService: Payment record (PROCESSING)
-        deactivate DB
-
-        note over PayService, Gateway: Bước 4 (UC-08): Gọi Mock Gateway NGOÀI DB Transaction\n(Tránh giữ lock DB trong 1-2s chờ mạng)
-        PayService -> Gateway: charge(amount, method)
-        activate Gateway
-        Gateway -> Gateway: Giả lập độ trễ mạng (1000ms - 2000ms)
-        Gateway --> PayService: Kết quả { success, gatewayTransactionId?, errorCode? }
-        deactivate Gateway
-
-        alt Gateway lỗi hạ tầng / không phản hồi
-            PayService --> Controller: Throw ServiceUnavailableException (PAYMENT_GATEWAY_UNAVAILABLE)
-            Controller --> Client: HTTP 503 Service Unavailable (Giữ attempt để đối soát)
-        else Gateway phản hồi kết quả nghiệp vụ
-            note over PayService, DB: Bước 5 (UC-08): Mở DB Transaction ngắn để cập nhật đồng bộ
-            PayService -> DB: BEGIN TRANSACTION
-            activate DB
-
-            alt Gateway THÀNH CÔNG (success == true, tỷ lệ 80%)
-                PayService -> DB: UPDATE Payment (status: SUCCEEDED, gatewayTransactionId, processedAt)
-
-                PayService -> OrderService: transition(orderId, PENDING -> PAID)
-                activate OrderService
-                OrderService -> DB: UPDATE Order (PAID) + INSERT OrderStatusHistory
-                OrderService -> DB: UPDATE InventoryReservation (ACTIVE -> CONSUMED)\nUPDATE CouponRedemption (RESERVED -> CONSUMED nếu có)\nINSERT LoyaltyTransaction (EARN 1 lần) & cập nhật loyalty_balance
-                OrderService --> PayService: OK
-                deactivate OrderService
-
-                PayService -> DB: COMMIT TRANSACTION
-                PayService --> Controller: PaymentResponseDto (paymentStatus: SUCCEEDED, orderStatus: PAID)
-                Controller --> Client: HTTP 200 OK (paymentStatus: SUCCEEDED, orderStatus: PAID)
-
-            else Gateway TỪ CHỐI (success == false, tỷ lệ 20% - INSUFFICIENT_FUNDS)
-                PayService -> DB: UPDATE Payment (status: FAILED, failureCode: INSUFFICIENT_FUNDS, processedAt)
-
-                PayService -> OrderService: transition(orderId, PENDING -> PAYMENT_FAILED)
-                activate OrderService
-                OrderService -> DB: UPDATE Order (PAYMENT_FAILED) + INSERT OrderStatusHistory\n(Giữ nguyên InventoryReservation ACTIVE & Coupon RESERVED trong hạn retry)
-                OrderService --> PayService: OK
-                deactivate OrderService
-
-                PayService -> DB: COMMIT TRANSACTION
-                PayService --> Controller: PaymentResponseDto (paymentStatus: FAILED, orderStatus: PAYMENT_FAILED)
-                Controller --> Client: HTTP 200 OK (paymentStatus: FAILED, orderStatus: PAYMENT_FAILED)
-            end
-            deactivate DB
-        end
-    end
-end
-
-deactivate PayService
-deactivate Controller
-@enduml
-```
+![SD-11-payment-retry](./diagrams/SD-11-payment-retry.svg)
 
 ---
 

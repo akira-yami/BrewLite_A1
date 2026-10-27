@@ -5,7 +5,7 @@
 > **Sprint:** Sprint 1 / Sprint 2  
 > **Tác giả:** Huy (Development Team - Auth)  
 > **Người duyệt (Reviewer):** Dev Khang  
-> **Trạng thái:** ⏳ Chờ Dev Khang duyệt trước khi viết code (Design Trước Code)
+> **Trạng thái đối chiếu 22/10/2026:** Auth/JWT/session/RBAC/ownership trên route Auth đã có code và test (PR #6/#21/#22). Chưa ghi nhận approval độc lập trong hồ sơ này; không còn mô tả toàn bộ Auth là “chưa viết code”. Ownership order/payment vẫn là thiết kế cần tích hợp. Xem [handover Huy W3](../scrum/huy-week-03-handover.md) và [ma trận truy vết](../traceability-matrix.md).
 
 ---
 
@@ -224,6 +224,37 @@ sequenceDiagram
         end
     end
     end
+
+    %% Giai đoạn 3: Kiểm soát Quyền sở hữu (Ownership Guard & User Isolation)
+    rect rgb(255, 250, 240)
+    note right of U: Giai đoạn 3: Kiểm soát Quyền sở hữu (Ownership Guard & User Isolation)
+    U->>FE: 28. Khách hàng A truy cập tài nguyên (VD: GET /api/v1/auth/users/:userId)
+    FE->>SEC: 29. Gửi request kèm Bearer JWT của Khách hàng A
+    SEC->>JS: 30. JwtAuthGuard xác thực token
+    
+    alt Token thiếu / hết hạn (401 Unauthorized)
+        JS-->>SEC: Token không hợp lệ
+        SEC-->>FE: 30a. 401 Unauthorized ({ error: { code: 'UNAUTHORIZED', message: 'Phiên đăng nhập đã hết hạn hoặc không còn hợp lệ. Vui lòng đăng nhập lại.' } })
+        FE-->>U: 30b. Tự động xóa token phiên và chuyển về /login
+    else Token hợp lệ
+        JS-->>SEC: req.user = { id: "user-A", role: "CUSTOMER" }
+        SEC->>SEC: 31. OwnershipGuard kiểm tra quyền sở hữu (req.user.id vs targetUserId)
+        
+        alt Khách hàng A truy cập tài nguyên của Khách hàng B (req.user.id != targetUserId)
+            SEC-->>FE: 32a. 403 Forbidden ({ error: { code: 'FORBIDDEN_RESOURCE', message: 'Bạn không có quyền truy cập dữ liệu của người dùng khác.' } })
+            FE-->>U: 32b. Hiển thị thông báo từ chối truy cập (Giữ nguyên phiên đăng nhập)
+        else Khách hàng A truy cập tài nguyên của chính mình (req.user.id == targetUserId)
+            SEC->>AC: 33. Cho phép truy cập Controller & Service
+            AC->>DB: 34. Truy vấn dữ liệu người dùng A
+            DB-->>AC: Dữ liệu người dùng A
+            AC-->>FE: 35. 200 OK ({ data: userProfile })
+            FE-->>U: 36. Hiển thị dữ liệu tài khoản
+        else Người gọi là BARISTA (Role đặc quyền vận hành)
+            SEC->>AC: 37. Barista được phép truy cập theo nghiệp vụ quầy
+            AC-->>FE: 38. 200 OK ({ data: userProfile })
+        end
+    end
+    end
 ```
 
 ### 3.2. Chi tiết kỹ thuật & Hợp đồng dữ liệu (SD-06)
@@ -270,6 +301,17 @@ sequenceDiagram
   - `@UseGuards(JwtAuthGuard, RolesGuard)`: Gắn tại Controller hoặc Method.
   - `@Roles(UserRole.BARISTA)`: Khai báo danh sách vai trò được phép truy cập.
   - `@CurrentUser()`: Custom Decorator trích xuất thông tin người dùng từ `req.user` để kiểm tra ownership (ví dụ `user.id === order.userId`).
+  - `@UseGuards(JwtAuthGuard, OwnershipGuard)`: Bảo vệ các endpoint dữ liệu tài khoản nhạy cảm, ngăn ngừa User Isolation Violation (Khách hàng A không thể xem dữ liệu của Khách hàng B).
+
+### 3.3. Chuẩn hóa Phân quyền, Quyền sở hữu & Ma trận Mã lỗi
+
+| Mã HTTP | Mã lỗi chuẩn (`code`) | Ngữ cảnh xảy ra | Hành vi Client (Frontend) |
+|---|---|---|---|
+| **401 Unauthorized** | `UNAUTHORIZED` | Thiếu token, token hết hạn, sai chữ ký số HMAC-SHA256, sai issuer/audience. | Tự động hủy phiên đăng nhập, xóa token lưu trữ và điều hướng về trang Đăng nhập (`/login`). |
+| **401 Unauthorized** | `INVALID_CREDENTIALS` | Sai username hoặc password lúc đăng nhập (chống username enumeration). | Hiển thị thông báo "Tài khoản hoặc mật khẩu không chính xác.", không xóa phiên hiện hữu nếu có. |
+| **403 Forbidden** | `FORBIDDEN_RESOURCE` | Đã đăng nhập nhưng không đủ vai trò (ví dụ: `CUSTOMER` gọi API của `BARISTA`), hoặc vi phạm quyền sở hữu (User A cố đọc dữ liệu User B). | Hiển thị thông báo từ chối truy cập rõ ràng, **giữ nguyên phiên đăng nhập** hợp lệ của người dùng. |
+| **403 Forbidden** | `ACCOUNT_INACTIVE` | Tài khoản bị tạm khóa hoặc chưa kích hoạt (`isActive == false`). | Hiển thị thông báo tài khoản bị khóa, đề nghị liên hệ quản trị. |
+| **404 Not Found** | `ORDER_NOT_FOUND` | Khách hàng A cố tình truy vấn/sửa đơn hàng của Khách hàng B (theo `security.md`). | Trả về 404 để chống tấn công dò quét (UUID enumeration) sự tồn tại đơn hàng của người khác. |
 
 ---
 
@@ -278,162 +320,14 @@ sequenceDiagram
 Để nhóm có thể nhúng trực tiếp vào tab **Sequence Diagram** trong file Draw.io master của BrewLite (đồng bộ với `SD-11` của Kiệt và `SD-07B` của Hoàng):
 
 ### 4.1. PlantUML cho SD-05 (Đăng ký tài khoản - UC-01)
-```plantuml
-@startuml SD-05_Customer_Registration
-title SD-05: Đăng ký tài khoản khách hàng (UC-01)
-autonumber
-skinparam responseMessageBelowArrow true
-skinparam BoxPadding 10
+[Nguồn PlantUML](./diagrams/SD-05-registration.puml) · [PNG](./diagrams/SD-05-registration.png)
 
-actor "Khách hàng" as User
-
-box "Frontend (apps/web)" #F8F9FA
-    participant "RegisterForm\n(features/auth)" as FE
-end box
-
-box "Backend (apps/api - AuthModule)" #EBF5FB
-    participant "AuthController" as AC
-    participant "ValidationPipe" as VP
-    participant "AuthService" as AS
-    participant "UserRepository" as UR
-    participant "BCrypt Library" as BC
-    participant "JwtService" as JWT
-end box
-
-database "PostgreSQL\n(Prisma ORM)" as DB
-
-User -> FE: 1. Nhập email/username & mật khẩu, bấm "Đăng ký"
-activate FE
-FE -> FE: 2. Validate client-side
-FE -> AC: 3. POST /api/v1/auth/register (RegisterDto)
-activate AC
-AC -> VP: 4. Kiểm tra DTO
-activate VP
-VP --> AC: Validated
-deactivate VP
-
-AC -> AS: 5. register(registerDto)
-activate AS
-AS -> UR: 6. findByUsername(username)
-activate UR
-UR -> DB: 7. prisma.user.findUnique({ where: { username } })
-activate DB
-DB --> UR: null (chưa tồn tại)
-deactivate DB
-UR --> AS: null
-deactivate UR
-
-AS -> BC: 8. hash(password, saltRounds = 10)
-activate BC
-BC --> AS: passwordHash
-deactivate BC
-
-AS -> UR: 9. create({ username, passwordHash, role: CUSTOMER })
-activate UR
-UR -> DB: 10. prisma.user.create(...)
-activate DB
-DB --> UR: User record đã lưu
-deactivate DB
-UR --> AS: UserEntity (đã loại bỏ passwordHash)
-deactivate UR
-
-AS -> JWT: 11. signAsync({ sub: id, username, role: CUSTOMER })
-activate JWT
-JWT --> AS: accessToken (JWT)
-deactivate JWT
-
-AS --> AC: 12. AuthResultDto { user, accessToken, expiresIn: 900 }
-deactivate AS
-AC --> FE: 13. 201 Created (AuthResultDto)
-deactivate AC
-
-FE -> FE: 14. Lưu accessToken & cập nhật Auth State
-FE --> User: 15. Thông báo đăng ký thành công, điều hướng vào Menu
-deactivate FE
-@enduml
-```
+![SD-05-registration](./diagrams/SD-05-registration.svg)
 
 ### 4.2. PlantUML cho SD-06 (Đăng nhập + JWT/RBAC - UC-02)
-```plantuml
-@startuml SD-06_Login_and_RBAC
-title SD-06: Đăng nhập & Xác thực JWT/RBAC (UC-02)
-autonumber
-skinparam responseMessageBelowArrow true
-skinparam BoxPadding 10
+[Nguồn PlantUML](./diagrams/SD-06-login-rbac.puml) · [PNG](./diagrams/SD-06-login-rbac.png)
 
-actor "Người dùng\n(Customer / Barista)" as User
-
-box "Frontend (apps/web)" #F8F9FA
-    participant "LoginForm\n(features/auth)" as FE
-end box
-
-box "Backend (apps/api - AuthModule)" #EBF5FB
-    participant "AuthController" as AC
-    participant "AuthService" as AS
-    participant "UserRepository" as UR
-    participant "BCrypt Library" as BC
-    participant "JwtService" as JWT
-    participant "JwtAuthGuard &\nRolesGuard" as SEC
-end box
-
-database "PostgreSQL\n(Prisma ORM)" as DB
-
-User -> FE: 1. Nhập username & password, bấm "Đăng nhập"
-activate FE
-FE -> AC: 2. POST /api/v1/auth/login (LoginDto)
-activate AC
-AC -> AS: 3. login(loginDto)
-activate AS
-AS -> UR: 4. findByUsername(username)
-activate UR
-UR -> DB: 5. prisma.user.findUnique({ where: { username } })
-activate DB
-
-alt Người dùng không tồn tại
-    DB --> UR: null
-    UR --> AS: null
-    AS --> AC: throw UnauthorizedException('INVALID_CREDENTIALS')
-    AC --> FE: 401 Unauthorized (INVALID_CREDENTIALS)
-    FE --> User: Thông báo tài khoản hoặc mật khẩu không đúng
-else Người dùng tồn tại
-    DB --> UR: User record (passwordHash, role, isActive)
-    deactivate DB
-    UR --> AS: User entity
-    deactivate UR
-
-    alt Tài khoản bị khóa (isActive == false)
-        AS --> AC: throw ForbiddenException('ACCOUNT_INACTIVE')
-        AC --> FE: 403 Forbidden (ACCOUNT_INACTIVE)
-        FE --> User: Thông báo tài khoản đã bị tạm khóa
-    else Tài khoản hoạt động
-        AS -> BC: 6. compare(plainPassword, passwordHash)
-        activate BC
-        
-        alt Mật khẩu sai
-            BC --> AS: false
-            AS --> AC: throw UnauthorizedException('INVALID_CREDENTIALS')
-            AC --> FE: 401 Unauthorized (INVALID_CREDENTIALS)
-            FE --> User: Thông báo tài khoản hoặc mật khẩu không đúng
-        else Mật khẩu đúng
-            BC --> AS: true
-            deactivate BC
-            AS -> JWT: 7. signAsync({ sub: id, username, role })
-            activate JWT
-            JWT --> AS: accessToken (JWT)
-            deactivate JWT
-            AS --> AC: 8. AuthResultDto { user, accessToken, expiresIn: 900 }
-            deactivate AS
-            AC --> FE: 9. 200 OK (AuthResultDto)
-            deactivate AC
-            
-            FE -> FE: 10. Lưu accessToken, phân luồng điều hướng theo Role\n(CUSTOMER -> /menu, BARISTA -> màn hình vận hành UC-10 khi triển khai)
-            FE --> User: 11. Chuyển hướng thành công
-            deactivate FE
-        end
-    end
-end
-@enduml
-```
+![SD-06-login-rbac](./diagrams/SD-06-login-rbac.svg)
 
 ---
 

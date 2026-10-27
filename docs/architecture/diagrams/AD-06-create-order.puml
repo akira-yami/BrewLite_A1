@@ -1,0 +1,129 @@
+@startuml AD-06-create-order
+title AD-06 — Checkout end-to-end (UC-03 → UC-09)\nThiết kế đích — không xác nhận runtime/approval
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam activityBackgroundColor #FFF8ED
+skinparam activityBorderColor #795548
+skinparam activityDiamondBackgroundColor #FFF3CD
+|Khách hàng / Next.js|
+start
+:Xem menu / chi tiết; chọn size, topping,\nđường, đá, ghi chú; thêm và sửa giỏ;
+:Nhập coupon (nếu có); chọn checkout;
+if (Giỏ và dữ liệu hợp lệ?) then (không)
+  :Báo lỗi, giữ giỏ để sửa;
+  stop
+endif
+if (Có phiên đăng nhập?) then (không)
+  :UC-02: đăng nhập, giữ giỏ và đường quay lại;
+  if (Đăng nhập thành công?) then (không / hủy)
+    :Kết thúc checkout, giữ giỏ;
+    stop
+  endif
+endif
+:Khóa nút gửi; POST /api/v1/orders + JWT;
+|BrewLite API / PostgreSQL|
+:Xác thực CUSTOMER, validate DTO;\nchuẩn hóa/gộp dòng cùng tùy chọn và note;
+if (JWT / role / DTO hợp lệ?) then (không)
+  |Khách hàng / Next.js|
+  :Nhận 401 / 403 / 400; dừng loading;\nđăng nhập lại hoặc sửa dữ liệu, giữ giỏ;
+  stop
+endif
+|BrewLite API / PostgreSQL|
+:Tối đa 3 attempt Serializable; chi tiết SD-10;\nđọc user/catalog/giá, quote + lock coupon;
+|BrewLite API / PostgreSQL|
+:Trong cùng tx: tạo Order PENDING + snapshot;\nreserve coupon RESERVED; giữ tồn ACTIVE bằng\nstock >= quantity + version; ghi history;
+note right
+  Tạo Order trước bản ghi có FK orderId.
+  Tổng hợp quantity theo variant, dù khác note/đường/đá.
+  Lỗi dừng attempt, rollback mọi thay đổi.
+  Chỉ retry conflict còn hàng/deadlock/serialization/
+  trùng orderNumber khi biết chưa commit; có backoff.
+end note
+if (Kết quả tạo đơn?) then (OUT_OF_STOCK)
+  |Khách hàng / Next.js|
+  :409 OUT_OF_STOCK; giữ giỏ, refresh tồn;\nsửa số lượng hoặc chọn món khác;
+  stop
+elseif (Coupon / option sai hoặc hết retry?) then (đã rollback)
+  |Khách hàng / Next.js|
+  :Hiển thị mã lỗi; mở nút, giữ giỏ;\nsửa coupon / tùy chọn rồi checkout lại;
+  stop
+elseif (Commit / response chưa rõ?) then (timeout)
+  |Khách hàng / Next.js|
+  :Giữ giỏ, dừng loading; đối chiếu\nGET /orders/me và GET /orders/:id (UC-09);
+  :Không tự gửi lại POST /orders;\nchỉ tiếp tục payment khi xác định đúng orderId;
+  stop
+else (commit được xác nhận)
+  |BrewLite API / PostgreSQL|
+  :Trả 201: orderId, snapshot, tổng tiền, hạn giữ;
+endif
+|Khách hàng / Next.js|
+:Lưu orderId; hiển thị tổng tiền chuẩn và hạn giữ;
+:Chọn E_WALLET hoặc CARD; tạo Idempotency-Key mới;
+repeat
+  :Khóa nút; POST /payments {orderId, method}\n+ JWT + Idempotency-Key;
+  |BrewLite API / PostgreSQL|
+  :Kiểm tra ownership, hash, key, trạng thái và hạn giữ;
+  if (Key cũ?) then (có)
+    if (Cùng payload?) then (không)
+      |Khách hàng / Next.js|
+      :409 IDEMPOTENCY_KEY_REUSED; dừng,\nđối chiếu attempt, không tự đổi key;
+      stop
+    elseif (Attempt đã hoàn tất?) then (có)
+      |BrewLite API / PostgreSQL|
+      :Trả lại kết quả đã lưu; không gọi gateway;
+    else (PROCESSING)
+      |Khách hàng / Next.js|
+      :409 PAYMENT_IN_PROGRESS; chờ/đọc lại đơn;\ngửi lại cùng key và payload, không tạo đơn mới;
+      stop
+    endif
+  else (key mới)
+    if (Đơn và reservation cho phép trả tiền?) then (không)
+      |Khách hàng / Next.js|
+      :Hiển thị 401/403/404/409 tương ứng;\nđọc lại đơn, giữ giỏ; không gọi gateway;
+      stop
+    endif
+    |BrewLite API / PostgreSQL|
+    :Nếu retry FAILED: PAYMENT_FAILED → PENDING;\nghi history, không giữ tồn lần nữa;\nclaim Payment PROCESSING với unique key;
+    |Mock Payment Gateway|
+    :Charge amount từ Order.total;\nI/O ngoài transaction DB;
+    if (Kết quả gateway xác định?) then (không)
+      |Khách hàng / Next.js|
+      :503 / timeout: giữ giỏ và orderId/key/payload;\nđối chiếu UC-09, retry cùng key khi an toàn;\nkhông kết luận FAILED, không đổi key;
+      stop
+    elseif (Thành công?) then (có)
+      |BrewLite API / PostgreSQL|
+      :Cùng tx: Payment SUCCEEDED, Order PAID;\ninventory/coupon CONSUMED; history;\nloyalty EARN đúng một lần;
+    else (bị từ chối)
+      |BrewLite API / PostgreSQL|
+      :Cùng tx: Payment FAILED, Order PAYMENT_FAILED;\nghi history; giữ reservation trong hạn retry;
+    endif
+    |BrewLite API / PostgreSQL|
+    if (Commit payment và response xác định?) then (không)
+      |Khách hàng / Next.js|
+      :Giữ giỏ; đối chiếu đơn/attempt với cùng key;\nkhông tự tạo attempt hoặc đơn mới;
+      stop
+    endif
+    :Trả kết quả attempt đã commit;
+  endif
+  |Khách hàng / Next.js|
+  if (Payment SUCCEEDED?) then (có)
+    :Xác nhận Order PAID; xóa các dòng giỏ đã đặt;\nhiển thị mã đơn, snapshot và trạng thái (UC-09);
+    :Mở lịch sử/chi tiết đơn của chính khách;
+    stop
+  else (FAILED)
+    :Hiển thị lỗi thanh toán, giữ giỏ và orderId;
+    if (Khách thử lại và reservation còn hạn?) then (có)
+      :Chọn lại phương thức; key mới cho attempt mới;\ngiữ nguyên orderId, không POST /orders lần nữa;
+    else (không / hết hạn)
+      :Giữ giỏ; dừng hoặc yêu cầu hủy đơn;
+      |BrewLite API / PostgreSQL|
+      :Nếu có yêu cầu hủy hoặc job hết hạn:\nkiểm tra không có PROCESSING; transaction\nCANCELLED + history; release/expire\ninventory và coupon đúng một lần;
+      |Khách hàng / Next.js|
+      :Đọc lại trạng thái cuối; checkout mới chỉ\nsau khi đơn cũ đã được xác định;
+      stop
+    endif
+  endif
+repeat while (Thử attempt mới cho cùng đơn?) is (có)
+stop
+@enduml

@@ -77,7 +77,7 @@ Nếu stock update không khớp, rollback rồi đọc lại trong một transa
 
 ## 5. Ranh giới module và các cổng cần ở S2
 
-Các chữ ký dưới đây là thiết kế để owner triển khai, chưa phải Service runtime đã tồn tại:
+Bảng dưới là giao diện thiết kế. Cập nhật runtime 23/10/2026: tạo đơn đã gọi `CatalogService.quoteVariant(tx, id)`, `InventoryService.reserve(tx, orderId, expiresAt, needs)`, `CatalogService.reserveVariant(tx, id, quantity, version)` và `UsersService.assertActiveCustomer(tx, id)`; tên được tách nhỏ theo thao tác, cùng dùng transaction của Orders. Xem [API và kiểm chứng tuần 3](../api/orders-week3.md).
 
 | Public Service | Trách nhiệm trong cùng transaction |
 |---|---|

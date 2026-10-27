@@ -13,6 +13,7 @@ import { ProductCardSkeleton } from '@/features/catalog/components/ProductCardSk
 import { ProductDetailModal } from '@/features/catalog/components/ProductDetailModal';
 import { CartDrawer } from '@/features/cart/components/CartDrawer';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import { AuthControls } from '@/features/auth/AuthControls';
 
 export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -152,7 +153,8 @@ export default function MenuPage() {
           </nav>
 
           {/* Cụm bên phải: SGU Campus + Nút Giỏ hàng chuẩn vừa mắt */}
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <AuthControls />
             {/* Địa điểm SGU Campus: Chữ 13px, icon h-4.5 w-4.5 */}
             <div className="hidden lg:flex items-center gap-1.5 text-[13px] font-semibold text-[#3D2E24]">
               <svg

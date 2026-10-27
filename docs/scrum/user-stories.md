@@ -39,7 +39,7 @@ Tiêu chí chấp nhận:
 
 Tiêu chí chấp nhận:
 
-- Email unique, input được validate, password không lưu rõ.
+- Username unique theo RegisterDto/schema hiện hành, input được validate, password không lưu rõ.
 - Login thành công nhận phiên/token hợp lệ.
 - User không truy cập được order của người khác.
 

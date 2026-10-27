@@ -1,0 +1,164 @@
+@startuml CD-01-domain
+title CD-01 - BrewLite domain classes\nTheo Prisma schema tai baseline 7feda73 - khong chung minh runtime
+hide circle
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 50
+skinparam ranksep 55
+skinparam classBackgroundColor #FFF8ED
+skinparam classBorderColor #795548
+
+class User {
+  id: UUID
+  username: String {unique}
+  passwordHash: String
+  role: CUSTOMER | BARISTA
+  loyaltyBalance: Int
+  isActive: Boolean
+}
+class Product {
+  id: UUID
+  sku: String {unique}
+  name: String
+  imageUrl: String
+  isActive: Boolean
+}
+class ProductVariant {
+  id: UUID
+  productId: UUID
+  size: S | M | L
+  price: BigInt VND
+  stock: Int
+  version: Int
+  isActive: Boolean
+}
+class Topping {
+  id: UUID
+  code: String {unique}
+  name: String
+  price: BigInt VND
+  isActive: Boolean
+}
+class ProductTopping {
+  productId: UUID {PK}
+  toppingId: UUID {PK}
+}
+class Order {
+  id: UUID
+  orderNumber: String {unique}
+  userId: UUID
+  status: OrderStatus
+  subtotal: BigInt VND
+  discountAmount: BigInt VND
+  total: BigInt VND
+  couponCodeSnapshot: String?
+  reservationExpiresAt: DateTime UTC
+}
+class OrderItem {
+  id: UUID
+  orderId: UUID
+  productVariantId: UUID
+  productNameSnapshot: String
+  variantNameSnapshot: String
+  unitPrice: BigInt VND
+  quantity: Int
+  sugarLevel: Int? [0..100]
+  iceLevel: Int? [0..100]
+  note: String? [max 500]
+}
+class OrderItemTopping {
+  id: UUID
+  orderItemId: UUID
+  toppingId: UUID
+  toppingNameSnapshot: String
+  unitPrice: BigInt VND
+  quantity: Int
+}
+class Payment {
+  id: UUID
+  orderId: UUID
+  idempotencyKey: String {unique}
+  requestHash: String [64]
+  method: E_WALLET | CARD
+  status: PROCESSING | SUCCEEDED | FAILED
+  amount: BigInt VND
+  gatewayTransactionId: String? {unique}
+}
+class OrderStatusHistory {
+  id: UUID
+  orderId: UUID
+  fromStatus: OrderStatus?
+  toStatus: OrderStatus
+  changedByUserId: UUID?
+  reason: String?
+  createdAt: DateTime UTC
+}
+class InventoryReservation {
+  id: UUID
+  orderId: UUID
+  productVariantId: UUID
+  quantity: Int
+  status: ACTIVE | CONSUMED | RELEASED | EXPIRED
+  expiresAt: DateTime UTC
+}
+class Coupon {
+  id: UUID
+  code: String {unique}
+  discountType: PERCENTAGE | FIXED_AMOUNT
+  discountValue: BigInt
+  maxDiscount: BigInt?
+  minOrderValue: BigInt
+  usageLimit: Int?
+  perUserLimit: Int
+  startsAt: DateTime UTC
+  endsAt: DateTime UTC
+  isActive: Boolean
+}
+class CouponRedemption {
+  id: UUID
+  couponId: UUID
+  userId: UUID
+  orderId: UUID {unique}
+  discountAmount: BigInt VND
+  status: RESERVED | CONSUMED | RELEASED | EXPIRED
+  expiresAt: DateTime UTC
+}
+class LoyaltyTransaction {
+  id: UUID
+  userId: UUID
+  orderId: UUID?
+  type: EARN | REDEEM | ADJUSTMENT | REVERSAL
+  points: Int
+  balanceAfter: Int
+  reason: String
+}
+
+User "1" -- "0..*" Order : owns
+Product "1" -- "0..*" ProductVariant : variants
+Product "1" -- "0..*" ProductTopping : options
+Topping "1" -- "0..*" ProductTopping : options
+Order "1" -- "0..*" OrderItem : items
+ProductVariant "1" -- "0..*" OrderItem : source
+OrderItem "1" -- "0..*" OrderItemTopping : snapshots
+Topping "1" -- "0..*" OrderItemTopping : source
+Order "1" -- "0..*" Payment : attempts
+Order "1" -- "0..*" OrderStatusHistory : timeline
+User "0..1" -- "0..*" OrderStatusHistory : actor
+Order "1" -- "0..*" InventoryReservation : holds
+ProductVariant "1" -- "0..*" InventoryReservation : stock
+Coupon "1" -- "0..*" CouponRedemption : usages
+User "1" -- "0..*" CouponRedemption : user
+Order "1" -- "0..1" CouponRedemption : coupon
+User "1" -- "0..*" LoyaltyTransaction : ledger
+Order "0..1" -- "0..*" LoyaltyTransaction : source
+
+legend bottom
+  Thuoc tinh rut gon; timestamps day du xem schema.prisma.
+  Cardinality theo FK/schema. Nghiep vu tao don phai kiem tra >=1 item.
+  Partial unique SQL: toi da 1 SUCCEEDED/order va 1 EARN/order.
+  OrderStatus: PENDING, PAID, PAYMENT_FAILED, PREPARING, READY, COMPLETED, CANCELLED.
+  Schema/constraint khong thay cho state machine, idempotency va concurrency runtime.
+endlegend
+@enduml

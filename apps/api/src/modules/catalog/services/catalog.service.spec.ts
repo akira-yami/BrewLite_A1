@@ -21,6 +21,104 @@ describe('CatalogService', () => {
     );
   });
 
+describe('getProducts', () => {
+  it('TC-GET-01: trả về danh sách sản phẩm khi có dữ liệu', async () => {
+    repository.findAllProducts.mockResolvedValue([
+      {
+        id: 'product-1',
+        sku: 'COFFEE-01',
+        name: 'Cà phê sữa',
+        description: 'Cà phê sữa thơm ngon',
+        imageUrl: 'coffee.jpg',
+        variants: [
+          {
+            id: 'variant-1',
+            size: 'M',
+            price: 35000n,
+            stock: 10,
+          },
+          {
+            id: 'variant-2',
+            size: 'S',
+            price: 30000n,
+            stock: 20,
+          },
+        ],
+        productToppings: [
+          {
+            topping: {
+              id: 'topping-1',
+              code: 'TOP_PEARL',
+              name: 'Trân châu',
+              price: 8000n,
+              isActive: true,
+            },
+          },
+        ],
+      },
+    ]);
+
+    const result = await service.getProducts();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      id: 'product-1',
+      sku: 'COFFEE-01',
+      name: 'Cà phê sữa',
+      description: 'Cà phê sữa thơm ngon',
+      imageUrl: 'coffee.jpg',
+      basePrice: 30000,
+      variants: [
+        {
+          id: 'variant-1',
+          size: 'M',
+          price: 35000,
+          stock: 10,
+        },
+        {
+          id: 'variant-2',
+          size: 'S',
+          price: 30000,
+          stock: 20,
+        },
+      ],
+      toppings: [
+        {
+          id: 'topping-1',
+          code: 'TOP_PEARL',
+          name: 'Trân châu',
+          price: 8000,
+          available: true,
+        },
+      ],
+    });
+
+    expect(repository.findAllProducts).toHaveBeenCalledOnce();
+  });
+
+  it('TC-GET-02: trả về mảng rỗng khi không có sản phẩm', async () => {
+    repository.findAllProducts.mockResolvedValue([]);
+
+    const result = await service.getProducts();
+
+    expect(result).toEqual([]);
+    expect(repository.findAllProducts).toHaveBeenCalledOnce();
+  });
+
+  it('TC-GET-03: truyền lỗi ra ngoài khi truy xuất dữ liệu thất bại', async () => {
+    const error = new Error('Database connection failed');
+
+    repository.findAllProducts.mockRejectedValue(error);
+
+    await expect(service.getProducts()).rejects.toThrow(
+      'Database connection failed',
+    );
+
+    expect(repository.findAllProducts).toHaveBeenCalledOnce();
+  });
+});
+
+
   describe('getProductDetailById', () => {
     it('trả về thông tin sản phẩm và giá đúng', async () => {
       repository.findDetailById.mockResolvedValue({

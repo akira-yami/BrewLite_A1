@@ -85,6 +85,14 @@ export default function CheckoutPage() {
       } else if (reason instanceof PaymentApiError) {
         if (reason.code === 'PAYMENT_IN_PROGRESS') {
           setError('Giao dịch đang được xử lý. Vui lòng chờ rồi thử lại với cùng phương thức.');
+        } else if (reason.code === 'ORDER_EXPIRED') {
+          // Bắt đúng mã lỗi ORDER_EXPIRED từ server trả về
+          setError('Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ. Vui lòng đặt lại đơn mới.');
+          
+          // QUAN TRỌNG: Reset ID để tạo đơn hàng mới cho lần bấm thanh toán tiếp theo
+          createdOrderId.current = null;
+          paymentAttemptKey.current = null;
+          
         } else if (reason.status === 401) {
           setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         } else {

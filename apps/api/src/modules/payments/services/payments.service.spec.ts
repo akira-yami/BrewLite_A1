@@ -146,5 +146,21 @@ describe('PaymentsService (Unit Test - TDD)', () => {
 
             expect(result.success).toBe(false);
         });
+        it('8. Nên ném 409 ORDER_EXPIRED nếu đơn hàng PENDING nhưng đã quá hạn giữ chỗ', async () => {
+    paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+    
+    // Giả lập đơn hàng PENDING nhưng thời gian hết hạn là 1 giây trong quá khứ
+    ordersServiceMock.getOrderForPayment.mockResolvedValue({
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: new Date(Date.now() - 1000) 
     });
+
+    await expect(service.processPayment({ idempotencyKey, orderId, userId, method, amount }))
+        .rejects.toThrow(new ConflictException({
+            code: 'ORDER_EXPIRED',
+            message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+        }));
+});
+    });
+    
 });

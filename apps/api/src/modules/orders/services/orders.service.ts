@@ -6,7 +6,7 @@ import { CatalogService } from '../../catalog/services/catalog.service.js';
 import {
   InventoryService,
   InventoryVersionConflict,
-} from '../../inventory/inventory.service.js';
+} from '../../inventory/services/inventory.service.js';
 import {
   BadRequestException,
   ConflictException,

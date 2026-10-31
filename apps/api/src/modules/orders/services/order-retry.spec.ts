@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { OrdersService } from './orders.service.js';
 import { CatalogService } from '../../catalog/services/catalog.service.js';
-import { InventoryService } from '../../inventory/inventory.service.js';
+import { InventoryService } from '../../inventory/services/inventory.service.js';
+import { InventoryRepository } from '../../inventory/repositories/inventory.repository.js';
 import { UsersService } from '../../users/users.service.js';
 
 function setup() {
@@ -13,6 +14,7 @@ function setup() {
     stock: 10,
     product: { name: 'Coffee', productToppings: [] },
   };
+
   const tx = {
     user: { findFirst: vi.fn().mockResolvedValue({ id: 'user' }) },
     productVariant: {
@@ -30,17 +32,76 @@ function setup() {
     inventoryReservation: { create: vi.fn() },
     orderStatusHistory: { create: vi.fn() },
   };
-  const prisma = { $transaction: vi.fn(async (callback) => callback(tx)) };
+
+  const prisma = {
+    $transaction: vi.fn(async (callback) => callback(tx)),
+  };
+
+  // Mock repository của InventoryService mới.
+  const inventoryRepository = {
+    findVariant: vi.fn(),
+    reserveStock: vi.fn(
+      async (
+        transaction,
+        variantId,
+        quantity,
+        expectedVersion,
+      ) => {
+        return transaction.productVariant.updateMany({
+          where: {
+            id: variantId,
+            version: expectedVersion,
+            stock: { gte: quantity },
+            isActive: true,
+          },
+          data: {
+            stock: { decrement: quantity },
+            version: { increment: 1 },
+          },
+        });
+      },
+    ),
+    createReservation: vi.fn(
+      async (
+        transaction,
+        orderId,
+        variantId,
+        quantity,
+        expiresAt,
+      ) => {
+        return transaction.inventoryReservation.create({
+          data: {
+            orderId,
+            productVariantId: variantId,
+            quantity,
+            status: 'ACTIVE',
+            expiresAt,
+          },
+        });
+      },
+    ),
+  };
+
   const catalog = new CatalogService({} as any);
+
+  const inventory = new InventoryService(
+    prisma as any,
+    inventoryRepository as any,
+  );
+
   const service = new OrdersService(
     {} as any,
     prisma as any,
     {} as any,
     catalog,
-    new InventoryService(catalog),
+    inventory,
     new UsersService(),
   );
-  const dto = { items: [{ productVariantId: 'variant', quantity: 1 }] };
+
+  const dto = {
+    items: [{ productVariantId: 'variant', quantity: 1 }],
+  };
+
   return { service, tx, prisma, dto, variant };
 }
 

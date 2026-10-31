@@ -1,5 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+
 import { PrismaService } from '../../../database/prisma.service.js';
 import { OrdersRepository } from '../repositories/orders.repository.js';
 import { InventoryService } from '../../inventory/services/inventory.service.js';
@@ -8,6 +14,8 @@ import { OrderStatus } from '../../../generated/prisma/client.js';
 @Injectable()
 export class OrderExpiryJob {
   private readonly logger = new Logger(OrderExpiryJob.name);
+
+  // Ngăn hai lần chạy job đồng thời trong cùng một instance.
   private isRunning = false;
 
   constructor(
@@ -16,63 +24,94 @@ export class OrderExpiryJob {
     private readonly inventoryService: InventoryService,
   ) {}
 
+  // Tự động kiểm tra đơn hàng hết hạn mỗi phút.
   @Cron(CronExpression.EVERY_MINUTE)
-  async handleExpiredOrders() {
-    if (this.isRunning) return;
+  async handleExpiredOrders(): Promise<void> {
+    if (this.isRunning) {
+      return;
+    }
+
     this.isRunning = true;
 
     try {
       const now = new Date();
-      // Tìm các đơn PENDING đã quá hạn
+
+      // Tìm các đơn PENDING đã hết thời gian giữ hàng.
       const expiredOrders = await this.prisma.order.findMany({
         where: {
           status: OrderStatus.PENDING,
-          reservationExpiresAt: { lte: now },
+          reservationExpiresAt: {
+            lte: now,
+          },
         },
-        select: { id: true, userId: true },
-        take: 50,
+        select: {
+          id: true,
+          userId: true,
+        },
       });
 
       for (const order of expiredOrders) {
         try {
-          // A. Dùng Transaction để Hủy đơn & Hoàn mã giảm giá
           await this.prisma.$transaction(async (tx) => {
-            const check = await tx.order.findUnique({ where: { id: order.id } });
-            if (check?.status !== OrderStatus.PENDING) return;
-
+            // Chuyển trạng thái đơn và ghi lịch sử trong transaction.
+            // Nếu đơn đã bị tiến trình khác xử lý, thao tác sẽ thất bại.
             await this.ordersRepo.updateStatusWithHistory(
               order.id,
               OrderStatus.PENDING,
               OrderStatus.CANCELLED,
               order.userId,
-              'Hủy tự động do quá thời gian giữ chỗ',
+              `Hủy tự động do đơn hàng hết thời hạn thanh toán: ${order.id}`,
               tx,
             );
 
-            await tx.couponRedemption.updateMany({
-              where: { orderId: order.id, status: 'RESERVED' },
-              data: { status: 'EXPIRED', releasedAt: now },
-            });
+            // Lấy các reservation còn ACTIVE của đơn hàng.
+            const reservations =
+              await tx.inventoryReservation.findMany({
+                where: {
+                  orderId: order.id,
+                  status: 'ACTIVE',
+                },
+                select: {
+                  id: true,
+                },
+              });
+
+            // Chuyển reservation sang EXPIRED và hoàn kho.
+            // Thao tác dùng chung transaction với việc hủy đơn.
+            for (const reservation of reservations) {
+              await this.inventoryService.releaseInTransaction(
+                tx,
+                reservation.id,
+                true,
+              );
+            }
           });
 
-          // B. Gọi InventoryService để nhả kho (Service này tự quản lý Transaction an toàn)
-          const reservations = await this.prisma.inventoryReservation.findMany({
-            where: { orderId: order.id, status: 'ACTIVE' },
-          });
-
-          for (const res of reservations) {
-            await this.inventoryService.release(res.id, true).catch((e) => {
-              this.logger.warn(`Lỗi nhả kho ${res.id}: ${e.message}`);
-            });
-          }
-
-          this.logger.log(`Đã hủy tự động đơn hàng hết hạn: ${order.id}`);
+          this.logger.log(
+            `Đã hủy đơn ${order.id}, hết hạn reservation và hoàn kho thành công.`,
+          );
         } catch (error) {
-          this.logger.error(`Lỗi xử lý đơn ${order.id}`, error);
+          if (error instanceof ConflictException) {
+            this.logger.warn(
+              `Bỏ qua đơn ${order.id}: ${error.message}`,
+            );
+          } else {
+            this.logger.error(
+              `Lỗi xử lý đơn ${order.id}: ${
+                error instanceof Error
+                  ? error.message
+                  : String(error)
+              }`,
+              error instanceof Error ? error.stack : undefined,
+            );
+          }
         }
       }
     } catch (error) {
-      this.logger.error('Lỗi quét đơn hết hạn', error);
+      this.logger.error(
+        'Lỗi quét các đơn hàng hết hạn.',
+        error instanceof Error ? error.stack : undefined,
+      );
     } finally {
       this.isRunning = false;
     }

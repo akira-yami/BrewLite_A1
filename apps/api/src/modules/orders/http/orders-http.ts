@@ -56,8 +56,9 @@ export class OrdersExceptionFilter implements ExceptionFilter {
       typeof raw === 'object' && raw !== null
         ? (raw as Record<string, any>)
         : {};
-    // Hỗ trợ cả exception chuẩn hóa dưới body.error và payload nghiệp vụ top-level.
-    const custom = body.error ?? body;
+    // Hỗ trợ payload lỗi nghiệp vụ top-level mà không làm sai kiểu lỗi ValidationPipe.
+    const custom =
+      body.error ?? (typeof body.code === 'string' ? body : undefined);
     if (status >= 500)
       this.logger.error(`Order request failed; requestId=${id}`);
     const defaults: Record<number, string> = {
@@ -72,7 +73,7 @@ export class OrdersExceptionFilter implements ExceptionFilter {
       error: {
         code: custom?.code ?? defaults[status] ?? 'INTERNAL_ERROR',
         message:
-          custom?.message ??
+          (typeof custom?.message === 'string' ? custom.message : undefined) ??
           (status >= 500
             ? 'Unable to process order.'
             : typeof body.message === 'string'

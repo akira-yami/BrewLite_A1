@@ -173,4 +173,4 @@ sequenceDiagram
 
 ```
 
-Bản xuất chuẩn: [PlantUML](./diagrams/SD-12-coupon.puml) · [SVG](./diagrams/SD-12-coupon.svg) · [PNG](./diagrams/SD-12-coupon.png). Mermaid trên là cùng contract đích; method consume/release cần được triển khai qua public service. Preview hiện tại nhận subtotal client nên chỉ là gợi ý; checkout phải tính lại giá và khóa coupon trong transaction.
+**Định dạng hiện có:** Mermaid sequence diagram được nhúng trực tiếp trong tài liệu này. Các bản xuất PlantUML/SVG/PNG chưa được đưa vào repository; không tham chiếu đến tệp xuất chưa tồn tại. Mermaid trên là contract đích; method consume/release cần được triển khai qua public service. Preview hiện tại nhận subtotal client nên chỉ là gợi ý; checkout phải tính lại giá và khóa coupon trong transaction.

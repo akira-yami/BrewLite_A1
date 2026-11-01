@@ -187,7 +187,7 @@ describe('OrdersRepository (Unit Test - TDD)', () => {
     });
   });
 
-  it('markAsPaid - cập nhật PAID, consume inventory/coupon và cộng điểm loyalty EARN', async () => {
+  it('markAsPaid - cập nhật PAID, consume inventory và cộng điểm loyalty EARN; không tự consume coupon', async () => {
     prismaMock.order.updateMany.mockResolvedValue({ count: 1 });
 
     prismaMock.user.update.mockResolvedValue({
@@ -225,18 +225,8 @@ describe('OrdersRepository (Unit Test - TDD)', () => {
       },
     });
 
-    expect(
-      prismaMock.couponRedemption.updateMany,
-    ).toHaveBeenCalledWith({
-      where: {
-        orderId: 'o-1',
-        status: 'RESERVED',
-      },
-      data: {
-        status: 'CONSUMED',
-        consumedAt: expect.any(Date),
-      },
-    });
+    // Coupon được consume duy nhất ở PromotionsService, không phải trong OrdersRepository.
+    expect(prismaMock.couponRedemption.updateMany).not.toHaveBeenCalled();
 
     expect(prismaMock.user.update).toHaveBeenCalledWith({
       where: { id: 'u-1' },

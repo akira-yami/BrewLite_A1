@@ -370,6 +370,8 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         txMock,
         'o-1',
       );
+      // Mỗi luồng thanh toán thành công chỉ consume coupon đúng một lần trong cùng transaction.
+      expect(promotionsServiceMock.consumeRedemption).toHaveBeenCalledTimes(1);
     });
 
     it('markOrderPaymentFailed - gọi updateStatusWithHistory chuyển từ PENDING sang PAYMENT_FAILED', async () => {

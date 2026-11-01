@@ -202,17 +202,7 @@ async markAsPaid(
     },
   });
 
-  // Xác nhận coupon đã sử dụng.
-  await tx.couponRedemption.updateMany({
-    where: {
-      orderId,
-      status: 'RESERVED',
-    },
-    data: {
-      status: 'CONSUMED',
-      consumedAt: new Date(),
-    },
-  });
+  // Coupon được quyết toán ở PromotionsService qua OrdersService để giữ đúng ranh giới module.
 
   // Tính điểm thưởng.
   const earnedPoints = Number(orderTotal / 10n);

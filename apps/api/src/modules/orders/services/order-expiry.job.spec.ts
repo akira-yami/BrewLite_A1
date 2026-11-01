@@ -1,4 +1,4 @@
-import { ConflictException, Logger } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { OrderStatus, PaymentStatus } from '../../../generated/prisma/client.js';
 import { OrderExpiryJob } from './order-expiry.job.js';

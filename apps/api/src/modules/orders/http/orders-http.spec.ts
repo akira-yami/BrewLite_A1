@@ -33,7 +33,7 @@ function makeResponse() {
 
 describe('OrdersResponseInterceptor', () => {
   it('preserves a valid incoming request id and adds it to response metadata', async () => {
-    const request = { headers: { 'x-request-id': 'checkout-123' } } as Request;
+    const request = { headers: { 'x-request-id': 'checkout-123' } } as unknown as Request;
     const response = makeResponse();
     const body = { data: { id: 'order-1' }, meta: { count: 1 } };
     const interceptor = new OrdersResponseInterceptor();
@@ -56,7 +56,7 @@ describe('OrdersResponseInterceptor', () => {
   });
 
   it('replaces an invalid incoming request id with a generated UUID', async () => {
-    const request = { headers: { 'x-request-id': 'invalid request id' } } as Request;
+    const request = { headers: { 'x-request-id': 'invalid request id' } } as unknown as Request;
     const response = makeResponse();
     const interceptor = new OrdersResponseInterceptor();
 
@@ -88,7 +88,7 @@ describe('OrdersExceptionFilter', () => {
     [409, 'INVENTORY_CONFLICT'],
     [422, 'COUPON_NOT_APPLICABLE'],
   ])('maps HTTP %s to %s when no custom error code is supplied', (status, code) => {
-    const request = { headers: { 'x-request-id': 'request-123' } } as Request;
+    const request = { headers: { 'x-request-id': 'request-123' } } as unknown as Request;
     const response = makeResponse();
     const filter = new OrdersExceptionFilter();
 
@@ -109,7 +109,7 @@ describe('OrdersExceptionFilter', () => {
   });
 
   it('preserves a custom top-level business error payload', () => {
-    const request = { headers: {} } as Request;
+    const request = { headers: {} } as unknown as Request;
     const response = makeResponse();
     const filter = new OrdersExceptionFilter();
 
@@ -136,7 +136,7 @@ describe('OrdersExceptionFilter', () => {
   });
 
   it('normalizes ValidationPipe message arrays into details', () => {
-    const request = { headers: {} } as Request;
+    const request = { headers: {} } as unknown as Request;
     const response = makeResponse();
     const filter = new OrdersExceptionFilter();
 
@@ -160,7 +160,7 @@ describe('OrdersExceptionFilter', () => {
 
   it('hides internal exception details and emits a generic 500 response', () => {
     const logger = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-    const request = { headers: {} } as Request;
+    const request = { headers: {} } as unknown as Request;
     const response = makeResponse();
     const filter = new OrdersExceptionFilter();
 
@@ -182,7 +182,7 @@ describe('OrdersExceptionFilter', () => {
   });
 
   it('uses a safe generic response for a non-object HttpException body', () => {
-    const request = { headers: {} } as Request;
+    const request = { headers: {} } as unknown as Request;
     const response = makeResponse();
     const filter = new OrdersExceptionFilter();
 

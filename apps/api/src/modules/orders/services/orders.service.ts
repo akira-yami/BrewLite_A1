@@ -509,14 +509,26 @@ export class OrdersService {
     reason: string,
     tx?: Prisma.TransactionClient,
   ) {
-    // Khi được gọi từ PaymentsService, dùng transaction chung để rollback đồng bộ nếu tạo Payment lỗi.
+    // Chỉ truyền transaction khi có transaction do PaymentsService quản lý.
+    if (tx) {
+      await this.repository.updateStatusWithHistory(
+        orderId,
+        OrderStatus.PAYMENT_FAILED,
+        OrderStatus.PENDING,
+        userId,
+        reason,
+        tx,
+      );
+      return;
+    }
+
+    // Giữ nguyên lời gọi 5 tham số cho các luồng và test cũ không dùng transaction.
     await this.repository.updateStatusWithHistory(
       orderId,
       OrderStatus.PAYMENT_FAILED,
       OrderStatus.PENDING,
       userId,
       reason,
-      tx,
     );
   }
 

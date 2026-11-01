@@ -100,12 +100,23 @@ const processingPayment = await (async () => {
         if (isPaymentRetry) {
             return await this.prisma.$transaction(async (tx) => {
                 // Chỉ một request được phép chuyển PAYMENT_FAILED về PENDING.
-                await this.ordersService.transitionForPaymentRetry(
-                    orderId,
-                    userId,
-                    'Khách hàng thực hiện lại thanh toán',
-                    tx,
-                );
+                try {
+                    await this.ordersService.transitionForPaymentRetry(
+                        orderId,
+                        userId,
+                        'Khách hàng thực hiện lại thanh toán',
+                        tx,
+                    );
+                } catch (error) {
+                    // Request retry song song đã giành quyền chuyển trạng thái trước request hiện tại.
+                    if (error instanceof ConflictException) {
+                        throw new ConflictException({
+                            code: 'PAYMENT_IN_PROGRESS',
+                            message: 'Một yêu cầu thanh toán khác đang được xử lý cho đơn hàng này.',
+                        });
+                    }
+                    throw error;
+                }
 
                 // Nếu tạo Payment thất bại, transaction sẽ rollback cả lần chuyển trạng thái.
                 return this.paymentsRepository.createProcessingPayment(paymentData, tx);

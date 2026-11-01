@@ -279,6 +279,33 @@ describe('PaymentsService (Unit Test - TDD)', () => {
 
             expect(gatewayMock.charge).not.toHaveBeenCalled();
         });
+
+        it('13. Chuyển lỗi tranh quyền retry đồng thời thành 409 PAYMENT_IN_PROGRESS', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({
+                status: OrderStatus.PAYMENT_FAILED,
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+            ordersServiceMock.transitionForPaymentRetry.mockRejectedValue(
+                new ConflictException('Order status changed; cannot update this order'),
+            );
+
+            await expect(
+                service.processPayment({
+                    idempotencyKey: 'idemp-concurrent-retry',
+                    orderId,
+                    userId,
+                    method,
+                    amount,
+                }),
+            ).rejects.toThrow(new ConflictException({
+                code: 'PAYMENT_IN_PROGRESS',
+                message: 'Một yêu cầu thanh toán khác đang được xử lý cho đơn hàng này.',
+            }));
+
+            expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
     });
     
 });

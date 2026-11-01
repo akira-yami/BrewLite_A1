@@ -318,6 +318,24 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       );
     });
 
+    it('transitionForPaymentRetry - truyền transaction khi được cung cấp', async () => {
+      await service.transitionForPaymentRetry(
+        'o-1',
+        'u-1',
+        'Retry trong transaction',
+        txMock,
+      );
+
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PAYMENT_FAILED,
+        OrderStatus.PENDING,
+        'u-1',
+        'Retry trong transaction',
+        txMock,
+      );
+    });
+
     it('markOrderPaid - gọi markAsPaid chuyển từ PENDING sang PAID', async () => {
       await service.markOrderPaid('o-1', 'u-1', 100000n, txMock);
 

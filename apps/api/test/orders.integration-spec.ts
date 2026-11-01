@@ -421,6 +421,46 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect([userId, otherUserId]).toContain(redemptions[0].userId);
   });
 
+  it('uses server-priced subtotal when creating an order after a client-side coupon preview', async () => {
+    const variant = await product(5, 40000n);
+    const promotion = await prisma.coupon.create({
+      data: {
+        code: `PREVIEW-${randomUUID()}`,
+        discountType: 'PERCENTAGE',
+        discountValue: 50n,
+        minOrderValue: 0n,
+        startsAt: new Date(Date.now() - 60000),
+        endsAt: new Date(Date.now() + 3600000),
+        usageLimit: 1,
+        perUserLimit: 1,
+      },
+    });
+
+    // Preview là ước tính theo subtotal client gửi; không được dùng để chốt số tiền Order.
+    const preview = await auth(
+      request(app.getHttpServer()).post('/api/v1/coupons/validate'),
+    )
+      .send({ code: promotion.code, subtotal: 100000 })
+      .expect(200);
+    expect(preview.body.data.discountAmount).toBe(50000);
+
+    // Khi tạo Order, server tự đọc giá variant (40.000 VND) và tính lại discount (20.000 VND).
+    const orderResponse = await post(
+      [{ productVariantId: variant.id, quantity: 1 }],
+      promotion.code,
+    ).expect(201);
+    expect(orderResponse.body.data).toMatchObject({
+      subtotal: 40000,
+      discountAmount: 20000,
+      total: 20000,
+    });
+
+    const redemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId: orderResponse.body.data.id },
+    });
+    expect(redemption.discountAmount).toBe(20000n);
+  });
+
   it('fails before committing money outside the JSON integer range', async () => {
     const variant = await product(20, BigInt(Number.MAX_SAFE_INTEGER));
     const result = await post([

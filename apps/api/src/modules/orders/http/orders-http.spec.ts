@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { lastValueFrom, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Request, Response } from 'express';
+import type { Request } from 'express';
 import {
   OrdersExceptionFilter,
   OrdersResponseInterceptor,

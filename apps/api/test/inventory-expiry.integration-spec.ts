@@ -1,12 +1,11 @@
-import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 
 import { InventoryRepository } from '../src/modules/inventory/repositories/inventory.repository.js';
-import { InventoryService } from '../src/modules/inventory/services/inventory.service.js';
-
 import { OrdersRepository } from '../src/modules/orders/repositories/orders.repository.js';
 import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
+import { InventoryService } from '../src/modules/inventory/services/inventory.service.js';
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
 
@@ -56,6 +55,16 @@ describe('SD-13 inventory expiry job', () => {
       },
     });
 
+    // Mỗi ly dùng 10g; kho có 20g nên làm được tối đa 2 ly.
+    const ingredient = await prisma.ingredient.create({
+      data: {
+        code: `EXPJOB-BEAN-${randomUUID()}`,
+        name: 'Expiry job coffee beans',
+        unit: 'G',
+        stockQuantity: 20,
+      },
+    });
+
     const product = await prisma.product.create({
       data: {
         sku: `EXPJOB-${randomUUID()}`,
@@ -65,7 +74,9 @@ describe('SD-13 inventory expiry job', () => {
           create: {
             size: 'M',
             price: 40000n,
-            stock: 2,
+            recipeItems: {
+              create: { ingredientId: ingredient.id, quantity: 10 },
+            },
           },
         },
       },
@@ -140,23 +151,15 @@ describe('SD-13 inventory expiry job', () => {
     });
 
     await prisma.order.update({
-      where: {
-        id: order.id,
-      },
-      data: {
-        reservationExpiresAt: expiredAt,
-      },
+      where: { id: order.id },
+      data: { reservationExpiresAt: expiredAt },
     });
 
-    // Kiểm tra tồn kho sau khi reserve.
-    const stockAfterReserve =
-      await prisma.productVariant.findUniqueOrThrow({
-        where: {
-          id: variant.id,
-        },
-      });
+    const stockAfterReserve = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredient.id },
+    });
 
-    expect(stockAfterReserve.stock).toBe(1);
+    expect(stockAfterReserve.stockQuantity).toBe(10);
     expect(stockAfterReserve.version).toBe(1);
 
     // Chạy job lần thứ nhất.
@@ -169,37 +172,22 @@ describe('SD-13 inventory expiry job', () => {
         },
       });
 
-    const stockAfterExpiry =
-      await prisma.productVariant.findUniqueOrThrow({
-        where: {
-          id: variant.id,
-        },
-      });
+    const stockAfterExpiry = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredient.id },
+    });
 
     expect(expiredReservation.status).toBe('EXPIRED');
-    expect(stockAfterExpiry.stock).toBe(2);
+    expect(stockAfterExpiry.stockQuantity).toBe(20);
     expect(stockAfterExpiry.version).toBe(2);
 
-    // Chạy job lần thứ hai.
-    // Reservation đã EXPIRED nên không được hoàn kho thêm lần nữa.
+    // Chạy lại job: reservation đã EXPIRED nên không được hoàn nguyên liệu lần nữa.
     await expiryJob.handleExpiredOrders();
 
-    const stockAfterSecondRun =
-      await prisma.productVariant.findUniqueOrThrow({
-        where: {
-          id: variant.id,
-        },
-      });
+    const stockAfterSecondRun = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredient.id },
+    });
 
-    expect(stockAfterSecondRun.stock).toBe(2);
+    expect(stockAfterSecondRun.stockQuantity).toBe(20);
     expect(stockAfterSecondRun.version).toBe(2);
-
-    console.log('\n===== INVENTORY EXPIRY JOB RESULT =====');
-    console.log('Reservation status:', expiredReservation.status);
-    console.log('Stock before expiry:', stockAfterReserve.stock);
-    console.log('Stock after expiry:', stockAfterExpiry.stock);
-    console.log('Version after expiry:', stockAfterExpiry.version);
-    console.log('Stock after second run:', stockAfterSecondRun.stock);
-    console.log('=======================================\n');
   });
 });

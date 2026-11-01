@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
+import { Test } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/database/prisma.service.js';
@@ -75,18 +75,42 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     else process.env.DATABASE_URL = previousUrl;
   });
 
-  async function product(stock = 20, price = 40000n) {
+  // Mỗi ly cần 10g cà phê; kho nguyên liệu đủ cho `cups` ly (không lưu số ly).
+  const GRAMS_PER_CUP = 10;
+  async function product(cups = 20, price = 40000n) {
+    const ingredient = await prisma.ingredient.create({
+      data: {
+        code: `ORD-BEAN-${randomUUID()}`,
+        name: 'Test coffee beans',
+        unit: 'G',
+        stockQuantity: cups * GRAMS_PER_CUP,
+      },
+    });
     const row = await prisma.product.create({
       data: {
         sku: randomUUID(),
         name: 'Original coffee',
         imageUrl: '/test.png',
-        variants: { create: { size: 'M', stock, price } },
+        variants: {
+          create: {
+            size: 'M',
+            price,
+            recipeItems: {
+              create: { ingredientId: ingredient.id, quantity: GRAMS_PER_CUP },
+            },
+          },
+        },
       },
       include: { variants: true },
     });
-    return { productId: row.id, id: row.variants[0].id };
+    return {
+      productId: row.id,
+      id: row.variants[0].id,
+      ingredientId: ingredient.id,
+    };
   }
+  const ingredientOf = (ingredientId: string) =>
+    prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
   async function coupon() {
     return prisma.coupon.create({
       data: {
@@ -148,11 +172,11 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect(
       await prisma.inventoryReservation.count({ where: { orderId: order.id } }),
     ).toBe(1);
-    expect(
-      await prisma.productVariant.findUniqueOrThrow({
-        where: { id: variant.id },
-      }),
-    ).toMatchObject({ stock: 17, version: 1 });
+    // 3 ly x 10g = 30g bị trừ khỏi 200g.
+    expect(await ingredientOf(variant.ingredientId)).toMatchObject({
+      stockQuantity: 170,
+      version: 1,
+    });
     await prisma.product.update({
       where: { id: variant.productId },
       data: { name: 'Renamed coffee' },
@@ -227,18 +251,32 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       const result = await post(items).expect(400);
       expect(result.body.error.code).toBe('VALIDATION_ERROR');
     }
-    expect(
-      await prisma.productVariant.findUniqueOrThrow({
-        where: { id: variant.id },
-      }),
-    ).toMatchObject({ stock: 100, version: 0 });
+    expect(await ingredientOf(variant.ingredientId)).toMatchObject({
+      stockQuantity: 1000,
+      version: 0,
+    });
   });
 
   it('rolls back all order rows, stock/version, reservation and coupon after a late failure', async () => {
     const variant = await product();
     const promotion = await coupon();
+    // Topping nhập sẵn: 1 phần = 30g trân châu 3Q.
+    const pearl = await prisma.ingredient.create({
+      data: {
+        code: `ORD-PEARL-${randomUUID()}`,
+        name: 'Test pearl',
+        unit: 'G',
+        stockQuantity: 300,
+      },
+    });
     const topping = await prisma.topping.create({
-      data: { code: randomUUID(), name: 'Pearl', price: 5000n },
+      data: {
+        code: randomUUID(),
+        name: 'Pearl',
+        price: 5000n,
+        type: 'PREPACKAGED',
+        recipeItems: { create: { ingredientId: pearl.id, quantity: 30 } },
+      },
     });
     await prisma.productTopping.create({
       data: { productId: variant.productId, toppingId: topping.id },
@@ -268,11 +306,96 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
         where: { couponId: promotion.id },
       }),
     ).toBe(0);
-    expect(
-      await prisma.productVariant.findUniqueOrThrow({
-        where: { id: variant.id },
-      }),
-    ).toMatchObject({ stock: 20, version: 0 });
+    expect(await ingredientOf(variant.ingredientId)).toMatchObject({
+      stockQuantity: 200,
+      version: 0,
+    });
+    // Nguyên liệu của topping cũng được hoàn tác.
+    expect(await ingredientOf(pearl.id)).toMatchObject({
+      stockQuantity: 300,
+      version: 0,
+    });
+  });
+
+  it('reserves topping ingredients: prepackaged by portion and prepared from several ingredients', async () => {
+    const variant = await product();
+    const [pearl, tapioca, sugar] = await Promise.all(
+      ['PEARL', 'TAPIOCA', 'SUGAR'].map((name) =>
+        prisma.ingredient.create({
+          data: {
+            code: `ORD-${name}-${randomUUID()}`,
+            name,
+            unit: 'G',
+            stockQuantity: 1000,
+          },
+        }),
+      ),
+    );
+    const prepackaged = await prisma.topping.create({
+      data: {
+        code: randomUUID(),
+        name: 'Trân châu 3Q',
+        price: 5000n,
+        type: 'PREPACKAGED',
+        recipeItems: { create: { ingredientId: pearl.id, quantity: 30 } },
+      },
+    });
+    const prepared = await prisma.topping.create({
+      data: {
+        code: randomUUID(),
+        name: 'Trân châu đen đường đen',
+        price: 8000n,
+        type: 'PREPARED',
+        recipeItems: {
+          create: [
+            { ingredientId: tapioca.id, quantity: 20 },
+            { ingredientId: sugar.id, quantity: 15 },
+          ],
+        },
+      },
+    });
+    await prisma.productTopping.createMany({
+      data: [prepackaged, prepared].map((topping) => ({
+        productId: variant.productId,
+        toppingId: topping.id,
+      })),
+    });
+
+    const response = await post([
+      {
+        productVariantId: variant.id,
+        quantity: 2,
+        toppingIds: [prepackaged.id, prepared.id],
+      },
+    ]).expect(201);
+
+    // 2 ly x (10g cà phê) và 2 phần mỗi topping.
+    expect(await ingredientOf(variant.ingredientId)).toMatchObject({
+      stockQuantity: 180,
+    });
+    expect((await ingredientOf(pearl.id)).stockQuantity).toBe(940);
+    expect((await ingredientOf(tapioca.id)).stockQuantity).toBe(960);
+    expect((await ingredientOf(sugar.id)).stockQuantity).toBe(970);
+    const items = await prisma.inventoryReservationItem.findMany({
+      where: { reservation: { orderId: response.body.data.id } },
+    });
+    expect(items).toHaveLength(4);
+
+    // Hết một nguyên liệu của topping chế biến thì đơn bị từ chối, không trừ gì thêm.
+    await prisma.ingredient.update({
+      where: { id: sugar.id },
+      data: { stockQuantity: 10 },
+    });
+    const rejected = await post([
+      {
+        productVariantId: variant.id,
+        quantity: 1,
+        toppingIds: [prepared.id],
+      },
+    ]).expect(409);
+    expect(rejected.body.error.code).toBe('OUT_OF_STOCK');
+    expect((await ingredientOf(tapioca.id)).stockQuantity).toBe(960);
+    expect((await ingredientOf(variant.ingredientId)).stockQuantity).toBe(180);
   });
 
   it('rejects unavailable catalog options and inactive principals before writes', async () => {
@@ -319,11 +442,10 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect(
       results.map((result) => result.status).sort((a, b) => a - b),
     ).toEqual([201, 409]);
-    expect(
-      await prisma.productVariant.findUniqueOrThrow({
-        where: { id: variant.id },
-      }),
-    ).toMatchObject({ stock: 0, version: 1 });
+    expect(await ingredientOf(variant.ingredientId)).toMatchObject({
+      stockQuantity: 0,
+      version: 1,
+    });
     expect(
       await prisma.inventoryReservation.count({
         where: { productVariantId: variant.id },
@@ -357,10 +479,13 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
         where: { couponId: promotion.id },
       }),
     ).toBe(1);
-    const variants = await prisma.productVariant.findMany({
-      where: { id: { in: [a.id, b.id] } },
+    const ingredients = await prisma.ingredient.findMany({
+      where: { id: { in: [a.ingredientId, b.ingredientId] } },
     });
-    expect(variants.reduce((sum, row) => sum + row.stock, 0)).toBe(39);
+    // Hai kho 200g, chỉ một đơn thành công và trừ 10g.
+    expect(ingredients.reduce((sum, row) => sum + row.stockQuantity, 0)).toBe(
+      390,
+    );
   });
 
   it('fails before committing money outside the JSON integer range', async () => {
@@ -372,11 +497,10 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect(
       await prisma.orderItem.count({ where: { productVariantId: variant.id } }),
     ).toBe(0);
-    expect(
-      await prisma.productVariant.findUniqueOrThrow({
-        where: { id: variant.id },
-      }),
-    ).toMatchObject({ stock: 20, version: 0 });
+    expect(await ingredientOf(variant.ingredientId)).toMatchObject({
+      stockQuantity: 200,
+      version: 0,
+    });
   });
 
   it('paginates equal timestamps and validates history queries without leaking other users', async () => {

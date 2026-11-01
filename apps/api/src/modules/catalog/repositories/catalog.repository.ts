@@ -14,9 +14,14 @@ export class CatalogRepository {
         variants: {
           where: { isActive: true },
           orderBy: { price: 'asc' },
+          include: { recipeItems: { include: { ingredient: true } } },
         },
         productToppings: {
-          include: { topping: true },
+          include: {
+            topping: {
+              include: { recipeItems: { include: { ingredient: true } } },
+            },
+          },
         },
       },
       orderBy: { createdAt: 'asc' },
@@ -32,6 +37,7 @@ export class CatalogRepository {
       include: {
         variants: {
           where: { isActive: true },
+          include: { recipeItems: { include: { ingredient: true } } },
         },
        productToppings: {
   where: {
@@ -40,7 +46,9 @@ export class CatalogRepository {
     },
   },
   include: {
-    topping: true,
+    topping: {
+      include: { recipeItems: { include: { ingredient: true } } },
+    },
   },
 },
       },

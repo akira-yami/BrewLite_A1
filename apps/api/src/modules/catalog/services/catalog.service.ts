@@ -1,7 +1,8 @@
-import type { Prisma } from '../../../generated/prisma/client.js';
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { CatalogRepository } from '../repositories/catalog.repository.js';
+import { maxServings } from '../../../common/utils/recipe-capacity.js';
+import type { Prisma } from '../../../generated/prisma/client.js';
 import { ProductResponseDto } from '../dto/product.dto.js';
+import { CatalogRepository } from '../repositories/catalog.repository.js';
 
 @Injectable()
 export class CatalogService {
@@ -13,21 +14,20 @@ export class CatalogService {
       where: { id, isActive: true, product: { isActive: true } },
       include: {
         product: {
-          include: { productToppings: { include: { topping: true } } },
+          include: {
+            productToppings: {
+              include: {
+                topping: {
+                  // Công thức topping để quy đổi phần topping ra nguyên liệu.
+                  include: { recipeItems: { include: { ingredient: true } } },
+                },
+              },
+            },
+          },
         },
+        // Công thức + nguyên liệu để tính số ly tối đa và lượng cần giữ.
+        recipeItems: { include: { ingredient: true } },
       },
-    });
-  }
-
-  async reserveVariant(
-    tx: Prisma.TransactionClient,
-    id: string,
-    quantity: number,
-    version: number,
-  ) {
-    return tx.productVariant.updateMany({
-      where: { id, version, stock: { gte: quantity }, isActive: true },
-      data: { stock: { decrement: quantity }, version: { increment: 1 } },
     });
   }
 
@@ -50,14 +50,16 @@ export class CatalogService {
           id: v.id,
           size: v.size as any,
           price: Number(v.price), // Ép kiểu BigInt -> number cho JSON
-          stock: v.stock,
+          availableServings: maxServings(v.recipeItems),
         })),
         toppings: p.productToppings.map((pt) => ({
           id: pt.topping.id,
           code: pt.topping.code,
           name: pt.topping.name,
           price: Number(pt.topping.price), // Ép kiểu BigInt -> number cho JSON
-          available: pt.topping.isActive,
+          // Còn bán được khi đang hoạt động và còn nguyên liệu cho ít nhất 1 phần.
+          available:
+            pt.topping.isActive && maxServings(pt.topping.recipeItems) > 0,
         })),
       };
     });
@@ -84,14 +86,15 @@ export class CatalogService {
         id: v.id,
         size: v.size as any,
         price: Number(v.price),
-        stock: v.stock,
+        availableServings: maxServings(v.recipeItems),
       })),
       toppings: p.productToppings.map((pt) => ({
         id: pt.topping.id,
         code: pt.topping.code,
         name: pt.topping.name,
         price: Number(pt.topping.price),
-        available: pt.topping.isActive,
+        available:
+          pt.topping.isActive && maxServings(pt.topping.recipeItems) > 0,
       })),
     };
   }

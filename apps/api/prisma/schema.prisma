@@ -39,6 +39,17 @@ enum PaymentStatus {
   FAILED
 }
 
+enum IngredientUnit {
+  G
+  ML
+  PCS
+}
+
+enum ToppingType {
+  PREPACKAGED
+  PREPARED
+}
+
 enum ReservationStatus {
   ACTIVE
   CONSUMED
@@ -100,13 +111,13 @@ model Product {
   @@map("products")
 }
 
+// Một size của món pha chế. Không lưu số lượng thành phẩm: số ly có thể làm
+// được luôn được tính từ công thức (RecipeItem) và tồn kho nguyên liệu.
 model ProductVariant {
   id        String      @id @default(uuid()) @db.Uuid
   productId String      @map("product_id") @db.Uuid
   size      ProductSize
   price     BigInt
-  stock     Int
-  version   Int         @default(0)
   isActive  Boolean     @default(true) @map("is_active")
   createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -114,25 +125,81 @@ model ProductVariant {
   product               Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
   orderItems            OrderItem[]
   inventoryReservations InventoryReservation[]
+  recipeItems           RecipeItem[]
 
   @@unique([productId, size])
   @@index([productId, isActive])
   @@map("product_variants")
 }
 
+// Nguyên liệu thô. stockQuantity tính theo đơn vị cơ sở của `unit`
+// (G = gram, ML = mililit, PCS = cái), ví dụ 1 gói cà phê 100g = 100.
+model Ingredient {
+  id            String         @id @default(uuid()) @db.Uuid
+  code          String         @unique @db.VarChar(50)
+  name          String         @db.VarChar(100)
+  unit          IngredientUnit
+  stockQuantity Int            @map("stock_quantity")
+  version       Int            @default(0)
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  recipeItems        RecipeItem[]
+  toppingRecipeItems ToppingRecipeItem[]
+  reservationItems   InventoryReservationItem[]
+
+  @@map("ingredients")
+}
+
+// Công thức (BOM): một ly của variant này cần `quantity` đơn vị cơ sở nguyên liệu.
+model RecipeItem {
+  productVariantId String @map("product_variant_id") @db.Uuid
+  ingredientId     String @map("ingredient_id") @db.Uuid
+  quantity         Int
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+  ingredient     Ingredient     @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@id([productVariantId, ingredientId])
+  @@index([ingredientId])
+  @@map("recipe_items")
+}
+
+// Topping cũng không có số lượng tĩnh. Mỗi phần topping tiêu hao nguyên liệu theo
+// công thức (ToppingRecipeItem):
+//  - PREPACKAGED (nhập sẵn): 1 phần = đúng 1 dòng công thức, ví dụ 30g trân châu 3Q.
+//  - PREPARED (chế biến): bán thành phẩm, 1 phần = nhiều nguyên liệu thô
+//    (bột năng, đường đen, sữa tươi...).
 model Topping {
-  id        String   @id @default(uuid()) @db.Uuid
-  code      String   @unique @db.VarChar(50)
-  name      String   @db.VarChar(100)
+  id        String      @id @default(uuid()) @db.Uuid
+  code      String      @unique @db.VarChar(50)
+  name      String      @db.VarChar(100)
+  type      ToppingType @default(PREPACKAGED)
   price     BigInt
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  isActive  Boolean     @default(true) @map("is_active")
+  createdAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   productToppings   ProductTopping[]
   orderItemToppings OrderItemTopping[]
+  recipeItems       ToppingRecipeItem[]
 
   @@map("toppings")
+}
+
+// Công thức của 1 phần topping: tiêu hao `quantity` đơn vị cơ sở của nguyên liệu.
+model ToppingRecipeItem {
+  toppingId    String @map("topping_id") @db.Uuid
+  ingredientId String @map("ingredient_id") @db.Uuid
+  quantity     Int
+
+  topping    Topping    @relation(fields: [toppingId], references: [id], onDelete: Restrict)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@id([toppingId, ingredientId])
+  @@index([ingredientId])
+  @@map("topping_recipe_items")
 }
 
 model ProductTopping {
@@ -251,12 +318,29 @@ model InventoryReservation {
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  order          Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+  order          Order                      @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  productVariant ProductVariant             @relation(fields: [productVariantId], references: [id], onDelete: Restrict)
+  items          InventoryReservationItem[]
 
   @@unique([orderId, productVariantId])
   @@index([status, expiresAt])
   @@map("inventory_reservations")
+}
+
+// Lượng nguyên liệu thực tế đã giữ cho một reservation (snapshot theo công thức
+// lúc đặt) để hoàn đúng số lượng khi hủy/hết hạn, kể cả khi công thức đổi sau đó.
+model InventoryReservationItem {
+  id            String @id @default(uuid()) @db.Uuid
+  reservationId String @map("reservation_id") @db.Uuid
+  ingredientId  String @map("ingredient_id") @db.Uuid
+  quantity      Int
+
+  reservation InventoryReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  ingredient  Ingredient           @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@unique([reservationId, ingredientId])
+  @@index([ingredientId])
+  @@map("inventory_reservation_items")
 }
 
 model Coupon {

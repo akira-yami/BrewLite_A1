@@ -8,9 +8,9 @@ Ngày kiểm chứng: 17/10/2026. Nhánh local: `codex/khang-week-2-orders-contr
 
 | Đầu ra | Vị trí | Kết quả |
 |---|---|---|
-| SD-10 Sequence tạo đơn & giữ tồn | [PlantUML riêng](../architecture/diagrams/SD-10-create-order.puml) | Có nhánh validation, coupon, version/retry, commit/rollback; compile và render thành công |
-| Contract request/response/lỗi | [Orders contract](../architecture/orders-contract.md), [OpenAPI](../api/orders.openapi.yaml) | Server total, snapshot, PENDING, TTL 15 phút, transaction chung, Inventory/Coupon boundary rõ |
-| UC-06 | [Đặc tả tạo đơn](../use-cases/UC-06-tao-don-hang.md) | Tiền/hậu điều kiện, luồng chính, ngoại lệ và AC cho S2 |
+| SD-10 Sequence tạo đơn & giữ tồn | [PlantUML riêng](../../Khang-A2/docs/architecture/diagrams/SD-10-create-order.puml) | Có nhánh validation, coupon, version/retry, commit/rollback; compile và render thành công |
+| Contract request/response/lỗi | [Orders contract](../../Khang-A2/docs/architecture/orders-contract.md), [OpenAPI](../api/orders.openapi.yaml) | Server total, snapshot, PENDING, TTL 15 phút, transaction chung, Inventory/Coupon boundary rõ |
+| UC-06 | [Đặc tả tạo đơn](../../Khang-A2/docs/use-cases/UC-06-tao-don-hang.md) | Tiền/hậu điều kiện, luồng chính, ngoại lệ và AC cho S2 |
 | DTO draft | [Request](../../apps/api/src/modules/orders/dto/create-order.dto.ts), [response](../../apps/api/src/modules/orders/dto/create-order-response.dto.ts) | Request whitelist, trường server sở hữu bị từ chối; response snapshot có kiểu |
 | S1 integration | [HTTP + PostgreSQL test](../../apps/api/test/s1.integration-spec.ts) | Register/Login/JWT/profile/Menu qua AppModule với Prisma thật |
 | Rà Product Detail | Phần bên dưới | Có phát hiện cần Hoàng xử lý; chưa tự ghi nhận task của Hoàng Done |
@@ -89,7 +89,7 @@ Thông tin ghi khi họp thực sự diễn ra:
 - PBI Accepted/Not Accepted và phản hồi PO: chưa ghi nhận.
 - Carry-over đề xuất: Product Detail API và thống nhất option/response; chốt tại Review.
 - Action cải tiến đề xuất: Hoàng xử lý phát hiện Catalog; Khang/Hoàng chốt SD-10 trước S2; Khải kiểm tra bằng chứng demo và biên bản. Chưa gán trạng thái đã đồng thuận hoặc đã hoàn thành.
-- Cập nhật [burndown](./burndown.md) và [retrospective](./retrospectives/sprint-01-retro.md) từ kết quả họp thực tế; không tự điền số điểm hay lời nhận xét của thành viên.
+- Cập nhật [burndown](burndown.md) và [retrospective](retrospectives/sprint-01-retro.md) từ kết quả họp thực tế; không tự điền số điểm hay lời nhận xét của thành viên.
 
 ## Điều kiện còn lại để Done
 

@@ -4,12 +4,12 @@ Trạng thái tại 22/10/2026: **chưa ghi nhận biên bản Retrospective** t
 
 ## Đầu vào kiểm chứng được
 
-Xem [Sprint 3](../sprint-03.md), [tiến độ](../progress-report.md) và [truy vết](../../traceability-matrix.md). Dùng kết quả test có ngày/SHA và phản hồi review thật; không quy phát hiện kỹ thuật thành lời nhận xét của thành viên.
+Xem [Sprint 3](../sprint-03.md), [tiến độ](../progress-report.md) và [truy vết](../../../Khang-A2/docs/traceability-matrix.md). Dùng kết quả test có ngày/SHA và phản hồi review thật; không quy phát hiện kỹ thuật thành lời nhận xét của thành viên.
 
 ## Nội dung cần thảo luận
 
 - Điều làm tốt: chưa có kết luận của nhóm; đối chiếu Increment và minh chứng trong Sprint.
-- Điều cần cải thiện/blocker: MVP checkout → payment → confirmation/history; TC-04/05/07; coupon/loyalty không lặp; stack sạch và [hồ sơ release/smoke/rollback](../../deployment/release-checklist.md).
+- Điều cần cải thiện/blocker: MVP checkout → payment → confirmation/history; TC-04/05/07; coupon/loyalty không lặp; stack sạch và [hồ sơ release/smoke/rollback](../../../Khang-A2/docs/deployment/release-checklist.md).
 - Chênh lệch kế hoạch/thực tế: chưa có ngày/SP cam kết và burndown đủ để tính; không dùng ngày merge thay ngày Done.
 
 ## Theo dõi action

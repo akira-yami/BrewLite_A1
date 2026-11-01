@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Product } from '@/features/catalog/types';
-import { useMenuProducts } from '@/features/catalog/hooks/useMenuProducts';
-import { useScrollHeader } from '@/features/catalog/hooks/useScrollHeader';
+import { AuthControls } from '@/features/auth/AuthControls';
+import { CartDrawer } from '@/features/cart/components/CartDrawer';
 import { HeroBanner } from '@/features/catalog/components/HeroBanner';
 import { ProductCard } from '@/features/catalog/components/ProductCard';
 import { ProductCardSkeleton } from '@/features/catalog/components/ProductCardSkeleton';
 import { ProductDetailModal } from '@/features/catalog/components/ProductDetailModal';
-import { CartDrawer } from '@/features/cart/components/CartDrawer';
+import { useMenuProducts } from '@/features/catalog/hooks/useMenuProducts';
+import { useScrollHeader } from '@/features/catalog/hooks/useScrollHeader';
+import { Product } from '@/features/catalog/types';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
-import { AuthControls } from '@/features/auth/AuthControls';
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useMemo, useRef, useState } from 'react';
 
 export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -59,8 +59,8 @@ export default function MenuPage() {
   }, [products, selectedCategory, searchQuery]);
 
   const handleQuickAdd = (product: Product) => {
-    const variant = product.variants.find((item) => item.size === 'M' && item.stock > 0)
-      ?? product.variants.find((item) => item.stock > 0);
+    const variant = product.variants.find((item) => item.size === 'M' && item.availableServings > 0)
+      ?? product.variants.find((item) => item.availableServings > 0);
     if (!variant) {
       setEditingCartItem(null);
       setPreviewingProduct(product);

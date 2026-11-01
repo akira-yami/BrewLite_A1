@@ -1,0 +1,411 @@
+{
+  "date": "2026-10-29",
+  "timezone": "Asia/Bangkok",
+  "head": "d59e8db95a3f9ac402aaa10a25eee2a9da35104e",
+  "total": 40,
+  "completedBefore": 30,
+  "completedAfter": 21,
+  "changedCount": 9,
+  "rows": [
+    {
+      "key": "A1-1.1",
+      "name": "[A1-1.1] Khang — Repository và khung API NestJS",
+      "url": "https://trello.com/c/DrrFi5eK",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Có apps/api NestJS, apps/web Next.js, README/Git; backend build và HTTP health test qua."
+    },
+    {
+      "key": "A1-1.2",
+      "name": "[A1-1.2] Khang — Khởi tạo Next.js và kết nối backend",
+      "url": "https://trello.com/c/eZd1XUHH",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Next.js build Webpack qua; useMenuProducts gọi API qua NEXT_PUBLIC_API_URL."
+    },
+    {
+      "key": "A1-1.3",
+      "name": "[A1-1.3] Hoàng — Kết nối PostgreSQL/Prisma và dữ liệu mẫu",
+      "url": "https://trello.com/c/9hSaaYjq",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Prisma/PostgreSQL, 8 migration deploy rồi replay thành công; seed integration qua."
+    },
+    {
+      "key": "A1-1.4",
+      "name": "[A1-1.4] Khang — Env mẫu, lint/build và hướng dẫn môi trường",
+      "url": "https://trello.com/c/es5MlDuG",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Env mẫu, scripts lint/typecheck/build và README có; static checks qua. Giới hạn Turbopack cục bộ ghi riêng."
+    },
+    {
+      "key": "A1-2.1",
+      "name": "[A1-2.1] Khang — Contract Product và GET /products",
+      "url": "https://trello.com/c/CSlHeoFy",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Product DTO và kiểu frontend có id/tên/basePrice/imageUrl, envelope data thống nhất."
+    },
+    {
+      "key": "A1-2.2",
+      "name": "[A1-2.2] Hoàng — Seed menu và API GET /products",
+      "url": "https://trello.com/c/efiH6ZsB",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "GET /products đọc PostgreSQL, JSON-safe prices; seed và integration happy path qua."
+    },
+    {
+      "key": "A1-2.3",
+      "name": "[A1-2.3] Hoàng — Kiểm thử API danh sách sản phẩm",
+      "url": "https://trello.com/c/dVDvr2KJ",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "Thiếu test GET /products cho danh sách rỗng và lỗi truy xuất. CatalogService tests hiện chỉ kiểm tra detail; S1 integration có happy path. Mô tả card cũng ghi còn thiếu."
+    },
+    {
+      "key": "A1-3.1",
+      "name": "[A1-3.1] Hoàng — Lưới menu và thẻ đồ uống mobile-first",
+      "url": "https://trello.com/c/YUoFJNiV",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Có Menu grid responsive, ProductCard ảnh/tên/giá và thao tác mở ProductDetailModal."
+    },
+    {
+      "key": "A1-3.2",
+      "name": "[A1-3.2] Hoàng — Tích hợp API thật vào Menu",
+      "url": "https://trello.com/c/QxkSUp08",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Hook dùng fetch API thật, UI ánh xạ Product; không chỉ dữ liệu tĩnh."
+    },
+    {
+      "key": "A1-3.3",
+      "name": "[A1-3.3] Hoàng — Loading, empty, error và retry của Menu",
+      "url": "https://trello.com/c/2SSr8IHl",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "Đã có code loading/empty/error/refetch nhưng thiếu test hoặc minh chứng thao tác cho đủ các trạng thái. Các test auth-ui chỉ kiểm tra AuthControls, không kiểm tra trạng thái danh sách Menu. Mô tả card ghi còn thiếu."
+    },
+    {
+      "key": "A1-7.1",
+      "name": "[A1-7.1] Huy — Register/Login, bcrypt và JWT",
+      "url": "https://trello.com/c/aq5UIFJP",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Auth register/login, bcrypt/JWT, response an toàn và lỗi thông tin sai/trùng có test."
+    },
+    {
+      "key": "A1-10.1",
+      "name": "[A1-10.1] Khang — Thiết kế Order State Machine",
+      "url": "https://trello.com/c/GvTKLkG9",
+      "list": "S1 — Tuần 1",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Khang-A2/docs/architecture/order-state-machine.md có sơ đồ đủ trạng thái, luật hủy/retry và chặn transition ngoài bảng; đây là card thiết kế."
+    },
+    {
+      "key": "A1-4.1",
+      "name": "[A1-4.1] Hoàng — Product Detail API và tùy chọn hợp lệ",
+      "url": "https://trello.com/c/xkd7E0tJ",
+      "list": "S1 — Tuần 2",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "GET /products/:id, variants/toppings hợp lệ, ParseUUIDPipe và not-found có code/test."
+    },
+    {
+      "key": "A1-4.2",
+      "name": "[A1-4.2] Khải — Detail UI, size/topping và giá tạm tính",
+      "url": "https://trello.com/c/SB0AOTTL",
+      "list": "S1 — Tuần 2",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "ProductDetailModal chọn size/topping, tính giá và gửi cấu hình vào cart; tests qua."
+    },
+    {
+      "key": "A1-4.3",
+      "name": "[A1-4.3] Hoàng — Kiểm thử API tùy chọn và giá sản phẩm",
+      "url": "https://trello.com/c/ZwZt7rKc",
+      "list": "S1 — Tuần 2",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Tests detail price/not-found/stock, lọc topping inactive; order validation tests kiểm tra tùy chọn không hợp lệ."
+    },
+    {
+      "key": "A1-5.1",
+      "name": "[A1-5.1] Khải — Cart store thêm/sửa/xóa và persist",
+      "url": "https://trello.com/c/WupVKBh8",
+      "list": "S1 — Tuần 2",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Cart thêm/sửa/xóa/persist và UI có; tests qua; PR #27 đã merge trong Git hiện tại."
+    },
+    {
+      "key": "A1-5.2",
+      "name": "[A1-5.2] Khải — Định danh dòng giỏ và tính tổng",
+      "url": "https://trello.com/c/9iM6qGgW",
+      "list": "S1 — Tuần 2",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Cart identity phân biệt size/topping/đường/đá/note, tổng tiền và số lượng có tests."
+    },
+    {
+      "key": "A1-5.3",
+      "name": "[A1-5.3] Khải — Kiểm thử phép tính và khôi phục giỏ",
+      "url": "https://trello.com/c/1S6eKGuu",
+      "list": "S1 — Tuần 2",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Tests subtotal/totalQuantity, số lượng sai, thay đổi/xóa/reload có và qua; không dùng ghi chú PR chưa merge đã cũ."
+    },
+    {
+      "key": "A1-7.2",
+      "name": "[A1-7.2] Huy — Auth UI, phiên, logout và 401",
+      "url": "https://trello.com/c/7AOw8fhr",
+      "list": "S1 — Tuần 2",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Auth UI/session/logout/expiry/401 có bộ test frontend; giữ giỏ khi logout."
+    },
+    {
+      "key": "SCRUM-S1",
+      "name": "[SCRUM-S1] Khang — Review/Retro và hồ sơ Sprint",
+      "url": "https://trello.com/c/0giU3eGX",
+      "list": "S1 — Tuần 2",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "docs/scrum/sprint-01.md:31, retrospectives/sprint-01-retro.md:3 và burndown.md:7 ghi chưa có biên bản Review/Retro, action được thống nhất và dữ liệu Actual. Chưa đủ hồ sơ để Done."
+    },
+    {
+      "key": "A1-6.1",
+      "name": "[A1-6.1] Khang — POST /orders, giá server và PENDING",
+      "url": "https://trello.com/c/HrLMG1mj",
+      "list": "S2 — Tuần 3",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "POST /orders tính giá server, validate và tạo PENDING; HTTP/PostgreSQL integration qua."
+    },
+    {
+      "key": "A1-6.2",
+      "name": "[A1-6.2] Khang — Order snapshot, transaction và rollback",
+      "url": "https://trello.com/c/aMZs6kjK",
+      "list": "S2 — Tuần 3",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Snapshot/order-items/reservation trong Serializable transaction; rollback/race integration qua."
+    },
+    {
+      "key": "A1-6.3",
+      "name": "[A1-6.3] Huy — JWT, validation và chủ sở hữu đơn",
+      "url": "https://trello.com/c/Qkv7yk5f",
+      "list": "S2 — Tuần 3",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "Orders controller lấy principal từ JWT; validation/ownership có test."
+    },
+    {
+      "key": "A1-7.3",
+      "name": "[A1-7.3] Huy — Bảo vệ API đặt đơn và token an toàn",
+      "url": "https://trello.com/c/bsH9dcpQ",
+      "list": "S2 — Tuần 3",
+      "before": true,
+      "after": true,
+      "decision": "Giữ tick",
+      "reason": "JWT/roles bảo vệ orders; token sai/hết hạn và userId giả bị từ chối theo tests."
+    },
+    {
+      "key": "A1-8.2",
+      "name": "[A1-8.2] Khải — Checkout UI và xử lý payment outcome",
+      "url": "https://trello.com/c/Kgh0oBeh",
+      "list": "S2 — Tuần 3",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "API thật trả data.status=SUCCEEDED, không có paymentStatus/orderId/failureCode như frontend mong đợi. Checkout tại apps/web/src/app/checkout/page.tsx:68 coi giao dịch đã PAID là lỗi nên không mở xác nhận. Đầu ra trong checklist cũng chưa hoàn tất."
+    },
+    {
+      "key": "A1-10.5",
+      "name": "[A1-10.5] Kiệt — Coupon validation và retry an toàn",
+      "url": "https://trello.com/c/PhR3V7EO",
+      "list": "S2 — Tuần 3",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "Validation/quote/reserve/consume đã có một phần. Tái hiện cho thấy đơn PAYMENT_FAILED không retry được; payment vẫn tiêu thụ coupon sau khi reservation đã hết hạn. Thiếu regression fail/retry/expiry và phối hợp vòng đời an toàn."
+    },
+    {
+      "key": "A1-8.1",
+      "name": "[A1-8.1] Kiệt — Mock gateway và POST /payments",
+      "url": "https://trello.com/c/bHBZtpqi",
+      "list": "S2 — Tuần 4",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "Có endpoint, gateway Ví/Thẻ, số tiền lấy từ order phía server; nhưng mục Review của Khang trong checklist đang INCOMPLETE. Có triển khai không đồng nghĩa card đã hoàn thành quy trình."
+    },
+    {
+      "key": "A1-8.3",
+      "name": "[A1-8.3] Kiệt — PAID/PAYMENT_FAILED qua OrdersService",
+      "url": "https://trello.com/c/1bSGmT0h",
+      "list": "S2 — Tuần 4",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "Payment chuyển được PAID/PAYMENT_FAILED, nhưng thử lại bằng key mới trả 409 ORDER_INVALID_TRANSITION vì chỉ chấp nhận PENDING và không gọi transitionForPaymentRetry. Review của Khang còn INCOMPLETE; UI cũng đọc sai response."
+    },
+    {
+      "key": "A1-9.1",
+      "name": "[A1-9.1] Khang — API lịch sử và chi tiết đơn của tôi",
+      "url": "https://trello.com/c/O7RIPi3z",
+      "list": "S2 — Tuần 4",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "Các API lịch sử/chi tiết và ownership có triển khai và test. Mục Review của Huy trong checklist còn INCOMPLETE nên bỏ trạng thái hoàn thành toàn card; không kết luận API chưa được viết."
+    },
+    {
+      "key": "A1-9.2",
+      "name": "[A1-9.2] Khải — Confirmation và History/Detail UI",
+      "url": "https://trello.com/c/Rs1BPgRm",
+      "list": "S2 — Tuần 4",
+      "before": true,
+      "after": false,
+      "decision": "Bỏ tick",
+      "reason": "Có source Confirmation/History/Detail và loading/error; luồng thành công từ Checkout chưa tới được Confirmation do lệch contract payment. Mô tả card còn chờ demo API/DB và nghiệm thu; chưa đạt luồng tích hợp để Done."
+    },
+    {
+      "key": "A1-10.3",
+      "name": "[A1-10.3] Kiệt — Payment idempotency và chống double-charge",
+      "url": "https://trello.com/c/xhAGHMxg",
+      "list": "S2 — Tuần 4",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: chưa có kiểm chứng concurrent payment thực sự; file tên integration trong payments mock chính processPayment."
+    },
+    {
+      "key": "A1-10.4",
+      "name": "[A1-10.4] Hoàng — Inventory reserve/consume/release và concurrency",
+      "url": "https://trello.com/c/Pu0J19wK",
+      "list": "S2 — Tuần 4",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: đã có inventory/concurrency tests nhưng cần hoàn thiện tích hợp reserve/consume/release/expiry với vòng đời Order/Payment."
+    },
+    {
+      "key": "A1-10.6",
+      "name": "[A1-10.6] Huy — Loyalty ledger/balance sau PAID",
+      "url": "https://trello.com/c/6fYjlq7H",
+      "list": "S2 — Tuần 4",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: có ghi ledger/balance trong markAsPaid, cần kiểm chứng nghiệp vụ Loyalty sau PAID, retry và concurrency đầy đủ."
+    },
+    {
+      "key": "SCRUM-S2",
+      "name": "[SCRUM-S2] Khang — Review/Retro và hồ sơ Sprint",
+      "url": "https://trello.com/c/jWKu9kLZ",
+      "list": "S2 — Tuần 4",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: chưa có hồ sơ Review/Retro được nghiệm thu."
+    },
+    {
+      "key": "A1-9.3",
+      "name": "[A1-9.3] Hoàng — Migration/seed và dữ liệu demo sạch",
+      "url": "https://trello.com/c/ME9yf6tm",
+      "list": "S3 — Tuần 5",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: migration/seed đã kiểm thử, còn demo dữ liệu và toàn luồng."
+    },
+    {
+      "key": "A1-9.4",
+      "name": "[A1-9.4] Huy — Tài khoản demo, bảo mật và hướng dẫn test",
+      "url": "https://trello.com/c/5rFozCM5",
+      "list": "S3 — Tuần 5",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: demo Customer/Barista và hướng dẫn/kiểm chứng quyền nhân viên chưa đủ."
+    },
+    {
+      "key": "A1-9.5",
+      "name": "[A1-9.5] Khang — Docker Compose và README bàn giao",
+      "url": "https://trello.com/c/hvWxq8rG",
+      "list": "S3 — Tuần 5",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: Compose/README có; Docker daemon không chạy nên chưa chứng minh full stack sạch và demo thanh toán."
+    },
+    {
+      "key": "A1-10.2",
+      "name": "[A1-10.2] Kiệt — Hiện thực full Order State Machine",
+      "url": "https://trello.com/c/m2aZIei1",
+      "list": "S3 — Tuần 5",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: chưa có full runtime/API cho PAID → PREPARING → READY → COMPLETED và toàn bộ transition/cancel."
+    },
+    {
+      "key": "EXT-UC10",
+      "name": "[EXT-UC10] Kiệt — Staff UI queue và cập nhật trạng thái đơn",
+      "url": "https://trello.com/c/e2h3cxQ7",
+      "list": "S3 — Tuần 5",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: chưa có staff queue/UI và API cập nhật tiến độ pha chế."
+    },
+    {
+      "key": "SCRUM-S3",
+      "name": "[SCRUM-S3] Khang — Review/Retro và hồ sơ Sprint",
+      "url": "https://trello.com/c/HZwkHk4o",
+      "list": "S3 — Tuần 5",
+      "before": false,
+      "after": false,
+      "decision": "Giữ chưa hoàn thành",
+      "reason": "Giữ chưa hoàn thành: hồ sơ Review/Retro cuối và nghiệm thu còn thiếu."
+    }
+  ]
+}

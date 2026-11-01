@@ -1,50 +1,62 @@
-
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../../generated/prisma/client.js';
 
 @Injectable()
 export class InventoryRepository {
-  // Đọc tồn kho và version hiện tại của một biến thể sản phẩm.
-  async findVariant(tx: Prisma.TransactionClient, variantId: string) {
+  // Đọc variant cùng công thức (BOM) và tồn kho/version hiện tại của từng nguyên liệu.
+  async findVariantWithRecipe(tx: Prisma.TransactionClient, variantId: string) {
     return tx.productVariant.findUnique({
       where: { id: variantId },
       select: {
         id: true,
-        stock: true,
-        version: true,
         isActive: true,
+        recipeItems: {
+          select: {
+            ingredientId: true,
+            quantity: true,
+            ingredient: {
+              select: {
+                id: true,
+                stockQuantity: true,
+                version: true,
+                isActive: true,
+              },
+            },
+          },
+        },
       },
     });
   }
 
-  // Trừ kho có điều kiện: version phải khớp và tồn kho phải đủ.
-  async reserveStock(
+  // Trừ nguyên liệu có điều kiện: version phải khớp và tồn kho phải đủ.
+  async reserveIngredient(
     tx: Prisma.TransactionClient,
-    variantId: string,
+    ingredientId: string,
     expectedVersion: number,
     quantity: number,
   ) {
-    return tx.productVariant.updateMany({
+    return tx.ingredient.updateMany({
       where: {
-        id: variantId,
+        id: ingredientId,
         version: expectedVersion,
-        stock: { gte: quantity },
+        stockQuantity: { gte: quantity },
         isActive: true,
       },
       data: {
-        stock: { decrement: quantity },
+        stockQuantity: { decrement: quantity },
         version: { increment: 1 },
       },
     });
   }
 
-  // Ghi nhận số lượng hàng đã giữ cho một đơn hàng.
+  // Ghi nhận số ly và lượng nguyên liệu đã giữ cho một đơn hàng.
   async createReservation(
     tx: Prisma.TransactionClient,
     orderId: string,
     variantId: string,
     quantity: number,
     expiresAt: Date,
+    items: Array<{ ingredientId: string; quantity: number }>,
   ) {
     return tx.inventoryReservation.create({
       data: {
@@ -53,21 +65,19 @@ export class InventoryRepository {
         quantity,
          status: 'ACTIVE',
         expiresAt,
+        items: { create: items },
       },
     });
   }
 
-  // Đọc bản ghi giữ hàng.
-  async findReservation(
-    tx: Prisma.TransactionClient,
-    reservationId: string,
-  ) {
+  // Đọc bản ghi giữ hàng kèm lượng nguyên liệu đã giữ.
+  async findReservation(tx: Prisma.TransactionClient, reservationId: string) {
     return tx.inventoryReservation.findUnique({
       where: { id: reservationId },
+      include: { items: true },
     });
   }
 
- 
   // Chỉ chuyển trạng thái nếu reservation vẫn ACTIVE
   // và điều kiện hết hạn phù hợp với thao tác.
   async transitionActiveReservation(
@@ -93,16 +103,16 @@ export class InventoryRepository {
     });
   }
 
-  // Hoàn trả hàng vào kho và tăng version.
-  async restoreStock(
+  // Hoàn nguyên liệu đã giữ vào kho và tăng version.
+  async restoreIngredient(
     tx: Prisma.TransactionClient,
-    variantId: string,
+    ingredientId: string,
     quantity: number,
   ) {
-    return tx.productVariant.update({
-      where: { id: variantId },
+    return tx.ingredient.update({
+      where: { id: ingredientId },
       data: {
-        stock: { increment: quantity },
+        stockQuantity: { increment: quantity },
         version: { increment: 1 },
       },
     });

@@ -21,7 +21,7 @@ const load = (name) => {
 
 const product = {
   id: 'coffee', sku: 'COFFEE', name: 'Coffee', description: 'Fresh coffee', imageUrl: '/coffee.png', basePrice: 30000,
-  variants: [{ id: 'small', size: 'S', price: 30000, stock: 10 }, { id: 'medium', size: 'M', price: 40000, stock: 10 }],
+  variants: [{ id: 'small', size: 'S', price: 30000, availableServings: 10 }, { id: 'medium', size: 'M', price: 40000, availableServings: 10 }],
   toppings: [{ id: 'api-pearl-id', code: 'PEARL', name: 'Pearl from API', price: 5000, available: true }],
 };
 

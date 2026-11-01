@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import Image from 'next/image';
 import { CartItem, cartStore, formatVnd } from '@/stores/cart-store';
+import Image from 'next/image';
+import { useMemo, useState } from 'react';
 import { Product } from '../types';
 
 interface ProductDetailModalProps {
@@ -42,8 +42,8 @@ const ProductDetailModalContent = ({
   onAddedToCart?: () => void;
   editingItem?: CartItem | null;
 }) => {
-  const defaultVariant = product.variants.find((variant) => variant.size === 'M' && variant.stock > 0)
-    ?? product.variants.find((variant) => variant.stock > 0)
+  const defaultVariant = product.variants.find((variant) => variant.size === 'M' && variant.availableServings > 0)
+    ?? product.variants.find((variant) => variant.availableServings > 0)
     ?? product.variants[0];
 
   const [selectedVariantId, setSelectedVariantId] = useState<string>(
@@ -185,7 +185,7 @@ const ProductDetailModalContent = ({
                       <button
                         key={variant.id}
                         type="button"
-                        disabled={variant.stock <= 0}
+                        disabled={variant.availableServings <= 0}
                         onClick={() => setSelectedVariantId(variant.id)}
                         className={`rounded-2xl border px-3 py-3 text-center transition ${
                           selected
@@ -195,7 +195,7 @@ const ProductDetailModalContent = ({
                       >
                         <span className="block text-lg font-black">{variant.size}</span>
                         <span className="mt-0.5 block text-sm font-semibold opacity-85">
-                          {variant.stock > 0 ? formatVnd(variant.price) : 'Hết hàng'}
+                          {variant.availableServings > 0 ? formatVnd(variant.price) : 'Hết hàng'}
                         </span>
                       </button>
                     );
@@ -285,7 +285,7 @@ const ProductDetailModalContent = ({
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  disabled={!selectedVariant || selectedVariant.stock <= 0}
+                  disabled={!selectedVariant || selectedVariant.availableServings <= 0}
                   className="rounded-full bg-[#073F2B] py-3 text-sm font-black text-white shadow-lg shadow-[#073F2B]/20 transition hover:bg-[#0d4c36] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Lưu thay đổi
@@ -385,7 +385,7 @@ const ProductDetailModalContent = ({
                   <button
                     key={v.id}
                     type="button"
-                    disabled={v.stock <= 0}
+                    disabled={v.availableServings <= 0}
                     onClick={() => setSelectedVariantId(v.id)}
                     className={`rounded-2xl border p-3 text-left transition ${
                       isSelected
@@ -395,7 +395,7 @@ const ProductDetailModalContent = ({
                   >
                     <div className="text-xs font-bold">Size {v.size}</div>
                     <div className="text-[11px] font-medium opacity-80">
-                      {v.stock > 0 ? `${formatVnd(Number(v.price))} • Còn ${v.stock}` : 'Hết hàng'}
+                      {v.availableServings > 0 ? `${formatVnd(Number(v.price))} • Còn ${v.availableServings}` : 'Hết hàng'}
                     </div>
                   </button>
                 );
@@ -479,7 +479,7 @@ const ProductDetailModalContent = ({
           <button
             type="button"
             onClick={handleAddToCart}
-            disabled={!selectedVariant || selectedVariant.stock <= 0}
+            disabled={!selectedVariant || selectedVariant.availableServings <= 0}
             className="flex w-full items-center justify-between rounded-full bg-[#163D2C] px-6 py-3.5 text-white shadow-md transition hover:bg-[#1f503a] active:scale-[0.99]"
           >
             <span className="text-sm font-bold">

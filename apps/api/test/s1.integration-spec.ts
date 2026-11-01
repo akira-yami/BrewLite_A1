@@ -1,6 +1,6 @@
-import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/database/prisma.service.js';
@@ -50,8 +50,25 @@ describe('Sprint 1 module integration on migrated PostgreSQL', () => {
         imageUrl: '/s1-test.png',
         variants: {
           create: [
-            { size: 'M', price: 40000n, stock: 3 },
-            { size: 'L', price: 50000n, stock: 0, isActive: false },
+            {
+              size: 'M',
+              price: 40000n,
+              // 30g cà phê trong kho / 10g mỗi ly = tối đa 3 ly.
+              recipeItems: {
+                create: {
+                  quantity: 10,
+                  ingredient: {
+                    create: {
+                      code: `S1-BEAN-${randomUUID()}`,
+                      name: 'S1 coffee beans',
+                      unit: 'G',
+                      stockQuantity: 30,
+                    },
+                  },
+                },
+              },
+            },
+            { size: 'L', price: 50000n, isActive: false },
           ],
         },
       },
@@ -140,7 +157,8 @@ describe('Sprint 1 module integration on migrated PostgreSQL', () => {
     expect(product.variants[0]).toMatchObject({
       size: 'M',
       price: 40000,
-      stock: 3,
+      availableServings: 3,
     });
+    expect(product.variants[0]).not.toHaveProperty('stock');
   });
 });

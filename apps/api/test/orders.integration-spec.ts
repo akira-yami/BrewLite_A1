@@ -732,6 +732,71 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     })).toBe(0);
   });
 
+  it('customer cancellation atomically releases a RESERVED coupon and ACTIVE inventory', async () => {
+    // Gọi service thật trên PostgreSQL vì hiện tại OrdersController chưa expose endpoint hủy đơn.
+    const { OrdersService } = await import('../src/modules/orders/services/orders.service.js');
+    const ordersService = app.get(OrdersService);
+    const variant = await product();
+    const promotion = await coupon();
+
+    const orderResponse = await post(
+      [{ productVariantId: variant.id, quantity: 1 }],
+      promotion.code,
+    ).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const stockAfterReservation = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
+    const redemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId },
+    });
+    const reservation = await prisma.inventoryReservation.findFirstOrThrow({
+      where: { orderId },
+    });
+    expect(redemption.status).toBe('RESERVED');
+    expect(reservation.status).toBe('ACTIVE');
+
+    await ordersService.cancelOrder(
+      orderId,
+      userId,
+      'Khách hàng chủ động hủy đơn',
+      false,
+    );
+
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
+      .toMatchObject({ status: 'CANCELLED' });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({
+      where: { id: redemption.id },
+    })).toMatchObject({ status: 'RELEASED', releasedAt: expect.any(Date) });
+    expect(await prisma.inventoryReservation.findUniqueOrThrow({
+      where: { id: reservation.id },
+    })).toMatchObject({ status: 'RELEASED' });
+    expect(await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    })).toMatchObject({
+      stock: stockAfterReservation.stock + 1,
+      version: stockAfterReservation.version + 1,
+    });
+
+    // Gọi hủy lặp không được release coupon hoặc hoàn kho lần thứ hai.
+    const repeatError = await ordersService.cancelOrder(
+      orderId,
+      userId,
+      'Hủy lặp',
+      false,
+    ).then(() => null, (error: unknown) => error);
+    expect(repeatError).toBeInstanceOf(ConflictException);
+    expect(await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    })).toMatchObject({
+      stock: stockAfterReservation.stock + 1,
+      version: stockAfterReservation.version + 1,
+    });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({
+      where: { id: redemption.id },
+    })).toMatchObject({ status: 'RELEASED' });
+  });
+
   it('blocks a second PROCESSING payment for the same order even when its idempotency key differs', async () => {
     // Giữ Gateway của request đầu ở trạng thái chờ để request thứ hai va vào ràng buộc DB.
     const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');

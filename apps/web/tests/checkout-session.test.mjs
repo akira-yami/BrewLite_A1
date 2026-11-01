@@ -82,3 +82,45 @@ test('incomplete pending key/method state is discarded', () => {
   assert.equal(session.readPendingCheckout(storage), null);
   assert.equal(storage.getItem('brewlite_pending_checkout'), null);
 });
+
+test('confirmed payment success clears the pending checkout attempt', () => {
+  const { transitionPaymentAttempt } = loadSession();
+  const attempt = {
+    orderId: 'order-success',
+    idempotencyKey: 'key-success',
+    method: 'CARD',
+    cartFingerprint: 'cart-fingerprint',
+  };
+
+  assert.equal(transitionPaymentAttempt(attempt, 'SUCCEEDED'), null);
+});
+
+test('confirmed payment failure rotates only the key and preserves the original order', () => {
+  const { transitionPaymentAttempt } = loadSession();
+  const attempt = {
+    orderId: 'order-failed',
+    idempotencyKey: 'key-failed',
+    method: 'CARD',
+    cartFingerprint: 'cart-fingerprint',
+  };
+
+  assert.deepEqual(transitionPaymentAttempt(attempt, 'FAILED'), {
+    orderId: 'order-failed',
+    idempotencyKey: null,
+    method: null,
+    cartFingerprint: 'cart-fingerprint',
+  });
+});
+
+test('processing and unknown payment outcomes preserve the exact attempt for safe replay', () => {
+  const { transitionPaymentAttempt } = loadSession();
+  const attempt = {
+    orderId: 'order-uncertain',
+    idempotencyKey: 'key-must-not-rotate',
+    method: 'E_WALLET',
+    cartFingerprint: 'cart-fingerprint',
+  };
+
+  assert.deepEqual(transitionPaymentAttempt(attempt, 'PROCESSING'), attempt);
+  assert.deepEqual(transitionPaymentAttempt(attempt, 'UNKNOWN'), attempt);
+});

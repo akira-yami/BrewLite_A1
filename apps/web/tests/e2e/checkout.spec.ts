@@ -26,7 +26,7 @@ for (const retry of [false, true]) {
       // Vẫn đi qua service/DB thật nên test bắt được lỗi thiếu transition retry.
       await page.getByRole('button', { name: /Thẻ ngân hàng/ }).click();
       const failure = page.waitForResponse(r => r.url() === `${api}/payments` && r.request().method() === 'POST');
-      await page.getByRole('button', { name: /^Thanh toán / }).click();
+      await page.getByRole('button', { name: /^Thử thanh toán lại / }).click();
       const response = await failure;
       expect((await response.json()).data.status).toBe('FAILED');
       failedOrderId = response.request().postDataJSON().orderId;

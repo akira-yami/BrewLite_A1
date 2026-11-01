@@ -12,8 +12,8 @@ BEGIN
         RAISE EXCEPTION
             'Cannot enforce one PROCESSING payment per order: duplicate PROCESSING payments already exist';
     END IF;
-END
-$$;
+END;
+$;
 
 -- Partial unique index cho phép lưu nhiều payment FAILED/SUCCEEDED nhưng chỉ một payment PROCESSING.
 CREATE UNIQUE INDEX "uq_one_processing_payment_per_order"

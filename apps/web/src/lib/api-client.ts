@@ -3,7 +3,7 @@ export async function authenticatedRequest<T>(
     options: RequestInit = {}
 ): Promise<T> {
     // Lấy token từ cơ sở hạ tầng của frontend (ví dụ: localStorage cho Client-side component)
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('brewlite_token') : null;
 
     const headers = new Headers(options.headers);
 
@@ -16,9 +16,10 @@ export async function authenticatedRequest<T>(
         headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+    const path = endpoint.replace(/^\/api\/v1/, '');
 
-    const response = await fetch(`${baseUrl}${endpoint}`, {
+    const response = await fetch(`${baseUrl}${path}`, {
         ...options,
         headers,
     });

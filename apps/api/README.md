@@ -68,6 +68,8 @@ npm run test:e2e
 npm run build
 ```
 
+`test/checkout.e2e-spec.ts` kiểm tra HTTP/DB thật cho checkout: preview coupon, tạo đơn có giảm giá, thanh toán Wallet thành công, Card thất bại, replay idempotency key và retry bằng key mới. Test yêu cầu `SMOKE_DATABASE_URL` trỏ đến database disposable có tên bắt đầu bằng `brewlite_foundation_smoke`.
+
 Build/typecheck tự generate client; `src/generated/prisma` được bỏ qua trong Git. Docker dùng migration one-shot trước backend. Không sửa migration đã chạy trên database chia sẻ.
 
 ## Mức đường/đá của OrderItem

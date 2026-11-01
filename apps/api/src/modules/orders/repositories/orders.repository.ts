@@ -155,6 +155,18 @@ async markAsPaid(
     );
   }
 
+  // Timeline là nguồn hiển thị cho customer history/detail, nên phải được
+  // ghi trong cùng transaction với payment và state transition.
+  await tx.orderStatusHistory.create({
+    data: {
+      orderId,
+      fromStatus: currentStatus,
+      toStatus: OrderStatus.PAID,
+      changedByUserId: userId,
+      reason: 'Thanh toán thành công',
+    },
+  });
+
   // Chỉ chuyển reservation còn ACTIVE thành CONSUMED.
   await tx.inventoryReservation.updateMany({
     where: {

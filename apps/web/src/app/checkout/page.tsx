@@ -4,11 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { createOrderApi, OrdersApiError } from '@/features/orders/api';
-import {
-  createPaymentApi,
-  PaymentApiError,
-  type PaymentMethod,
-} from '@/features/payments/api';
+import { CheckoutAPI, CheckoutApiError } from '@/services/checkout.api';
+import type { PaymentMethod, ValidateCouponResponse } from '@/types/checkout.contract';
 import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 
 const paymentOptions: Array<{ method: PaymentMethod; title: string; description: string; icon: string }> = [
@@ -37,9 +34,49 @@ export default function CheckoutPage() {
   const cart = useCartStore();
   const [method, setMethod] = useState<PaymentMethod>('E_WALLET');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [coupon, setCoupon] = useState<ValidateCouponResponse | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const createdOrderId = useRef<string | null>(null);
   const paymentAttemptKey = useRef<string | null>(null);
+  const [hasCreatedOrder, setHasCreatedOrder] = useState(false);
+  const payableTotal = Math.max(0, cart.subtotal - (coupon?.discountAmount ?? 0));
+
+  const handleCoupon = async () => {
+    const code = couponCode.trim();
+    const token = localStorage.getItem('brewlite_token');
+    if (!code) {
+      setCouponError('Nhập mã giảm giá trước khi áp dụng.');
+      return;
+    }
+    if (!token) {
+      setCouponError('Vui lòng đăng nhập để sử dụng mã giảm giá.');
+      return;
+    }
+
+    setCouponLoading(true);
+    setCouponError(null);
+    try {
+      setCoupon(await CheckoutAPI.validateCoupon(token, { code, subtotal: cart.subtotal }));
+    } catch (reason) {
+      setCoupon(null);
+      setCouponError(
+        reason instanceof CheckoutApiError
+          ? reason.message
+          : 'Không thể kiểm tra mã giảm giá. Vui lòng thử lại.',
+      );
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const removeCoupon = () => {
+    setCoupon(null);
+    setCouponCode('');
+    setCouponError(null);
+  };
 
   const handlePayment = async () => {
     if (cart.items.length === 0) return;
@@ -56,20 +93,24 @@ export default function CheckoutPage() {
     try {
       let orderId = createdOrderId.current;
       if (!orderId) {
-        const order = await createOrderApi(token, { items: cartStore.getOrderItems() });
+        const order = await createOrderApi(token, {
+          items: cartStore.getOrderItems(),
+          couponCode: coupon?.code,
+        });
         orderId = order.id;
         createdOrderId.current = order.id;
+        setHasCreatedOrder(true);
       }
 
       const idempotencyKey = paymentAttemptKey.current ?? newIdempotencyKey();
       paymentAttemptKey.current = idempotencyKey;
-      const payment = await createPaymentApi(token, { orderId, method }, idempotencyKey);
+      const payment = await CheckoutAPI.processPayment(token, { orderId, method }, idempotencyKey);
 
       // Chỉ failure đã xác nhận mới cấp key mới. Lỗi mạng giữ key để replay,
       // tránh một click thử lại trở thành một giao dịch thanh toán khác.
       if (payment.status !== 'SUCCEEDED' || payment.success === false) {
         paymentAttemptKey.current = null;
-        setError(paymentFailureMessage(payment.errorCode, payment.message));
+        setError(paymentFailureMessage(payment.errorCode));
         return;
       }
 
@@ -85,7 +126,7 @@ export default function CheckoutPage() {
         } else {
           setError(reason.message);
         }
-      } else if (reason instanceof PaymentApiError) {
+      } else if (reason instanceof CheckoutApiError) {
         if (reason.code === 'PAYMENT_IN_PROGRESS') {
           setError('Giao dịch đang được xử lý. Vui lòng chờ rồi thử lại với cùng phương thức.');
         } else if (reason.code === 'ORDER_EXPIRED') {
@@ -95,6 +136,7 @@ export default function CheckoutPage() {
           // QUAN TRỌNG: Reset ID để tạo đơn hàng mới cho lần bấm thanh toán tiếp theo
           createdOrderId.current = null;
           paymentAttemptKey.current = null;
+          setHasCreatedOrder(false);
           
         } else if (reason.status === 401) {
           setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
@@ -140,7 +182,10 @@ export default function CheckoutPage() {
                 <button
                   key={option.method}
                   type="button"
-                  onClick={() => setMethod(option.method)}
+                  onClick={() => {
+                    if (option.method !== method) paymentAttemptKey.current = null;
+                    setMethod(option.method);
+                  }}
                   className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
                     selected ? 'border-[#163E2B] bg-[#E8F1EC]' : 'border-[#E5DCD2] bg-[#FCFAF7] hover:border-[#9fb9ab]'
                   }`}
@@ -157,6 +202,39 @@ export default function CheckoutPage() {
             })}
           </div>
 
+          <section className="mt-8 border-t border-[#EDE6DD] pt-6" aria-labelledby="coupon-title">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 id="coupon-title" className="text-base font-black text-[#163E2B]">Mã giảm giá</h2>
+                <p className="mt-1 text-xs text-[#756A63]">Mã được máy chủ kiểm tra lại khi tạo đơn.</p>
+              </div>
+              {coupon && (
+                <button type="button" onClick={removeCoupon} disabled={hasCreatedOrder} className="text-xs font-bold text-[#9f3f2f] hover:underline disabled:cursor-not-allowed disabled:opacity-50">
+                  Gỡ mã
+                </button>
+              )}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <input
+                value={couponCode}
+                onChange={(event) => {
+                  setCouponCode(event.target.value);
+                  if (coupon && event.target.value.trim() !== coupon.code) setCoupon(null);
+                  setCouponError(null);
+                }}
+                disabled={hasCreatedOrder || couponLoading}
+                placeholder="Nhập mã giảm giá"
+                className="min-w-0 flex-1 rounded-xl border border-[#D8CCBA] bg-white px-3 py-2.5 text-sm uppercase outline-none placeholder:normal-case focus:border-[#163E2B] disabled:bg-[#F5F1EB]"
+                aria-label="Mã giảm giá"
+              />
+              <button type="button" onClick={handleCoupon} disabled={hasCreatedOrder || couponLoading || Boolean(coupon)} className="rounded-xl bg-[#E8F1EC] px-4 py-2 text-sm font-black text-[#163E2B] transition hover:bg-[#dcebe3] disabled:cursor-not-allowed disabled:opacity-50">
+                {couponLoading ? 'Đang kiểm tra...' : 'Áp dụng'}
+              </button>
+            </div>
+            {coupon && <p className="mt-2 text-xs font-semibold text-emerald-700">Đã áp dụng {coupon.code}: giảm {formatVnd(coupon.discountAmount)}.</p>}
+            {couponError && <p role="alert" className="mt-2 text-xs font-semibold text-rose-700">{couponError}</p>}
+          </section>
+
           {error && (
             <div role="alert" className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-800">
               {error}
@@ -169,7 +247,7 @@ export default function CheckoutPage() {
             disabled={isSubmitting}
             className="mt-6 w-full rounded-full bg-[#163E2B] px-5 py-3.5 text-sm font-black text-white shadow-md transition hover:bg-[#1f4f38] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? 'Đang tạo đơn và thanh toán...' : `Thanh toán ${formatVnd(cart.subtotal)}`}
+            {isSubmitting ? 'Đang tạo đơn và thanh toán...' : `Thanh toán ${formatVnd(payableTotal)}`}
           </button>
           <p className="mt-3 text-center text-xs leading-5 text-[#756A63]">Tổng tiền cuối cùng được máy chủ xác nhận theo giá và tồn kho hiện tại.</p>
         </div>
@@ -190,6 +268,14 @@ export default function CheckoutPage() {
           <div className="mt-4 flex items-center justify-between text-sm">
             <span className="text-[#756A63]">Tạm tính ({cart.totalQuantity} món)</span>
             <strong className="font-mono text-lg text-[#163E2B]">{formatVnd(cart.subtotal)}</strong>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-sm">
+            <span className="text-[#756A63]">Giảm giá{coupon ? ` (${coupon.code})` : ''}</span>
+            <strong className="font-mono text-emerald-700">-{formatVnd(coupon?.discountAmount ?? 0)}</strong>
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t border-[#EDE6DD] pt-4 text-base">
+            <span className="font-black text-[#163E2B]">Tổng thanh toán</span>
+            <strong className="font-mono text-xl text-[#163E2B]">{formatVnd(payableTotal)}</strong>
           </div>
         </aside>
       </section>

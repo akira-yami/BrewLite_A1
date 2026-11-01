@@ -5,6 +5,7 @@ import { MockGatewayService } from './mock-gateway.service.js';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
 import { PaymentMethod as DtoPaymentMethod } from '../dto/create-payment.dto.js';
+import { PaymentStatus as PaymentResponseStatus, type PaymentResponseDto } from '../dto/payment-response.dto.js';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -24,7 +25,7 @@ export class PaymentsService {
         userId: string;
         method: PaymentMethod;
         amount: bigint;
-    }) {
+    }): Promise<PaymentResponseDto> {
         const { idempotencyKey, orderId, userId, method, amount } = params;
 
         // 1. Tính toán chuỗi băm Request-Hash (Canonical JSON)
@@ -55,7 +56,7 @@ export class PaymentsService {
             return {
                 success: existingPayment.status === PaymentStatus.SUCCEEDED,
                 isRetried: true,
-                status: existingPayment.status,
+                status: existingPayment.status as unknown as PaymentResponseStatus,
                 gatewayTransactionId: existingPayment.gatewayTransactionId ?? undefined,
                 errorCode: existingPayment.failureCode ?? undefined,
             };
@@ -115,7 +116,7 @@ if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
         return {
             success: gatewayResult.success,
             isRetried: false,
-            status: gatewayResult.success ? PaymentStatus.SUCCEEDED : PaymentStatus.FAILED,
+            status: gatewayResult.success ? PaymentResponseStatus.SUCCEEDED : PaymentResponseStatus.FAILED,
             gatewayTransactionId: gatewayResult.gatewayTransactionId,
             errorCode: gatewayResult.errorCode,
         };

@@ -72,14 +72,18 @@ if (order.status === OrderStatus.PAID) {
     });
 }
 
-if (order.status !== OrderStatus.PENDING) {
+// Chỉ nhận đơn mới hoặc đơn thất bại thanh toán; đơn đã hủy/hết hạn không được mở lại.
+if (
+    order.status !== OrderStatus.PENDING &&
+    order.status !== OrderStatus.PAYMENT_FAILED
+) {
     throw new ConflictException({
         code: 'ORDER_INVALID_TRANSITION',
         message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
     });
 }
 
-// THÊM MỚI: Chặn nếu thời gian hiện tại đã vượt mốc hết hạn giữ chỗ
+// Kiểm tra hạn giữ chỗ cho cả lần thanh toán đầu và mọi lần retry.
 if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
     throw new ConflictException({
         code: 'ORDER_EXPIRED',
@@ -87,8 +91,39 @@ if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
     });
 }
 
-        // 4. Khởi tạo trạng thái PROCESSING trong DB (Thực thi NGÀY LẬP TỨC ngoài transaction chính)
-        const processingPayment = await this.paymentsRepository.createProcessingPayment({orderId, idempotencyKey, requestHash, method, amount,});
+const isPaymentRetry = order.status === OrderStatus.PAYMENT_FAILED;
+const paymentData = { orderId, idempotencyKey, requestHash, method, amount };
+
+// Tạo Payment PROCESSING; retry phải đổi Order và ghi Payment nguyên tử trong cùng transaction.
+const processingPayment = await (async () => {
+    try {
+        if (isPaymentRetry) {
+            return await this.prisma.$transaction(async (tx) => {
+                // Chỉ một request được phép chuyển PAYMENT_FAILED về PENDING.
+                await this.ordersService.transitionForPaymentRetry(
+                    orderId,
+                    userId,
+                    'Khách hàng thực hiện lại thanh toán',
+                    tx,
+                );
+
+                // Nếu tạo Payment thất bại, transaction sẽ rollback cả lần chuyển trạng thái.
+                return this.paymentsRepository.createProcessingPayment(paymentData, tx);
+            });
+        }
+
+        return await this.paymentsRepository.createProcessingPayment(paymentData);
+    } catch (error) {
+        // Partial unique index của PostgreSQL ngăn nhiều Payment PROCESSING trên cùng Order.
+        if ((error as { code?: string })?.code === 'P2002') {
+            throw new ConflictException({
+                code: 'PAYMENT_IN_PROGRESS',
+                message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
+            });
+        }
+        throw error;
+    }
+})();
 
         // 5. Gọi MockGatewayService (Call API I/O tốn thời gian, tuyệt đối KHÔNG đưa vào DB Lock)
         const gatewayResult = await this.mockGateway.charge(Number(amount), method as unknown as DtoPaymentMethod);

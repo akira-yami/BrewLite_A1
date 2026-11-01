@@ -513,4 +513,84 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     const expiredRedemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId: orderId3 } });
     expect(expiredRedemption.status).toBe('EXPIRED');
   });
+
+  it('blocks a second PROCESSING payment for the same order even when its idempotency key differs', async () => {
+    // Giữ Gateway của request đầu ở trạng thái chờ để request thứ hai va vào ràng buộc DB.
+    const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');
+    const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
+    const paymentsService = app.get(PaymentsService);
+    const mockGateway = app.get(MockGatewayService);
+
+    const variant = await product();
+    const orderResponse = await post([
+      { productVariantId: variant.id, quantity: 1 },
+    ]).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const totalAmount = BigInt(orderResponse.body.data.total);
+
+    let releaseGateway!: (result: {
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }) => void;
+    const blockedGatewayResponse = new Promise<{
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }>((resolve) => {
+      releaseGateway = resolve;
+    });
+
+    vi.spyOn(mockGateway, 'charge').mockReturnValueOnce(blockedGatewayResponse);
+
+    const firstPayment = paymentsService.processPayment({
+      idempotencyKey: `first-${randomUUID()}`,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: totalAmount,
+    });
+
+    try {
+      // Chờ đến khi request đầu đã ghi Payment PROCESSING vào PostgreSQL.
+      let processingPaymentExists = false;
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const payment = await prisma.payment.findFirst({
+          where: { orderId, status: 'PROCESSING' },
+        });
+        if (payment) {
+          processingPaymentExists = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(processingPaymentExists).toBe(true);
+
+      // Request thứ hai dùng key khác nhưng phải bị DB bảo vệ trước khi gọi Gateway.
+      await expect(
+        paymentsService.processPayment({
+          idempotencyKey: `second-${randomUUID()}`,
+          orderId,
+          userId,
+          method: 'E_WALLET',
+          amount: totalAmount,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'PAYMENT_IN_PROGRESS',
+        },
+      });
+    } finally {
+      // Luôn giải phóng Gateway giả lập để không để request đầu bị treo khi test fail.
+      releaseGateway({ success: false, errorCode: 'TEST_DECLINED' });
+    }
+
+    await firstPayment;
+    expect(
+      await prisma.payment.count({ where: { orderId } }),
+    ).toBe(1);
+    expect(
+      await prisma.order.findUniqueOrThrow({ where: { id: orderId } }),
+    ).toMatchObject({ status: 'PAYMENT_FAILED' });
+  });
 });

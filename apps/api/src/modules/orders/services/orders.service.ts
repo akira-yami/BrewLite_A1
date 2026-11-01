@@ -507,13 +507,16 @@ export class OrdersService {
     orderId: string,
     userId: string,
     reason: string,
+    tx?: Prisma.TransactionClient,
   ) {
+    // Khi được gọi từ PaymentsService, dùng transaction chung để rollback đồng bộ nếu tạo Payment lỗi.
     await this.repository.updateStatusWithHistory(
       orderId,
       OrderStatus.PAYMENT_FAILED,
       OrderStatus.PENDING,
       userId,
       reason,
+      tx,
     );
   }
 

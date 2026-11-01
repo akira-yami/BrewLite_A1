@@ -147,20 +147,138 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             expect(result.success).toBe(false);
         });
         it('8. Nên ném 409 ORDER_EXPIRED nếu đơn hàng PENDING nhưng đã quá hạn giữ chỗ', async () => {
-    paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
-    
-    // Giả lập đơn hàng PENDING nhưng thời gian hết hạn là 1 giây trong quá khứ
-    ordersServiceMock.getOrderForPayment.mockResolvedValue({
-        status: OrderStatus.PENDING,
-        reservationExpiresAt: new Date(Date.now() - 1000) 
-    });
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
 
-    await expect(service.processPayment({ idempotencyKey, orderId, userId, method, amount }))
-        .rejects.toThrow(new ConflictException({
-            code: 'ORDER_EXPIRED',
-            message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
-        }));
-});
+            // Giả lập đơn hàng PENDING đã quá hạn giữ chỗ.
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                reservationExpiresAt: new Date(Date.now() - 1000),
+            });
+
+            await expect(
+                service.processPayment({ idempotencyKey, orderId, userId, method, amount }),
+            ).rejects.toThrow(new ConflictException({
+                code: 'ORDER_EXPIRED',
+                message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+            }));
+        });
+
+        it('9. Replay cùng idempotency key của Payment FAILED phải trả kết quả cũ, không gọi Gateway', async () => {
+            // Cùng key luôn trả kết quả cũ; retry nghiệp vụ phải dùng một key mới.
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue({
+                idempotencyKey,
+                requestHash: expectedHash,
+                status: PaymentStatus.FAILED,
+                failureCode: 'FUNDS_EMPTY',
+            });
+
+            const result = await service.processPayment({ idempotencyKey, orderId, userId, method, amount });
+
+            expect(result).toEqual({
+                success: false,
+                isRetried: true,
+                status: PaymentStatus.FAILED,
+                errorCode: 'FUNDS_EMPTY',
+            });
+            expect(ordersServiceMock.transitionForPaymentRetry).not.toHaveBeenCalled();
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('10. Retry bằng key mới chuyển PAYMENT_FAILED về PENDING và tạo Payment trong cùng transaction', async () => {
+            const retryKey = 'idemp-retry-456';
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({
+                status: OrderStatus.PAYMENT_FAILED,
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+            paymentsRepoMock.createProcessingPayment.mockResolvedValue({ id: 'p-retry' });
+            gatewayMock.charge.mockResolvedValue({
+                success: true,
+                gatewayTransactionId: 'GW-RETRY',
+            });
+
+            const result = await service.processPayment({
+                idempotencyKey: retryKey,
+                orderId,
+                userId,
+                method,
+                amount,
+            });
+
+            expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+            expect(ordersServiceMock.transitionForPaymentRetry).toHaveBeenCalledWith(
+                orderId,
+                userId,
+                'Khách hàng thực hiện lại thanh toán',
+                prismaMock,
+            );
+            expect(paymentsRepoMock.createProcessingPayment).toHaveBeenCalledWith(
+                {
+                    orderId,
+                    idempotencyKey: retryKey,
+                    requestHash: expectedHash,
+                    method,
+                    amount,
+                },
+                prismaMock,
+            );
+            expect(
+                ordersServiceMock.transitionForPaymentRetry.mock.invocationCallOrder[0],
+            ).toBeLessThan(
+                paymentsRepoMock.createProcessingPayment.mock.invocationCallOrder[0],
+            );
+            expect(gatewayMock.charge).toHaveBeenCalledWith(Number(amount), method);
+            expect(result.success).toBe(true);
+        });
+
+        it('11. Không cho retry nếu Order PAYMENT_FAILED đã hết hạn giữ chỗ', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({
+                status: OrderStatus.PAYMENT_FAILED,
+                reservationExpiresAt: new Date(Date.now() - 1000),
+            });
+
+            await expect(
+                service.processPayment({
+                    idempotencyKey: 'idemp-expired-retry',
+                    orderId,
+                    userId,
+                    method,
+                    amount,
+                }),
+            ).rejects.toThrow(new ConflictException({
+                code: 'ORDER_EXPIRED',
+                message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+            }));
+
+            expect(ordersServiceMock.transitionForPaymentRetry).not.toHaveBeenCalled();
+            expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('12. Chặn Payment PROCESSING thứ hai trên cùng Order bằng idempotency key khác', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+            paymentsRepoMock.createProcessingPayment.mockRejectedValue({ code: 'P2002' });
+
+            await expect(
+                service.processPayment({
+                    idempotencyKey: 'idemp-concurrent-2',
+                    orderId,
+                    userId,
+                    method,
+                    amount,
+                }),
+            ).rejects.toThrow(new ConflictException({
+                code: 'PAYMENT_IN_PROGRESS',
+                message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
+            }));
+
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
     });
     
 });

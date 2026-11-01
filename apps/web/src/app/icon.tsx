@@ -22,7 +22,6 @@ export default async function Icon() {
       }}
     >
       {/* Show the B mark from the original logo, without the wordmark. */}
-      {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse uses native image elements. */}
       <img
         src={`data:image/png;base64,${logo.toString('base64')}`}
         alt=""

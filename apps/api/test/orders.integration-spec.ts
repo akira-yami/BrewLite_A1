@@ -765,8 +765,8 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     // KỊCH BẢN 3: Payment FAILED rồi hết hạn; Cron thật phải hủy Order, release coupon và hoàn kho.
     const promotion2 = await coupon();
     // Lưu tồn kho trước khi tạo đơn để xác nhận Cron hoàn về đúng baseline ban đầu.
-    const stockBeforeExpiryOrder = await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    const stockBeforeExpiryOrder = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
     });
     const orderResponse2 = await post(
       [{ productVariantId: variant.id, quantity: 1 }],
@@ -774,8 +774,8 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     ).expect(201);
     const expiredOrderId = orderResponse2.body.data.id;
     const expiredOrderAmount = BigInt(orderResponse2.body.data.total);
-    const stockAfterReservation = await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    const stockAfterReservation = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
     });
 
     gatewayCharge.mockResolvedValueOnce({
@@ -842,20 +842,20 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect(await prisma.inventoryReservation.findUniqueOrThrow({
       where: { id: expiryReservation.id },
     })).toMatchObject({ status: 'EXPIRED' });
-    const stockAfterExpiry = await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    const stockAfterExpiry = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
     });
     expect(stockAfterExpiry).toMatchObject({
-      stock: stockBeforeExpiryOrder.stock,
+      stockQuantity: stockBeforeExpiryOrder.stockQuantity,
       version: stockAfterReservation.version + 1,
     });
 
     // Chạy Cron lặp và retry sau khi đã CANCELLED đều không được tạo side effect lần hai.
     await expiryJob.handleExpiredOrders();
-    expect(await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    expect(await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
     })).toMatchObject({
-      stock: stockBeforeExpiryOrder.stock,
+      stockQuantity: stockBeforeExpiryOrder.stockQuantity,
       version: stockAfterReservation.version + 1,
     });
     expect(await prisma.couponRedemption.findUniqueOrThrow({
@@ -889,8 +889,8 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       promotion.code,
     ).expect(201);
     const orderId = orderResponse.body.data.id;
-    const stockAfterReservation = await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    const stockAfterReservation = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
     });
     const redemption = await prisma.couponRedemption.findFirstOrThrow({
       where: { orderId },
@@ -927,10 +927,10 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect(await prisma.inventoryReservation.findUniqueOrThrow({
       where: { id: reservation.id },
     })).toMatchObject({ status: 'RELEASED' });
-    expect(await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    expect(await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
     })).toMatchObject({
-      stock: stockAfterReservation.stock + 1,
+      stockQuantity: stockAfterReservation.stockQuantity + 10,
       version: stockAfterReservation.version + 1,
     });
 
@@ -939,10 +939,10 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
     ).expect(409);
     expect(repeatedCancellation.body.error.code).toBe('ORDER_INVALID_TRANSITION');
-    expect(await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    expect(await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
     })).toMatchObject({
-      stock: stockAfterReservation.stock + 1,
+      stockQuantity: stockAfterReservation.stockQuantity + 10,
       version: stockAfterReservation.version + 1,
     });
     expect(await prisma.couponRedemption.findUniqueOrThrow({

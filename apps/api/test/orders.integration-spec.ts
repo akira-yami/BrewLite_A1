@@ -736,10 +736,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     })).toBe(0);
   });
 
-  it('customer cancellation atomically releases a RESERVED coupon and ACTIVE inventory', async () => {
-    // Gọi service thật trên PostgreSQL vì hiện tại OrdersController chưa expose endpoint hủy đơn.
-    const { OrdersService } = await import('../src/modules/orders/services/orders.service.js');
-    const ordersService = app.get(OrdersService);
+  it('customer can cancel an owned order through HTTP and release coupon and inventory exactly once', async () => {
     const variant = await product();
     const promotion = await coupon();
 
@@ -760,12 +757,23 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect(redemption.status).toBe('RESERVED');
     expect(reservation.status).toBe('ACTIVE');
 
-    await ordersService.cancelOrder(
-      orderId,
-      userId,
-      'Khách hàng chủ động hủy đơn',
-      false,
-    );
+    // Đơn không được hủy bởi khách hàng khác hoặc principal không có vai trò CUSTOMER.
+    await auth(
+      request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
+      otherToken,
+    ).expect(404);
+    await auth(
+      request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
+      baristaToken,
+    ).expect(403);
+
+    const cancellation = await auth(
+      request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
+    ).expect(200);
+    expect(cancellation.body.data).toMatchObject({
+      id: orderId,
+      status: 'CANCELLED',
+    });
 
     expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
       .toMatchObject({ status: 'CANCELLED' });
@@ -782,14 +790,11 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       version: stockAfterReservation.version + 1,
     });
 
-    // Gọi hủy lặp không được release coupon hoặc hoàn kho lần thứ hai.
-    const repeatError = await ordersService.cancelOrder(
-      orderId,
-      userId,
-      'Hủy lặp',
-      false,
-    ).then(() => null, (error: unknown) => error);
-    expect(repeatError).toBeInstanceOf(ConflictException);
+    // Hủy lặp qua HTTP phải bị từ chối và tuyệt đối không hoàn kho lần hai.
+    const repeatedCancellation = await auth(
+      request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
+    ).expect(409);
+    expect(repeatedCancellation.body.error.code).toBe('ORDER_INVALID_TRANSITION');
     expect(await prisma.productVariant.findUniqueOrThrow({
       where: { id: variant.id },
     })).toMatchObject({

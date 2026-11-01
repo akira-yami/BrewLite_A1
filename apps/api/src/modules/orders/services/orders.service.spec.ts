@@ -482,8 +482,17 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 /*
 *Thay thế bài test cancelOrder hiện tại bằng 2 bài test kiểm chứng đầy đủ cả 2 trường hợp (hết hạn 15 phút có truyền tx và khách hủy chủ động dùng prismaMock mặc định)
 */
-    it('cancelOrder (Hết hạn 15 phút) - gọi promotionsService.releaseRedemption với isExpired = true trong transaction', async () => {
-      // Kịch bản: Đơn hàng quá hạn thanh toán 15 phút -> nhả mã giảm giá về trạng thái EXPIRED
+    it('cancelOrder (Hết hạn 15 phút) - release coupon EXPIRED trong transaction', async () => {
+      // Chuẩn bị đơn còn ở trạng thái PENDING nhưng đã quá deadline 15 phút.
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue({
+        id: 'o-1',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: new Date(Date.now() - 15 * 60 * 1000),
+      });
+      txMock.payment.findFirst.mockResolvedValue(null);
+      txMock.inventoryReservation.findMany.mockResolvedValue([]);
+
       await service.cancelOrder(
         'o-1',
         'u-1',
@@ -492,6 +501,14 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         txMock,
       );
 
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PENDING,
+        OrderStatus.CANCELLED,
+        'u-1',
+        'Quá hạn thanh toán 15 phút',
+        txMock,
+      );
       expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
         txMock,
         'o-1',
@@ -499,8 +516,17 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       );
     });
 
-    it('cancelOrder (Khách hủy đơn) - fallback về this.prisma khi không truyền tx và gọi releaseRedemption với isExpired = false', async () => {
-      // Kịch bản: Khách hàng chủ động hủy đơn khi chưa truyền tx -> nhả mã giảm giá về trạng thái RELEASED
+    it('cancelOrder (Khách hủy đơn) - tự tạo transaction và release coupon RELEASED', async () => {
+      // Khách chủ động hủy đơn còn hạn; mọi thao tác trong callback dùng txMock.
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue({
+        id: 'o-1',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      });
+      txMock.payment.findFirst.mockResolvedValue(null);
+      txMock.inventoryReservation.findMany.mockResolvedValue([]);
+
       await service.cancelOrder(
         'o-1',
         'u-1',
@@ -508,8 +534,18 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         false,
       );
 
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PENDING,
+        OrderStatus.CANCELLED,
+        'u-1',
+        'Khách hàng đổi ý hủy đơn',
+        txMock,
+      );
+      // PromotionsService phải nhận transaction client, không nhận PrismaService gốc.
       expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
-        prismaMock,
+        txMock,
         'o-1',
         false,
       );

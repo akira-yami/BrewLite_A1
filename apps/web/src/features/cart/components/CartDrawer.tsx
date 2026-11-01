@@ -33,12 +33,21 @@ export function CartDrawer({
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const savedQuote = readCheckoutCoupon(window.sessionStorage);
-    if (savedQuote && savedQuote.subtotal === cartStore.getSnapshot().subtotal) {
-      setAppliedCoupon(savedQuote);
-    } else if (savedQuote) {
-      writeCheckoutCoupon(window.sessionStorage, null);
-    }
+
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const savedQuote = readCheckoutCoupon(window.sessionStorage);
+      if (savedQuote && savedQuote.subtotal === cartStore.getSnapshot().subtotal) {
+        setAppliedCoupon(savedQuote);
+      } else if (savedQuote) {
+        writeCheckoutCoupon(window.sessionStorage, null);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {

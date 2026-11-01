@@ -73,26 +73,36 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const savedCoupon = readCheckoutCoupon(window.sessionStorage);
-    setCouponQuote(savedCoupon);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const savedCoupon = readCheckoutCoupon(window.sessionStorage);
+      setCouponQuote(savedCoupon);
 
-    const savedCheckout = readPendingCheckout(window.sessionStorage);
-    if (savedCheckout) {
-      pendingCheckoutRef.current = savedCheckout;
-      setPendingCheckout(savedCheckout);
-      if (savedCheckout.method) setMethod(savedCheckout.method);
+      const savedCheckout = readPendingCheckout(window.sessionStorage);
+      if (savedCheckout) {
+        pendingCheckoutRef.current = savedCheckout;
+        setPendingCheckout(savedCheckout);
+        if (savedCheckout.method) setMethod(savedCheckout.method);
 
-      const token = window.localStorage.getItem('brewlite_token');
-      if (token) {
-        void getOrderDetailApi(token, savedCheckout.orderId)
-          .then(setOrderSummary)
-          .catch(() => {
-            // The same idempotency key remains available even when this read-only refresh fails.
-          });
+        const token = window.localStorage.getItem('brewlite_token');
+        if (token) {
+          void getOrderDetailApi(token, savedCheckout.orderId)
+            .then((order) => {
+              if (active) setOrderSummary(order);
+            })
+            .catch(() => {
+              // The same idempotency key remains available if this read-only refresh fails.
+            });
+        }
       }
-    }
 
-    setIsRestoring(false);
+      setIsRestoring(false);
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const hasUnresolvedPayment = Boolean(pendingCheckout?.idempotencyKey);

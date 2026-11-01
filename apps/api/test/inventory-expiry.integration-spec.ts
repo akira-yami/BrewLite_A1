@@ -7,6 +7,8 @@ import { InventoryService } from '../src/modules/inventory/services/inventory.se
 
 import { OrdersRepository } from '../src/modules/orders/repositories/orders.repository.js';
 import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
+import { PromotionsRepository } from '../src/modules/promotions/repositories/promotions.repository.js';
+import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
 
@@ -34,10 +36,14 @@ describe('SD-13 inventory expiry job', () => {
     inventoryRepository,
   );
 
+  const promotionsRepository = new PromotionsRepository(prisma as never);
+  const promotionsService = new PromotionsService(promotionsRepository);
+
   const expiryJob = new OrderExpiryJob(
     prisma as never,
     ordersRepository,
     inventoryService,
+    promotionsService,
   );
 
   beforeAll(async () => {
@@ -202,4 +208,171 @@ describe('SD-13 inventory expiry job', () => {
     console.log('Stock after second run:', stockAfterSecondRun.stock);
     console.log('=======================================\n');
   });
+  
+  it('keeps an in-flight payment alive, then expires PAYMENT_FAILED order coupon and inventory together', async () => {
+    // Chuẩn bị user, món và coupon để kiểm tra vòng đời Order/Payment/Promotion/Inventory.
+    const user = await prisma.user.create({
+      data: {
+        username: `expiry-coupon-${randomUUID()}`,
+        passwordHash: 'integration-test-only',
+      },
+    });
+
+    const product = await prisma.product.create({
+      data: {
+        sku: `EXPCOUPON-${randomUUID()}`,
+        name: 'Expiry coupon integration product',
+        imageUrl: '/expiry-coupon-test.png',
+        variants: {
+          create: {
+            size: 'M',
+            price: 40000n,
+            stock: 2,
+          },
+        },
+      },
+      include: { variants: true },
+    });
+
+    const variant = product.variants[0];
+    if (!variant) throw new Error('Product variant was not created');
+
+    const futureExpiry = new Date(Date.now() + 15 * 60 * 1000);
+    const promotion = await prisma.coupon.create({
+      data: {
+        code: `EXPCOUPON-${randomUUID()}`,
+        discountType: 'FIXED_AMOUNT',
+        discountValue: 5000n,
+        startsAt: new Date(Date.now() - 60_000),
+        endsAt: new Date(Date.now() + 60 * 60 * 1000),
+        usageLimit: 1,
+        perUserLimit: 1,
+      },
+    });
+
+    const order = await prisma.order.create({
+      data: {
+        orderNumber: `EXPCOUPON-${randomUUID().slice(0, 8)}`,
+        userId: user.id,
+        subtotal: 40000n,
+        discountAmount: 5000n,
+        total: 35000n,
+        couponCodeSnapshot: promotion.code,
+        reservationExpiresAt: futureExpiry,
+        items: {
+          create: {
+            productVariantId: variant.id,
+            productNameSnapshot: product.name,
+            variantNameSnapshot: 'M',
+            unitPrice: 40000n,
+            quantity: 1,
+          },
+        },
+        statusHistories: { create: { toStatus: 'PENDING' } },
+      },
+    });
+
+    const reservations = await prisma.$transaction((tx) =>
+      inventoryService.reserve(
+        tx,
+        order.id,
+        [{ productVariantId: variant.id, quantity: 1 }],
+        futureExpiry,
+      ),
+    );
+    const reservation = reservations[0];
+    if (!reservation) throw new Error('Inventory reservation was not created');
+
+    const redemption = await prisma.couponRedemption.create({
+      data: {
+        couponId: promotion.id,
+        userId: user.id,
+        orderId: order.id,
+        discountAmount: 5000n,
+        expiresAt: futureExpiry,
+      },
+    });
+
+    // Payment đã PROCESSING nghĩa là khách bắt đầu thanh toán khi reservation còn hạn.
+    const payment = await prisma.payment.create({
+      data: {
+        orderId: order.id,
+        idempotencyKey: `expiry-processing-${randomUUID()}`,
+        requestHash: 'a'.repeat(64),
+        method: 'CARD',
+        status: 'PROCESSING',
+        amount: 35000n,
+      },
+    });
+
+    // Đẩy thời điểm hết hạn về quá khứ để mô phỏng Gateway phản hồi sau mốc giữ chỗ.
+    const expiredAt = new Date(Date.now() - 60_000);
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { reservationExpiresAt: expiredAt },
+    });
+    await prisma.inventoryReservation.update({
+      where: { id: reservation.id },
+      data: { expiresAt: expiredAt },
+    });
+    await prisma.couponRedemption.update({
+      where: { id: redemption.id },
+      data: { expiresAt: expiredAt },
+    });
+
+    // Job không được hủy đơn hay giải phóng Coupon trong khi Payment còn PROCESSING.
+    await expiryJob.handleExpiredOrders();
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: order.id } }))
+      .toMatchObject({ status: 'PENDING' });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({ where: { id: redemption.id } }))
+      .toMatchObject({ status: 'RESERVED' });
+    expect(await prisma.inventoryReservation.findUniqueOrThrow({ where: { id: reservation.id } }))
+      .toMatchObject({ status: 'ACTIVE' });
+    expect(await prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } }))
+      .toMatchObject({ stock: 1, version: 1 });
+
+    // Khi Gateway trả FAILED, Order trở thành PAYMENT_FAILED và có thể hết hạn an toàn.
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: 'FAILED',
+          failureCode: 'INSUFFICIENT_FUNDS',
+          processedAt: new Date(),
+        },
+      });
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: 'PAYMENT_FAILED' },
+      });
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          fromStatus: 'PENDING',
+          toStatus: 'PAYMENT_FAILED',
+          changedByUserId: user.id,
+          reason: 'Gateway từ chối thanh toán',
+        },
+      });
+    });
+
+    // Job phải hủy Order, chuyển coupon sang EXPIRED và hoàn kho trong một transaction.
+    await expiryJob.handleExpiredOrders();
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: order.id } }))
+      .toMatchObject({ status: 'CANCELLED' });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({ where: { id: redemption.id } }))
+      .toMatchObject({ status: 'EXPIRED', releasedAt: expect.any(Date) });
+    expect(await prisma.inventoryReservation.findUniqueOrThrow({ where: { id: reservation.id } }))
+      .toMatchObject({ status: 'EXPIRED' });
+    expect(await prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } }))
+      .toMatchObject({ stock: 2, version: 2 });
+
+    // Chạy lặp không được hoàn kho hoặc giải phóng Coupon thêm lần nữa.
+    await expiryJob.handleExpiredOrders();
+    expect(await prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } }))
+      .toMatchObject({ stock: 2, version: 2 });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({ where: { id: redemption.id } }))
+      .toMatchObject({ status: 'EXPIRED' });
+  });
+
 });

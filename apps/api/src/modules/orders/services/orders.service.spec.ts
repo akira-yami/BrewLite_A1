@@ -295,7 +295,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     };
 
     // Transaction mock phục vụ cả các test transition và thao tác cancel có đọc Payment/Inventory.
-    const txMock = {
+    const paymentTxMock = {
       payment: { findFirst: vi.fn() },
       inventoryReservation: { findMany: vi.fn() },
     } as any;
@@ -322,13 +322,13 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       const result = await service.getOrderForPaymentForUpdate(
         'o-1',
         'u-1',
-        txMock,
+        paymentTxMock,
       );
 
       expect(repository.findByIdAndUserIdForUpdate).toHaveBeenCalledWith(
         'o-1',
         'u-1',
-        txMock,
+        paymentTxMock,
       );
       expect(result).toEqual(mockOrder);
     });
@@ -354,7 +354,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         'o-1',
         'u-1',
         'Retry trong transaction',
-        txMock,
+        paymentTxMock,
       );
 
       expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
@@ -363,22 +363,22 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         OrderStatus.PENDING,
         'u-1',
         'Retry trong transaction',
-        txMock,
+        paymentTxMock,
       );
     });
 
     it('markOrderPaid - gọi markAsPaid chuyển từ PENDING sang PAID', async () => {
-      await service.markOrderPaid('o-1', 'u-1', 100000n, txMock);
+      await service.markOrderPaid('o-1', 'u-1', 100000n, paymentTxMock);
 
       expect(repository.markAsPaid).toHaveBeenCalledWith(
         'o-1',
         OrderStatus.PENDING,
         'u-1',
         100000n,
-        txMock,
+        paymentTxMock,
       );
       expect(promotionsServiceMock.consumeRedemption).toHaveBeenCalledWith(
-        txMock,
+        paymentTxMock,
         'o-1',
       );
       // Mỗi luồng thanh toán thành công chỉ consume coupon đúng một lần trong cùng transaction.
@@ -394,8 +394,8 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         status: OrderStatus.PENDING,
         reservationExpiresAt: reservationExpiry,
       });
-      txMock.payment.findFirst.mockResolvedValue(null);
-      txMock.inventoryReservation.findMany.mockResolvedValue([
+      paymentTxMock.payment.findFirst.mockResolvedValue(null);
+      paymentTxMock.inventoryReservation.findMany.mockResolvedValue([
         { id: 'r-1', expiresAt: reservationExpiry },
       ]);
       inventoryRepositoryMock.findReservation.mockResolvedValue({
@@ -409,13 +409,13 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       inventoryRepositoryMock.transitionActiveReservation.mockResolvedValue({ count: 1 });
       inventoryRepositoryMock.restoreStock.mockResolvedValue({ stock: 10, version: 1 });
 
-      await service.cancelOrder('o-1', 'u-1', 'Khách hàng hủy đơn', false, txMock);
+      await service.cancelOrder('o-1', 'u-1', 'Khách hàng hủy đơn', false, paymentTxMock);
 
       // Xác nhận cùng transaction khóa Order, cập nhật history, release coupon và inventory.
       expect(repository.findByIdAndUserIdForUpdate).toHaveBeenCalledWith(
         'o-1',
         'u-1',
-        txMock,
+        paymentTxMock,
       );
       expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
         'o-1',
@@ -423,21 +423,21 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         OrderStatus.CANCELLED,
         'u-1',
         'Khách hàng hủy đơn',
-        txMock,
+        paymentTxMock,
       );
       expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
-        txMock,
+        paymentTxMock,
         'o-1',
         false,
       );
       expect(inventoryRepositoryMock.transitionActiveReservation).toHaveBeenCalledWith(
-        txMock,
+        paymentTxMock,
         'r-1',
         'RELEASED',
         'NOT_EXPIRED',
       );
       expect(inventoryRepositoryMock.restoreStock).toHaveBeenCalledWith(
-        txMock,
+        paymentTxMock,
         'variant-1',
         2,
       );
@@ -450,10 +450,10 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         status: OrderStatus.PENDING,
         reservationExpiresAt: new Date(Date.now() + 60_000),
       });
-      txMock.payment.findFirst.mockResolvedValue({ id: 'payment-1' });
+      paymentTxMock.payment.findFirst.mockResolvedValue({ id: 'payment-1' });
 
       await expect(
-        service.cancelOrder('o-1', 'u-1', 'Khách hàng hủy đơn', false, txMock),
+        service.cancelOrder('o-1', 'u-1', 'Khách hàng hủy đơn', false, paymentTxMock),
       ).rejects.toThrow(ConflictException);
 
       expect(repository.updateStatusWithHistory).not.toHaveBeenCalled();
@@ -466,7 +466,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         'o-1',
         'u-1',
         'Lỗi thanh toán Gateway',
-        txMock,
+        paymentTxMock,
       );
 
       expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
@@ -475,13 +475,11 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         OrderStatus.PAYMENT_FAILED,
         'u-1',
         'Lỗi thanh toán Gateway',
-        txMock,
+        paymentTxMock,
       );
     });
 
-/*
-*Thay thế bài test cancelOrder hiện tại bằng 2 bài test kiểm chứng đầy đủ cả 2 trường hợp (hết hạn 15 phút có truyền tx và khách hủy chủ động dùng prismaMock mặc định)
-*/
+
     it('cancelOrder (Hết hạn 15 phút) - release coupon EXPIRED trong transaction', async () => {
       // Chuẩn bị đơn còn ở trạng thái PENDING nhưng đã quá deadline 15 phút.
       repository.findByIdAndUserIdForUpdate.mockResolvedValue({
@@ -490,15 +488,15 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         status: OrderStatus.PENDING,
         reservationExpiresAt: new Date(Date.now() - 15 * 60 * 1000),
       });
-      txMock.payment.findFirst.mockResolvedValue(null);
-      txMock.inventoryReservation.findMany.mockResolvedValue([]);
+      paymentTxMock.payment.findFirst.mockResolvedValue(null);
+      paymentTxMock.inventoryReservation.findMany.mockResolvedValue([]);
 
       await service.cancelOrder(
         'o-1',
         'u-1',
         'Quá hạn thanh toán 15 phút',
         true,
-        txMock,
+        paymentTxMock,
       );
 
       expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
@@ -507,17 +505,17 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         OrderStatus.CANCELLED,
         'u-1',
         'Quá hạn thanh toán 15 phút',
-        txMock,
+        paymentTxMock,
       );
       expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
-        txMock,
+        paymentTxMock,
         'o-1',
         true,
       );
     });
 
     it('cancelOrder (Khách hủy đơn) - tự tạo transaction và release coupon RELEASED', async () => {
-      // Khách chủ động hủy đơn còn hạn; mọi thao tác trong callback dùng txMock.
+      // Khách chủ động hủy đơn còn hạn; mọi thao tác trong callback dùng transaction mock do Prisma truyền vào.
       repository.findByIdAndUserIdForUpdate.mockResolvedValue({
         id: 'o-1',
         userId: 'u-1',

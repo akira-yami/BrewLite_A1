@@ -118,3 +118,34 @@ export function writePendingCheckout(
     // The component retains the in-memory attempt if session storage is unavailable.
   }
 }
+
+export type PaymentAttemptResolution = 'SUCCEEDED' | 'FAILED' | 'PROCESSING' | 'UNKNOWN';
+
+export type ActivePendingPaymentAttempt = PendingCheckoutState & {
+  idempotencyKey: string;
+  method: CheckoutPaymentMethod;
+};
+
+/**
+ * Apply only a definitive gateway outcome to the pending checkout state.
+ * Unknown/processing outcomes keep the exact key so a replay cannot double-charge.
+ */
+export function transitionPaymentAttempt(
+  attempt: ActivePendingPaymentAttempt,
+  resolution: PaymentAttemptResolution,
+): PendingCheckoutState | null {
+  switch (resolution) {
+    case 'SUCCEEDED':
+      return null;
+    case 'FAILED':
+      return {
+        orderId: attempt.orderId,
+        idempotencyKey: null,
+        method: null,
+        cartFingerprint: attempt.cartFingerprint,
+      };
+    case 'PROCESSING':
+    case 'UNKNOWN':
+      return { ...attempt };
+  }
+}

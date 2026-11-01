@@ -14,6 +14,7 @@ import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 import {
   readCheckoutCoupon,
   readPendingCheckout,
+  transitionPaymentAttempt,
   writeCheckoutCoupon,
   writePendingCheckout,
   type CheckoutCouponQuote,
@@ -157,7 +158,10 @@ export default function CheckoutPage() {
       }
 
       const idempotencyKey = checkout.idempotencyKey ?? newIdempotencyKey();
-      const attempt: PendingCheckoutState = {
+      const attempt: PendingCheckoutState & {
+        idempotencyKey: string;
+        method: PaymentMethod;
+      } = {
         ...checkout,
         idempotencyKey,
         method,
@@ -171,27 +175,29 @@ export default function CheckoutPage() {
         idempotencyKey,
       );
 
-      if (payment.status === 'SUCCEEDED' && payment.success === true) {
+      const resolution = payment.status === 'SUCCEEDED' && payment.success === true
+        ? 'SUCCEEDED'
+        : payment.status === 'FAILED'
+          ? 'FAILED'
+          : 'PROCESSING';
+      const nextAttempt = transitionPaymentAttempt(attempt, resolution);
+      persistPendingCheckout(nextAttempt);
+
+      if (resolution === 'SUCCEEDED') {
         cartStore.clearCart();
-        persistPendingCheckout(null);
         writeCheckoutCoupon(window.sessionStorage, null);
         router.replace(`/orders/confirmation?orderId=${encodeURIComponent(attempt.orderId)}`);
         return;
       }
 
-      if (payment.status === 'FAILED') {
+      if (resolution === 'FAILED') {
         // Only a definitive failure permits a new key; retry the same Order.
-        persistPendingCheckout({
-          orderId: attempt.orderId,
-          idempotencyKey: null,
-          method: null,
-          cartFingerprint: attempt.cartFingerprint,
-        });
         setError(paymentFailureMessage(payment.errorCode, payment.message));
         return;
       }
 
       // PROCESSING or an inconsistent response is not a confirmed failure.
+      // The state transition deliberately retains the same order and key for replay.
       setError('Giao dịch đang được xử lý hoặc chưa có kết quả xác nhận. Hãy kiểm tra lại bằng cùng khóa thanh toán; không tạo đơn mới.');
     } catch (reason) {
       if (reason instanceof OrdersApiError) {

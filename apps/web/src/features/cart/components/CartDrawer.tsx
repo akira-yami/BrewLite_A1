@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 // import { CheckoutAPI } from '@/services/checkout.api';
 import Image from 'next/image';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
@@ -21,19 +21,21 @@ export function CartDrawer({
   const { items, subtotal, totalQuantity } = useCartStore();
 
   const [couponInput, setCouponInput] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  // Lưu subtotal đã được backend xác nhận cùng với coupon để nhận biết quote đã cũ.
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    subtotal: number;
+    discountAmount: number;
+  } | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Tự động xóa coupon nếu giỏ hàng thay đổi khiến subtotal thay đổi
-  useEffect(() => {
-    if (appliedCoupon) {
-      setAppliedCoupon(null);
-      setDiscountAmount(0);
-      setCouponError('Giỏ hàng thay đổi, vui lòng áp dụng lại mã giảm giá.');
-    }
-  }, [subtotal]);
+  // Không dùng effect để đồng bộ state: quote chỉ được áp dụng khi subtotal vẫn khớp.
+  const couponIsStale = appliedCoupon !== null && appliedCoupon.subtotal !== subtotal;
+  const visibleCoupon = couponIsStale ? null : appliedCoupon;
+  const effectiveDiscountAmount = visibleCoupon?.discountAmount ?? 0;
+  const visibleCouponError = couponError
+    ?? (couponIsStale ? 'Giỏ hàng thay đổi, vui lòng áp dụng lại mã giảm giá.' : null);
 
   const handleApplyCoupon = async () => {
     setCouponError(null);
@@ -42,19 +44,24 @@ export function CartDrawer({
       return;
     }
 
+    const requestedCode = couponInput.trim();
+    const requestedSubtotal = subtotal;
     setIsApplying(true);
     try {
-      // Gọi trực tiếp hàm validateCoupon đã import từ @/api/coupons.api
-      const data = await validateCoupon(couponInput.trim(), subtotal);
+      // Gửi subtotal hiện tại để backend tính quote; không tin quote nếu giỏ đổi trong lúc chờ.
+      const data = await validateCoupon(requestedCode, requestedSubtotal);
 
-      setAppliedCoupon(couponInput.trim()); // Backend xác nhận hợp lệ thì mới set trạng thái
-      setDiscountAmount(data.discountAmount); // Lấy tiền giảm giá từ Backend
-      setCouponInput(''); // Xóa trắng ô input sau khi áp dụng thành công
-    } catch (error: any) {
-      // Bắt lỗi 422 từ API và hiển thị thân thiện cho khách hàng
-      setCouponError(error.message || 'Mã giảm giá không hợp lệ hoặc chưa đủ điều kiện.');
+      setAppliedCoupon({
+        code: requestedCode,
+        subtotal: requestedSubtotal,
+        discountAmount: data.discountAmount,
+      });
+      setCouponInput('');
+    } catch (error: unknown) {
+      // Bắt lỗi API dưới dạng unknown và chỉ đọc message sau khi kiểm tra kiểu.
+      const message = error instanceof Error ? error.message : '';
+      setCouponError(message || 'Mã giảm giá không hợp lệ hoặc chưa đủ điều kiện.');
       setAppliedCoupon(null);
-      setDiscountAmount(0);
     } finally {
       setIsApplying(false);
     }
@@ -62,7 +69,6 @@ export function CartDrawer({
 
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
-    setDiscountAmount(0);
     setCouponError(null);
   };
 
@@ -225,7 +231,7 @@ export function CartDrawer({
 
                 {/* Khu vực Coupon */}
                 <div className="py-2">
-                  {!appliedCoupon ? (
+                  {!visibleCoupon ? (
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -247,8 +253,8 @@ export function CartDrawer({
                   ) : (
                     <div className="flex items-center justify-between rounded-md bg-[#E8F1EC] px-3 py-2 text-sm text-[#163E2B]">
                       <div>
-                        <span className="font-bold">{appliedCoupon}</span>
-                        <span className="ml-2 font-mono text-xs">(-{formatVnd(discountAmount)})</span>
+                        <span className="font-bold">{visibleCoupon.code}</span>
+                        <span className="ml-2 font-mono text-xs">(-{formatVnd(effectiveDiscountAmount)})</span>
                       </div>
                       <button
                         type="button"
@@ -259,8 +265,8 @@ export function CartDrawer({
                       </button>
                     </div>
                   )}
-                  {couponError && (
-                    <p className="mt-1 text-xs text-[#9f3f2f]">{couponError}</p>
+                  {visibleCouponError && (
+                    <p className="mt-1 text-xs text-[#9f3f2f]">{visibleCouponError}</p>
                   )}
                 </div>
 
@@ -268,7 +274,7 @@ export function CartDrawer({
                   <div className="flex items-center justify-between">
                     <span className="font-black text-[#163E2B]">Tổng thanh toán</span>
                     <strong className="font-mono text-lg text-[#163E2B]">
-                      {formatVnd(Math.max(0, subtotal - discountAmount))}
+                      {formatVnd(Math.max(0, subtotal - effectiveDiscountAmount))}
                     </strong>
                   </div>
                 </div>

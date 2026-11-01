@@ -56,7 +56,8 @@ export class OrdersExceptionFilter implements ExceptionFilter {
       typeof raw === 'object' && raw !== null
         ? (raw as Record<string, any>)
         : {};
-    const custom = body.error;
+    // Hỗ trợ cả exception chuẩn hóa dưới body.error và payload nghiệp vụ top-level.
+    const custom = body.error ?? body;
     if (status >= 500)
       this.logger.error(`Order request failed; requestId=${id}`);
     const defaults: Record<number, string> = {

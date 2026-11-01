@@ -72,7 +72,7 @@ test('double click and reload replay a pending payment with the same order and i
   await page.getByRole('button', { name: '+ Thêm', exact: true }).first().click();
   await page.getByRole('button', { name: /món trong giỏ/ }).click();
   await page.getByRole('button', { name: 'Tiến hành đặt & thanh toán' }).click();
-  await expect(page).toHaveURL(/\\/checkout/);
+  await expect(page).toHaveURL(/checkout/);
 
   const attempts: Array<{ orderId: string; key: string }> = [];
   await page.route(`${api}/payments`, async (route) => {

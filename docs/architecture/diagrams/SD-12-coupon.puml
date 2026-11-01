@@ -1,153 +1,67 @@
-@startuml SD-12_Coupon_Promotion
-title <size:90>SD-12: Xử lý Coupon & Khuyến mãi</size>
+@startuml SD-12-coupon
+title SD-12 — Coupon (contract đích UC-07, không xác nhận runtime đầy đủ)
+skinparam defaultFontName Arial
+skinparam maxMessageSize 100
 autonumber
-skinparam responseMessageBelowArrow true
-skinparam maxMessageSize 150
-
-' Cấu hình background màu trắng (#FFF)
-skinparam ActorBackgroundColor #FFF
-skinparam ParticipantBackgroundColor #FFF
-skinparam DatabaseBackgroundColor #FFF
-skinparam sequenceGroupBackgroundColor #FFF
-skinparam sequenceGroupBodyBackgroundColor #FFF
-skinparam sequenceGroupHeaderBackgroundColor #FFF
-skinparam sequenceGroupHeaderLineColor #FFF
-skinparam SequenceAltBackgroundColor #FFF
-skinparam NoteBackgroundColor #FFF
-
-actor "Khách hàng" as C
-participant "Frontend" as FE
-participant "PromotionsController" as PC
-participant "PromotionsService" as PS
-participant "OrdersService" as OS
-database "PostgreSQL (Prisma)" as DB
-
-group 1. Giao diện Giỏ hàng: Xem trước Coupon (Không khóa DB)
-    C -> FE: Nhập mã giảm giá & Bấm "Áp dụng"
-    activate C
-    activate FE
-    FE -> PC: POST /api/v1/coupons/validate { code, subtotal }
-    activate PC
-
-    PC -> PS: validateCoupon(code, subtotal, userId, now)
-    activate PS
-
-    PS -> DB: Đọc thông tin Coupon & đếm Redemption (chỉ READ, không LOCK)
-    activate DB
-    DB --> PS: Thông tin Coupon & Lượt dùng
-    deactivate DB
-
-    alt Không hợp lệ / Hết hạn / Hết lượt / Không đủ minOrderValue
-        PS --> PC: Throw UnprocessableEntity (COUPON_NOT_APPLICABLE)
-        PC --> FE: HTTP 422 Unprocessable Entity
-    else Hợp lệ
-        PS -> PS: Tính toán discountAmount (Server-side BigInt)
-        PS --> PC: Trả về Quote { discountAmount, code }
-        deactivate PS
-
-        PC --> FE: HTTP 200 OK
-        deactivate PC
-
-        FE --> C: Hiển thị mức giảm giá dự kiến
-        deactivate FE
-        deactivate C
-    end
+actor Customer
+participant "Next.js" as UI
+participant PromotionsController as PC
+participant OrdersController as OC
+participant OrdersService as OS
+participant PromotionsService as PS
+database "PostgreSQL qua repository" as DB
+Customer -> UI : Nhập coupon
+UI -> PC : POST /coupons/validate + JWT
+PC -> PS : validateCoupon(...)
+PS -> DB : Đọc coupon / đếm lượt (không lock)
+DB --> PS : Dữ liệu
+PS --> UI : Quote dự kiến hoặc 422 COUPON_NOT_APPLICABLE
+note over UI,PS
+  Preview không giữ lượt. Checkout tính lại subtotal từ catalog;
+  không dùng giá/discount do client gửi. API preview hiện nhận subtotal
+  nên chỉ dùng hiển thị, không phải nguồn giá cho POST /orders.
+end note
+UI -> OC : POST /orders {items, couponCode} + JWT
+OC -> OS : createOrder(userId, dto)
+activate OS
+OS -> DB : BEGIN Serializable; đọc catalog/giá
+OS -> PS : quoteAndLock(tx, userId, code, subtotal, now)
+activate PS
+PS -> DB : SELECT coupon FOR UPDATE
+DB --> PS : Coupon (giữ lock tới commit/rollback)
+PS -> DB : COUNT redemptions RESERVED + CONSUMED\ncho coupon và user
+DB --> PS : Lượt dùng
+PS -> PS : Kiểm tra hạn, active, minOrderValue, limits;\ntính discount BigInt VND (total >= 0)
+alt Coupon không áp dụng
+  PS --> OS : COUPON_NOT_APPLICABLE
+  OS -> DB : ROLLBACK
+  OS --> UI : 422; giữ giỏ, sửa coupon
+else Hợp lệ
+  PS --> OS : CouponQuote
+  deactivate PS
+  OS -> DB : INSERT Order(PENDING), items/snapshot
+  DB --> OS : orderId
+  OS -> PS : reserve(tx, quote, orderId, expiresAt)
+  PS -> DB : INSERT CouponRedemption(RESERVED)
+  OS -> DB : Giữ tồn ACTIVE + history (SD-10)
+  alt Một bước thất bại
+    OS -> DB : ROLLBACK toàn tx (kể cả coupon/order/stock)
+    OS --> UI : Lỗi; giữ giỏ
+  else Tất cả thành công
+    OS -> DB : COMMIT
+    OS --> UI : 201 orderId / tổng tiền chuẩn
+  end
 end
-
-group 2. Áp dụng thật trong Transaction Tạo Đơn (SD-10)
-    C -> FE: Bấm "Đặt hàng"
-    activate C
-    activate FE
-    FE -> OS: POST /api/v1/orders { items, couponCode }
-    activate OS
-
-    OS -> DB: BEGIN TRANSACTION (tx)
-    activate DB
-    DB --> OS: OK
-    deactivate DB
-
-    OS -> PS: quoteAndLock(tx, userId, couponCode, subtotal, now)
-    activate PS
-
-    PS -> DB: SELECT * FROM coupons WHERE code = couponCode FOR UPDATE (Khóa dòng Coupon)
-    activate DB
-    DB --> PS: Dữ liệu Coupon
-    deactivate DB
-
-    PS -> DB: Đếm số REDEMPTION (RESERVED + CONSUMED) theo couponId và userId
-    activate DB
-    DB --> PS: Số lượt đã dùng
-    deactivate DB
-
-    PS -> PS: Kiểm tra usageLimit, perUserLimit, minOrderValue
-
-    alt Vi phạm điều kiện
-        PS --> OS: Throw UnprocessableEntity (COUPON_NOT_APPLICABLE)
-        deactivate PS
-        OS -> DB: ROLLBACK
-        activate DB
-        DB --> OS: OK
-        deactivate DB
-        OS --> FE: HTTP 422 Unprocessable Entity
-    else Đạt điều kiện
-        activate PS
-        PS -> PS: Tính discountAmount
-        PS --> OS: Trả về CouponQuote
-        deactivate PS
-
-        note over OS, DB: Giải quyết phản biện khóa ngoại:\nInsert Order TRƯỚC
-        OS -> DB: INSERT orders (PENDING)
-        activate DB
-        DB --> OS: orderId
-        deactivate DB
-
-        OS -> PS: reserve(tx, quote, orderId, expiresAt)
-        activate PS
-        PS -> DB: INSERT coupon_redemptions (status = RESERVED, orderID)
-        activate DB
-        DB --> PS: OK
-        deactivate DB
-        PS --> OS: Lượt đã được giữ
-        deactivate PS
-
-        OS -> DB: COMMIT
-        activate DB
-        DB --> OS: OK
-        deactivate DB
-
-        OS --> FE: HTTP 201 Created (Kèm discountAmount)
-        deactivate OS
-        FE --> C: Chuyển sang màn hình Thanh toán
-        deactivate FE
-        deactivate C
-    end
-end
-
-group 3. Quyết toán Coupon theo vòng đời Đơn hàng (SD-11 & SD-04)
-    alt Thanh toán THÀNH CÔNG (PaymentsService → OrdersService)
-        OS -> PS: consumeRedemption(tx, orderId)
-        activate OS
-        activate PS
-        PS -> DB: UPDATE coupon_redemptions SET status = CONSUMED, consumedAt = now() WHERE orderId = ? AND status = RESERVED
-        activate DB
-        DB --> PS: OK
-        deactivate DB
-        PS --> OS: Done
-        deactivate PS
-        deactivate OS
-    else Thanh toán THẤT BẠI nhưng còn hạn 15 phút (Khách Retry)
-        note over OS, DB: KHÔNG gọi API hủy hay giải phóng.\nGiữ nguyên trạng thái RESERVED.\nĐảm bảo khách retry thanh toán\nkhông bị mất lượt.
-    else Hủy đơn / Hết hạn 15 phút (Hoặc CronJob dọn dẹp)
-        OS -> PS: releaseRedemption(tx, orderId, isExpired)
-        activate OS
-        activate PS
-        PS -> DB: UPDATE coupon_redemptions SET status = RELEASED/EXPIRED, releasedAt = now() WHERE orderId = ? AND status = RESERVED
-        activate DB
-        DB --> PS: OK
-        deactivate DB
-        PS --> OS: Done
-        deactivate PS
-        deactivate OS
-    end
+deactivate OS
+group Quyết toán trong transaction order/payment (SD-11 / SD-04)
+  alt Thanh toán thành công
+    OS -> PS : consumeRedemption(tx, orderId) [contract đích]
+    PS -> DB : RESERVED -> CONSUMED (compare-and-set)
+  else Gateway từ chối, còn hạn retry
+    note over OS,DB : Giữ RESERVED; không reserve lần hai khi retry payment
+  else Hủy / hết hạn, không có payment PROCESSING
+    OS -> PS : releaseRedemption(tx, orderId, isExpired) [contract đích]
+    PS -> DB : RESERVED -> RELEASED / EXPIRED đúng một lần
+  end
 end
 @enduml

@@ -61,31 +61,46 @@ export class PaymentsService {
             };
         }
 
+/*
+Khi khách hàng gửi yêu cầu POST /api/v1/payments,
+sau khi vượt qua bước kiểm tra Idempotency-Key,
+PaymentsService phải gọi ordersService.getOrderForPayment(orderId, userId)
+    → để kiểm tra trạng thái và thời hạn giữ chỗ của đơn hàng
+        trước khi khởi tạo bản ghi Payment (PROCESSING)
+        và trước khi gọi MockGatewayService.charge()
+
+Nếu thời gian hiện tại đã chạm hoặc vượt quá order.reservationExpiresAt (new Date() >= order.reservationExpiresAt),
+hệ thống phải lập tức từ chối với mã lỗi 409 ORDER_EXPIRED
+→ để tuyệt đối không thu tiền cho một đơn hàng đã hết hạn giữ tồn kho/coupon.
+*/
+
         // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
-        // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
-const order = await this.ordersService.getOrderForPayment(orderId, userId);
+        const order = await this.ordersService.getOrderForPayment(orderId, userId);
 
-if (order.status === OrderStatus.PAID) {
-    throw new ConflictException({
-        code: 'ORDER_ALREADY_PAID',
-        message: 'Đơn hàng này đã được thanh toán.',
-    });
-}
+        // 3.1. Chặn thanh toán lặp nếu đơn hàng đã ở trạng thái PAID
+        if (order.status === OrderStatus.PAID) {
+            throw new ConflictException({
+                code: 'ORDER_ALREADY_PAID',
+                message: 'Đơn hàng này đã được thanh toán.',
+            });
+        }
 
-if (order.status !== OrderStatus.PENDING) {
-    throw new ConflictException({
-        code: 'ORDER_INVALID_TRANSITION',
-        message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
-    });
-}
+        // 3.2. Chỉ cho phép thanh toán khi đơn hàng đang ở trạng thái hợp lệ
+        if (order.status !== OrderStatus.PENDING) {
+            throw new ConflictException({
+                code: 'ORDER_INVALID_TRANSITION',
+                message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
+            });
+        }
 
-// THÊM MỚI: Chặn nếu thời gian hiện tại đã vượt mốc hết hạn giữ chỗ
-if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
-    throw new ConflictException({
-        code: 'ORDER_EXPIRED',
-        message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
-    });
-}
+        // 3.3. Chặn thanh toán nếu thời gian hiện tại đã vượt mốc hết hạn giữ chỗ (15 phút)
+        // Đảm bảo không gọi cổng thanh toán cho đơn hàng đã quá hạn giữ tồn kho và coupon
+        if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
+            throw new ConflictException({
+                code: 'ORDER_EXPIRED',
+                message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+            });
+        }
 
         // 4. Khởi tạo trạng thái PROCESSING trong DB (Thực thi NGÀY LẬP TỨC ngoài transaction chính)
         const processingPayment = await this.paymentsRepository.createProcessingPayment({orderId, idempotencyKey, requestHash, method, amount,});

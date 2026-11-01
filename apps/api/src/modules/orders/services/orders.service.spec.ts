@@ -74,6 +74,8 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     promotionsServiceMock = {
       quoteAndLock: vi.fn(),
       reserve: vi.fn(),
+      consumeRedemption: vi.fn(),
+      releaseRedemption: vi.fn(),
     };
 
     // Mock InventoryRepository
@@ -318,7 +320,25 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       );
     });
 
-    it('markOrderPaid - gọi markAsPaid chuyển từ PENDING sang PAID', async () => {
+/*
+*Bổ sung Mock và Test Cases cho markOrderPaid & cancelOrder trong orders.service.spec.ts
+  - Theo ADR-001 (Module Dependency Map), khi đơn hàng thanh toán thành công (markOrderPaid),
+  ngoài việc gọi OrdersRepository.markAsPaid (
+    để chuyển trạng thái
+      Order -> PAID,
+      InventoryReservation -> CONSUMED
+      và cộng điểm LoyaltyTransaction -> EARN đúng 1 lần
+  ), OrdersService phải gọi this.promotionsService.consumeRedemption(tx, orderId) trong cùng transaction tx.
+
+  - Tương tự, khi đơn hàng bị hủy hoặc quá hạn giữ chỗ 15 phút (cancelOrder),
+  OrdersService phải gọi this.promotionsService.releaseRedemption(client, orderId, isExpired) để nhả lượt dùng mã giảm giá (RELEASED hoặc EXPIRED).
+
+  - Hiện tại trong orders.service.spec.ts,
+  đối tượng promotionsServiceMock mới chỉ khai báo quoteAndLock và reserve (thiếu consumeRedemption và releaseRedemption),
+  → sẽ gây lỗi `TypeError: this.promotionsService.consumeRedemption` is not a function khi chạy test!
+*/
+
+    it('markOrderPaid - gọi markAsPaid chuyển từ PENDING sang PAID và quyết toán coupon qua PromotionsService', async () => {
       await service.markOrderPaid('o-1', 'u-1', 100000n, txMock);
 
       expect(repository.markAsPaid).toHaveBeenCalledWith(
@@ -327,6 +347,10 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         'u-1',
         100000n,
         txMock,
+      );
+      expect(promotionsServiceMock.consumeRedemption).toHaveBeenCalledWith(
+        txMock,
+        'o-1',
       );
     });
 
@@ -345,6 +369,42 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         'u-1',
         'Lỗi thanh toán Gateway',
         txMock,
+      );
+    });
+
+/*
+*Thay thế bài test cancelOrder hiện tại bằng 2 bài test kiểm chứng đầy đủ cả 2 trường hợp (hết hạn 15 phút có truyền tx và khách hủy chủ động dùng prismaMock mặc định)
+*/
+    it('cancelOrder (Hết hạn 15 phút) - gọi promotionsService.releaseRedemption với isExpired = true trong transaction', async () => {
+      // Kịch bản: Đơn hàng quá hạn thanh toán 15 phút -> nhả mã giảm giá về trạng thái EXPIRED
+      await service.cancelOrder(
+        'o-1',
+        'u-1',
+        'Quá hạn thanh toán 15 phút',
+        true,
+        txMock,
+      );
+
+      expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
+        txMock,
+        'o-1',
+        true,
+      );
+    });
+
+    it('cancelOrder (Khách hủy đơn) - fallback về this.prisma khi không truyền tx và gọi releaseRedemption với isExpired = false', async () => {
+      // Kịch bản: Khách hàng chủ động hủy đơn khi chưa truyền tx -> nhả mã giảm giá về trạng thái RELEASED
+      await service.cancelOrder(
+        'o-1',
+        'u-1',
+        'Khách hàng đổi ý hủy đơn',
+        false,
+      );
+
+      expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
+        prismaMock,
+        'o-1',
+        false,
       );
     });
   });
@@ -448,11 +508,13 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     });
 
     it('tạo đơn hàng thành công có coupon: gọi quoteAndLock và reserve', async () => {
+      // Chuẩn bị DTO đầu vào có đính kèm mã giảm giá SALE10
       const dtoWithCoupon = {
         ...mockDto,
         couponCode: 'SALE10',
       };
 
+      // Snapshot đơn hàng trả về từ DB sau khi đã trừ giảm giá (86.000 - 10.000 = 76.000 VND)
       const mockOrderWithCoupon = {
         ...mockOrderDb,
         discountAmount: 10000n,
@@ -463,6 +525,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       txMock.order.create.mockResolvedValue(mockOrderWithCoupon);
       txMock.productVariant.updateMany.mockResolvedValue({ count: 1 });
 
+      // Giả lập PromotionsService khóa dòng coupon (FOR UPDATE) và báo giá giảm 10.000 VND
       promotionsServiceMock.quoteAndLock.mockResolvedValue({
         couponId: 'c-1',
         discountAmount: 10000n,
@@ -470,6 +533,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
       const result = await service.createOrder('u-1', dtoWithCoupon as any);
 
+      // 1. Kiểm chứng gọi quoteAndLock với đúng transaction txMock, userId, mã coupon và subtotal
       expect(promotionsServiceMock.quoteAndLock).toHaveBeenCalledWith(
         txMock,
         'u-1',
@@ -478,6 +542,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         expect.any(Date),
       );
 
+      // 2. Kiểm chứng gọi reserve sau khi đã có orderId ('order-uuid-1') để không vi phạm FK order_id (SD-12)
       expect(promotionsServiceMock.reserve).toHaveBeenCalledWith(
         txMock,
         expect.objectContaining({ couponId: 'c-1' }),
@@ -485,6 +550,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         expect.any(Date),
       );
 
+      // 3. Kiểm chứng DTO trả về phản ánh đúng số tiền giảm và tổng thanh toán cuối cùng
       expect(result.discountAmount).toBe(10000);
       expect(result.total).toBe(76000);
     });

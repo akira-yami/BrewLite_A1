@@ -148,6 +148,16 @@ describe('PromotionsService (Unit Test - TDD)', () => {
         });
     });
 
+/*
+*Bổ sung Mock và Test Cases cho consumeRedemption & releaseRedemption trong promotions.service.spec.ts
+→ Tại sao làm bước này trước?
+    Theo quy chuẩn GEMINI.md (TDD Mandatory) và ADR-001 (Module Boundary),
+    OrdersModule không được phép gọi trực tiếp
+        PromotionsRepository.consumeByOrderId
+        hay releaseByOrderId,
+    mà bắt buộc phải gọi qua public method của PromotionsService.
+    → Vì vậy, ta viết bài test mô tả đúng hợp đồng của 2 hàm này tại PromotionsService trước.
+*/
     describe('consumeRedemption (UC-08 Transaction)', () => {
         it('Nên gọi repository.consumeByOrderId với đúng tx và orderId', async () => {
             const txMock = {} as any;
@@ -192,4 +202,5 @@ describe('PromotionsService (Unit Test - TDD)', () => {
             );
         });
     });
+
 });

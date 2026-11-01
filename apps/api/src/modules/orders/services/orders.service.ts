@@ -67,6 +67,11 @@ export class OrdersService {
             let discountAmount = 0n;
             let couponQuote = null;
 
+/*
+*Theo biên bản phản biện kỹ thuật của Huy (docs/reviews/huy-review-coupon-sd12.md), trong transaction tạo đơn (UC-06),
+  OrdersService bắt buộc phải gọi promotionsService.quoteAndLock trước để khóa dòng coupon và tính discountAmount,
+  sau đó phải tx.order.create trước rồi mới gọi promotionsService.reserve để tránh lỗi vi phạm khóa ngoại FOREIGN KEY (order_id) trên bảng coupon_redemptions
+*/
             if (dto.couponCode) {
               // Khóa hàng coupon trong DB, kiểm tra hạn dùng, lượt dùng và tính tiền giảm
               couponQuote = await this.promotionsService.quoteAndLock(
@@ -562,9 +567,15 @@ export class OrdersService {
     isExpired: boolean,
     tx?: Prisma.TransactionClient,
   ) {
+
+    // Ưu tiên sử dụng transaction client (tx) nếu được truyền vào,
+    // ngược lại fallback về kết nối Prisma mặc định của service
     const client = tx ?? this.prisma;
 
-    // Nhả (release) lượt dùng Coupon để khách có thể sử dụng lại cho đơn khác
+    // Gọi sang PromotionsService để nhả (release) lượt dùng Coupon để khách có thể sử dụng lại cho đơn khác:
+    // - isExpired = true  -> chuyển CouponRedemption từ RESERVED sang EXPIRED (quá hạn 15 phút)
+    // - isExpired = false -> chuyển CouponRedemption từ RESERVED sang RELEASED (khách chủ động hủy)
+    // Nhờ đó khách hàng không bị mất lượt dùng mã giảm giá oan
     await this.promotionsService.releaseRedemption(client, orderId, isExpired);
 
     // (Logic đổi trạng thái đơn hàng sang CANCELLED và nhả tồn kho

@@ -1,4 +1,4 @@
-import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
+﻿import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
 import {
   ConflictException,
   Injectable,
@@ -87,7 +87,7 @@ async updateStatusWithHistory(
   reason: string,
   tx?: Prisma.TransactionClient,
 ) {
-  // Phần xử lý cập nhật đơn và lịch sử.
+  // Pháº§n xá»­ lÃ½ cáº­p nháº­t Ä‘Æ¡n vÃ  lá»‹ch sá»­.
   const execute = async (
     client: Prisma.TransactionClient,
   ) => {
@@ -101,14 +101,14 @@ async updateStatusWithHistory(
       },
     });
 
-    // Không cho phép hai tiến trình cùng chuyển trạng thái.
+    // KhÃ´ng cho phÃ©p hai tiáº¿n trÃ¬nh cÃ¹ng chuyá»ƒn tráº¡ng thÃ¡i.
     if (updated.count !== 1) {
       throw new ConflictException(
         'Order status changed; cannot update this order',
       );
     }
 
-    // Chỉ ghi lịch sử sau khi cập nhật trạng thái thành công.
+    // Chá»‰ ghi lá»‹ch sá»­ sau khi cáº­p nháº­t tráº¡ng thÃ¡i thÃ nh cÃ´ng.
     await client.orderStatusHistory.create({
       data: {
         orderId,
@@ -120,16 +120,14 @@ async updateStatusWithHistory(
     });
   };
 
-  // Nếu đã có transaction thì sử dụng transaction đó.
+  // Náº¿u Ä‘Ã£ cÃ³ transaction thÃ¬ sá»­ dá»¥ng transaction Ä‘Ã³.
   if (tx) {
     return execute(tx);
   }
 
-  // Nếu không có thì tự tạo transaction.
+  // If there is no existing transaction, create one.
   return this.prisma.$transaction(execute);
 }
-
-
 
 async markAsPaid(
   orderId: string,
@@ -138,61 +136,40 @@ async markAsPaid(
   orderTotal: bigint,
   tx: Prisma.TransactionClient,
 ) {
-  // Giành quyền chuyển đơn sang PAID.
   const updated = await tx.order.updateMany({
-    where: {
-      id: orderId,
-      status: currentStatus,
-    },
+    where: { id: orderId, status: currentStatus },
+    data: { status: OrderStatus.PAID },
+  });
+
+  if (updated.count !== 1) {throw new ConflictException('Order status changed; cannot mark as paid');}
+
+  // Ghi nhận lịch sử chuyển trạng thái sang PAID (A1-8.3 / SD-04)
+  await tx.orderStatusHistory.create({
     data: {
-      status: OrderStatus.PAID,
+      orderId,
+      fromStatus: currentStatus,
+      toStatus: OrderStatus.PAID,
+      changedByUserId: userId,
+      reason: 'Thanh toán thành công',
     },
   });
 
-  if (updated.count !== 1) {
-    throw new ConflictException(
-      'Order status changed; cannot mark as paid',
-    );
-  }
-
-  // Chỉ chuyển reservation còn ACTIVE thành CONSUMED.
   await tx.inventoryReservation.updateMany({
-    where: {
-      orderId,
-      status: 'ACTIVE',
-    },
-    data: {
-      status: 'CONSUMED',
-    },
+    where: { orderId, status: 'ACTIVE' },
+    data: { status: 'CONSUMED' },
   });
 
-  // Xác nhận coupon đã sử dụng.
   await tx.couponRedemption.updateMany({
-    where: {
-      orderId,
-      status: 'RESERVED',
-    },
-    data: {
-      status: 'CONSUMED',
-      consumedAt: new Date(),
-    },
+    where: { orderId, status: 'RESERVED' },
+    data: { status: 'CONSUMED', consumedAt: new Date() },
   });
 
-  // Tính điểm thưởng.
   const earnedPoints = Number(orderTotal / 10n);
-
   const user = await tx.user.update({
-    where: {
-      id: userId,
-    },
-    data: {
-      loyaltyBalance: {
-        increment: earnedPoints,
-      },
-    },
+    where: { id: userId },
+    data: { loyaltyBalance: { increment: earnedPoints } },
   });
 
-  // Ghi lịch sử cộng điểm.
   await tx.loyaltyTransaction.create({
     data: {
       userId,
@@ -204,5 +181,4 @@ async markAsPaid(
     },
   });
 }
-
 }

@@ -195,9 +195,16 @@ export class PromotionsService {
         );
     }
 
-    async consumeRedemption(tx: Prisma.TransactionClient, orderId: string): Promise<void> {
-        await this.repository.consumeByOrderId(orderId, new Date(), tx);
-    }
+/*
+*Rà soát consumeRedemption & releaseRedemption trong promotions.service.ts và chạy test promotions.repository.spec.ts
+→ Tại sao cần kiểm tra bước này?
+    Ở tầng PromotionsRepository, hai hàm consumeByOrderId và releaseByOrderId sử dụng điều kiện where: { orderId, status: 'RESERVED' }.
+    Điều này cực kỳ quan trọng vì nó đảm bảo tính Idempotent cho vòng đời Coupon:
+        - chỉ những lượt đang RESERVED mới được chuyển sang CONSUMED (khi PAID)
+        - hoặc RELEASED/EXPIRED (khi hủy/hết hạn), ngăn chặn tuyệt đối việc tiêu thụ hoặc giải phóng mã lặp lại.
+*/
+
+    async consumeRedemption(tx: Prisma.TransactionClient, orderId: string): Promise<void> {await this.repository.consumeByOrderId(orderId, new Date(), tx);}
 
     async releaseRedemption(
         tx: Prisma.TransactionClient,

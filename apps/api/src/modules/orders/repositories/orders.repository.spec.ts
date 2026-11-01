@@ -183,9 +183,30 @@ describe('OrdersRepository (Unit Test - TDD)', () => {
       },
     });
 
-    expect(
-      prismaMock.inventoryReservation.updateMany,
-    ).toHaveBeenCalledWith({
+/*
+* Theo quy ước tại README.md và SD-04 ("Mọi chuyển trạng thái phải được ghi vào lịch sử trạng thái"),
+  khi updateStatusWithHistory chuyển sang PAYMENT_FAILED thì có gọi orderStatusHistory.create,
+  nhưng hàm markAsPaid trong orders.repository.ts hiện mới cập nhật
+    order,
+    inventoryReservation,
+    couponRedemption,
+    user.loyaltyBalance
+    và loyaltyTransaction
+  mà quên chưa ghi orderStatusHistory.create cho bước PENDING -> PAID.
+
+* Theo đúng chuẩn TDD (RED -> GREEN), ta sẽ bổ sung assertion vào orders.repository.spec.ts trước để bắt quả tang lỗi này (tạo trạng thái RED).
+*/
+    expect(prismaMock.orderStatusHistory.create).toHaveBeenCalledWith({
+      data: {
+        orderId: 'o-1',
+        fromStatus: 'PENDING',
+        toStatus: 'PAID',
+        changedByUserId: 'u-1',
+        reason: 'Thanh toán thành công',
+      },
+    });
+
+    expect(prismaMock.inventoryReservation.updateMany,).toHaveBeenCalledWith({
       where: {
         orderId: 'o-1',
         status: 'ACTIVE',
@@ -195,9 +216,7 @@ describe('OrdersRepository (Unit Test - TDD)', () => {
       },
     });
 
-    expect(
-      prismaMock.couponRedemption.updateMany,
-    ).toHaveBeenCalledWith({
+    expect(prismaMock.couponRedemption.updateMany,).toHaveBeenCalledWith({
       where: {
         orderId: 'o-1',
         status: 'RESERVED',

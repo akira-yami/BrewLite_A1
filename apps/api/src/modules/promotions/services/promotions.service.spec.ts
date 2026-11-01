@@ -1,4 +1,4 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PromotionsService } from './promotions.service.js';
 import { PromotionsRepository } from '../repositories/promotions.repository.js';
@@ -98,7 +98,7 @@ describe('PromotionsService (Unit Test - TDD)', () => {
 
             await expect(
                 service.validateCoupon('WELCOME10', unsafeSubtotal, 'u-1', fixedNow),
-            ).rejects.toThrow('Subtotal phải là số nguyên không âm trong giới hạn an toàn.');
+            ).rejects.toThrow(BadRequestException);
 
             expect(repositoryMock.findByCode).not.toHaveBeenCalled();
         });

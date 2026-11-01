@@ -70,7 +70,8 @@ export class OrderExpiryJob {
             const lockedOrder = await this.ordersRepo.findByIdForUpdate(order.id, tx);
             if (
               !lockedOrder ||
-              ![OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED].includes(lockedOrder.status) ||
+              (lockedOrder.status !== OrderStatus.PENDING &&
+                lockedOrder.status !== OrderStatus.PAYMENT_FAILED) ||
               lockedOrder.reservationExpiresAt > now
             ) {
               return false;

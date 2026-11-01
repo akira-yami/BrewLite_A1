@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { OrdersRepository } from '../repositories/orders.repository.js';
 import { InventoryService } from '../../inventory/services/inventory.service.js';
+import { PromotionsRepository } from '../../promotions/repositories/promotions.repository.js';
 import { OrderStatus } from '../../../generated/prisma/client.js';
 
 @Injectable()
@@ -22,6 +23,7 @@ export class OrderExpiryJob {
     private readonly prisma: PrismaService,
     private readonly ordersRepo: OrdersRepository,
     private readonly inventoryService: InventoryService,
+    private readonly promotionsRepo: PromotionsRepository,
   ) {}
 
   // Tự động kiểm tra đơn hàng hết hạn mỗi phút.
@@ -36,10 +38,15 @@ export class OrderExpiryJob {
     try {
       const now = new Date();
 
-      // Tìm các đơn PENDING đã hết thời gian giữ hàng.
+      // Tìm cả đơn PENDING và PAYMENT_FAILED đã hết hạn.
       const expiredOrders = await this.prisma.order.findMany({
         where: {
-          status: OrderStatus.PENDING,
+          status: {
+            in: [
+              OrderStatus.PENDING,
+              OrderStatus.PAYMENT_FAILED,
+            ],
+          },
           reservationExpiresAt: {
             lte: now,
           },
@@ -47,17 +54,18 @@ export class OrderExpiryJob {
         select: {
           id: true,
           userId: true,
+          status: true,
         },
       });
 
       for (const order of expiredOrders) {
         try {
           await this.prisma.$transaction(async (tx) => {
-            // Chuyển trạng thái đơn và ghi lịch sử trong transaction.
-            // Nếu đơn đã bị tiến trình khác xử lý, thao tác sẽ thất bại.
+            // Chỉ hủy nếu đơn vẫn giữ trạng thái đã đọc được.
+            // Nếu tiến trình khác đã xử lý đơn, transaction rollback.
             await this.ordersRepo.updateStatusWithHistory(
               order.id,
-              OrderStatus.PENDING,
+              order.status,
               OrderStatus.CANCELLED,
               order.userId,
               `Hủy tự động do đơn hàng hết thời hạn thanh toán: ${order.id}`,
@@ -77,7 +85,6 @@ export class OrderExpiryJob {
               });
 
             // Chuyển reservation sang EXPIRED và hoàn kho.
-            // Thao tác dùng chung transaction với việc hủy đơn.
             for (const reservation of reservations) {
               await this.inventoryService.releaseInTransaction(
                 tx,
@@ -85,10 +92,19 @@ export class OrderExpiryJob {
                 true,
               );
             }
+
+            // Giải phóng coupon còn RESERVED.
+            // Chỉ cập nhật một lần nhờ điều kiện status.
+            await this.promotionsRepo.releaseByOrderId(
+              order.id,
+              'EXPIRED',
+              now,
+              tx,
+            );
           });
 
           this.logger.log(
-            `Đã hủy đơn ${order.id}, hết hạn reservation và hoàn kho thành công.`,
+            `Đã hủy đơn ${order.id}, hết hạn reservation, hoàn kho và giải phóng coupon thành công.`,
           );
         } catch (error) {
           if (error instanceof ConflictException) {

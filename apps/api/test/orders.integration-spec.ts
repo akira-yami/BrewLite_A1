@@ -451,9 +451,19 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
         where: { productVariantId: variant.id },
       }),
     ).toBe(1);
-    expect(
+    // Serializable có thể thấy kho đã hết, hoặc hết ngân sách retry vì
+    // xung đột transaction. Cả hai đều phải là 409 và không giữ kho lần hai.
+    expect(['OUT_OF_STOCK', 'INVENTORY_CONFLICT']).toContain(
       results.find((result) => result.status === 409)?.body.error.code,
-    ).toBe('OUT_OF_STOCK');
+    );
+    // Khi không còn tranh chấp, mã lỗi phải chính xác là OUT_OF_STOCK.
+    const soldOut = await post([
+      { productVariantId: variant.id, quantity: 1 },
+    ]).expect(409);
+    expect(soldOut.body.error.code).toBe('OUT_OF_STOCK');
+    expect(await prisma.orderItem.count({
+      where: { productVariantId: variant.id },
+    })).toBe(1);
   });
 
   it('reserves a limited coupon once under concurrent requests', async () => {

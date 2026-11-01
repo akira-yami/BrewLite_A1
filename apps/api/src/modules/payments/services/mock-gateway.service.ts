@@ -13,6 +13,15 @@ private readonly logger = new Logger(MockGatewayService.name);
     ): Promise<{ success: boolean; gatewayTransactionId?: string; errorCode?: string }> {
         this.logger.log(`Bắt đầu giả lập thanh toán ${method} với số tiền ${amount}...`);
 
+        // Chỉ bật trong môi trường smoke/E2E của mock gateway: CARD thất bại,
+        // E_WALLET thành công. Không mock HTTP/PaymentsService, nên test vẫn
+        // đi qua JWT, Prisma, transaction và chuyển trạng thái thật.
+        if (process.env.MOCK_PAYMENT_MODE === 'deterministic') {
+            return method === PaymentMethod.CARD
+                ? { success: false, errorCode: 'INSUFFICIENT_FUNDS' }
+                : { success: true, gatewayTransactionId: `MOCK_${randomUUID()}` };
+        }
+
         // Giả lập mạng bị trễ ngẫu nhiên từ 1000ms đến 2000ms (1-2 giây)
         const delayMs = Math.floor(Math.random() * 1000) + 1000;
         await new Promise((resolve) => setTimeout(resolve, delayMs));

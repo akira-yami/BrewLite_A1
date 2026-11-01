@@ -123,7 +123,7 @@ async updateStatusWithHistory(
   reason: string,
   tx?: Prisma.TransactionClient,
 ) {
-  // Pháº§n xá»­ lÃ½ cáº­p nháº­t Ä‘Æ¡n vÃ  lá»‹ch sá»­.
+  // Cập nhật trạng thái đơn hàng và ghi lịch sử trong cùng transaction.
   const execute = async (
     client: Prisma.TransactionClient,
   ) => {
@@ -137,14 +137,14 @@ async updateStatusWithHistory(
       },
     });
 
-    // KhÃ´ng cho phÃ©p hai tiáº¿n trÃ¬nh cÃ¹ng chuyá»ƒn tráº¡ng thÃ¡i.
+    // Ngăn hai tiến trình đồng thời cùng chuyển trạng thái đơn hàng.
     if (updated.count !== 1) {
       throw new ConflictException(
         'Order status changed; cannot update this order',
       );
     }
 
-    // Chá»‰ ghi lá»‹ch sá»­ sau khi cáº­p nháº­t tráº¡ng thÃ¡i thÃ nh cÃ´ng.
+    // Chỉ ghi lịch sử sau khi cập nhật trạng thái thành công.
     await client.orderStatusHistory.create({
       data: {
         orderId,

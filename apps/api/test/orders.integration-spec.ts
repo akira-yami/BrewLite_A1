@@ -13,14 +13,6 @@ import { PrismaService } from '../src/database/prisma.service.js';
 import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
 import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
 
-import { JwtService } from '@nestjs/jwt';
-import { Test } from '@nestjs/testing';
-import { randomUUID } from 'node:crypto';
-import request from 'supertest';
-import { AppModule } from '../src/app.module.js';
-import { PrismaService } from '../src/database/prisma.service.js';
-import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
-import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
 if (

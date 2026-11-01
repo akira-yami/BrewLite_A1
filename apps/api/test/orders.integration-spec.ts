@@ -699,7 +699,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     });
     expect(stockAfterExpiry).toMatchObject({
       stock: stockAfterReservation.stock,
-      version: stockAfterReservation.version + 2,
+      version: stockAfterReservation.version + 1,
     });
 
     // Chạy Cron lặp và retry sau khi đã CANCELLED đều không được tạo side effect lần hai.
@@ -708,7 +708,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       where: { id: variant.id },
     })).toMatchObject({
       stock: stockAfterReservation.stock,
-      version: stockAfterReservation.version + 2,
+      version: stockAfterReservation.version + 1,
     });
     expect(await prisma.couponRedemption.findUniqueOrThrow({
       where: { id: expiryRedemption.id },

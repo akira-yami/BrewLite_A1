@@ -61,10 +61,10 @@ Build/typecheck tự generate client; `src/generated/prisma` được bỏ qua t
 
 ## Migration smoke từ database sạch
 
-Tạo **database test mới, rỗng** có tên bắt đầu bằng `brewlite_foundation_smoke`, rồi chạy:
+Tạo **database test mới, rỗng** có tên bắt đầu bằng `brewlite_foundation_smoke_test`, rồi chạy:
 
 ```powershell
-$env:SMOKE_DATABASE_URL = 'postgresql://brewlite:change_me_local_only@localhost:5432/brewlite_foundation_smoke?schema=public'
+$env:SMOKE_DATABASE_URL = 'postgresql://brewlite:change_me_local_only@localhost:5432/brewlite_foundation_smoke_test?schema=public'
 npm run test:migration
 ```
 

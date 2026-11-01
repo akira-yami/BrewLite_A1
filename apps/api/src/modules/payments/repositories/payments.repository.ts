@@ -8,14 +8,19 @@ export class PaymentsRepository {
 
     async findByIdempotencyKey(idempotencyKey: string) {return this.prisma.payment.findUnique({where: { idempotencyKey },});}
 
-    async createProcessingPayment(data: {
-        orderId: string;
-        idempotencyKey: string;
-        requestHash: string;
-        method: PaymentMethod;
-        amount: bigint;
-    }) {
-        return this.prisma.payment.create({
+    async createProcessingPayment(
+        data: {
+            orderId: string;
+            idempotencyKey: string;
+            requestHash: string;
+            method: PaymentMethod;
+            amount: bigint;
+        },
+        tx?: Prisma.TransactionClient,
+    ) {
+        // Retry dùng chung transaction với bước chuyển trạng thái Order để tránh trạng thái dở dang.
+        const client = tx ?? this.prisma;
+        return client.payment.create({
             data: {
                 orderId: data.orderId,
                 idempotencyKey: data.idempotencyKey,

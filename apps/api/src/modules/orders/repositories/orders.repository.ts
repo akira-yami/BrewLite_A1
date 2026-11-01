@@ -17,6 +17,42 @@ export class OrdersRepository {
     return this.prisma.order.findUnique({ where: { id, userId } });
   }
 
+  async findByIdAndUserIdForUpdate(
+    id: string,
+    userId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    // Khóa dòng Order trước khi kiểm tra trạng thái và tạo Payment để đồng bộ với Cron expiry.
+    const lockedRows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "orders"
+      WHERE "id" = ${id}::uuid AND "user_id" = ${userId}::uuid
+      FOR UPDATE
+    `;
+
+    if (lockedRows.length === 0) {
+      return null;
+    }
+
+    return tx.order.findUnique({ where: { id, userId } });
+  }
+
+  async findByIdForUpdate(id: string, tx: Prisma.TransactionClient) {
+    // Cron cũng khóa cùng dòng Order để không hủy đơn trong lúc Payment vừa được tạo.
+    const lockedRows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "orders"
+      WHERE "id" = ${id}::uuid
+      FOR UPDATE
+    `;
+
+    if (lockedRows.length === 0) {
+      return null;
+    }
+
+    return tx.order.findUnique({ where: { id } });
+  }
+
   async findOrdersByUserId(userId: string) {
     return this.prisma.order.findMany({
       where: { userId },
@@ -159,10 +195,7 @@ async markAsPaid(
     data: { status: 'CONSUMED' },
   });
 
-  await tx.couponRedemption.updateMany({
-    where: { orderId, status: 'RESERVED' },
-    data: { status: 'CONSUMED', consumedAt: new Date() },
-  });
+  // Coupon được quyết toán ở PromotionsService qua OrdersService để giữ đúng ranh giới module.
 
   const earnedPoints = Number(orderTotal / 10n);
   const user = await tx.user.update({

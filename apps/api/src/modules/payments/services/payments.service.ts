@@ -61,49 +61,77 @@ export class PaymentsService {
             };
         }
 
-/*
-Khi khách hàng gửi yêu cầu POST /api/v1/payments,
-sau khi vượt qua bước kiểm tra Idempotency-Key,
-PaymentsService phải gọi ordersService.getOrderForPayment(orderId, userId)
-    → để kiểm tra trạng thái và thời hạn giữ chỗ của đơn hàng
-        trước khi khởi tạo bản ghi Payment (PROCESSING)
-        và trước khi gọi MockGatewayService.charge()
+        // 3. Khóa Order và kiểm tra trạng thái/hạn giữ chỗ ngay trước khi tạo Payment.
+        const paymentData = { orderId, idempotencyKey, requestHash, method, amount };
+        const processingPayment = await (async () => {
+            try {
+                return await this.prisma.$transaction(async (tx) => {
+                    // Cron expiry và Payment cùng khóa dòng Order để quyết định bên nào được thực thi trước.
+                    const order = await this.ordersService.getOrderForPaymentForUpdate(
+                        orderId,
+                        userId,
+                        tx,
+                    );
 
-Nếu thời gian hiện tại đã chạm hoặc vượt quá order.reservationExpiresAt (new Date() >= order.reservationExpiresAt),
-hệ thống phải lập tức từ chối với mã lỗi 409 ORDER_EXPIRED
-→ để tuyệt đối không thu tiền cho một đơn hàng đã hết hạn giữ tồn kho/coupon.
-*/
+                    if (order.status === OrderStatus.PAID) {
+                        throw new ConflictException({
+                            code: 'ORDER_ALREADY_PAID',
+                            message: 'Đơn hàng này đã được thanh toán.',
+                        });
+                    }
 
-        // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
-        const order = await this.ordersService.getOrderForPayment(orderId, userId);
+                    if (
+                        order.status !== OrderStatus.PENDING &&
+                        order.status !== OrderStatus.PAYMENT_FAILED
+                    ) {
+                        throw new ConflictException({
+                            code: 'ORDER_INVALID_TRANSITION',
+                            message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
+                        });
+                    }
 
-        // 3.1. Chặn thanh toán lặp nếu đơn hàng đã ở trạng thái PAID
-        if (order.status === OrderStatus.PAID) {
-            throw new ConflictException({
-                code: 'ORDER_ALREADY_PAID',
-                message: 'Đơn hàng này đã được thanh toán.',
-            });
-        }
+                    // Kiểm tra lại expiry bên trong khóa để chặn request đọc Order trước hạn nhưng ghi Payment sau hạn.
+                    if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
+                        throw new ConflictException({
+                            code: 'ORDER_EXPIRED',
+                            message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+                        });
+                    }
 
-        // 3.2. Chỉ cho phép thanh toán khi đơn hàng đang ở trạng thái hợp lệ
-        if (order.status !== OrderStatus.PENDING) {
-            throw new ConflictException({
-                code: 'ORDER_INVALID_TRANSITION',
-                message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
-            });
-        }
+                    if (order.status === OrderStatus.PAYMENT_FAILED) {
+                        // Chuyển PAYMENT_FAILED về PENDING và tạo Payment cùng transaction.
+                        try {
+                            await this.ordersService.transitionForPaymentRetry(
+                                orderId,
+                                userId,
+                                'Khách hàng thực hiện lại thanh toán',
+                                tx,
+                            );
+                        } catch (error) {
+                            // Một tiến trình khác đã thắng quyền chuyển trạng thái.
+                            if (error instanceof ConflictException) {
+                                throw new ConflictException({
+                                    code: 'PAYMENT_IN_PROGRESS',
+                                    message: 'Một yêu cầu thanh toán khác đang được xử lý cho đơn hàng này.',
+                                });
+                            }
+                            throw error;
+                        }
+                    }
 
-        // 3.3. Chặn thanh toán nếu thời gian hiện tại đã vượt mốc hết hạn giữ chỗ (15 phút)
-        // Đảm bảo không gọi cổng thanh toán cho đơn hàng đã quá hạn giữ tồn kho và coupon
-        if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
-            throw new ConflictException({
-                code: 'ORDER_EXPIRED',
-                message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
-            });
-        }
-
-        // 4. Khởi tạo trạng thái PROCESSING trong DB (Thực thi NGÀY LẬP TỨC ngoài transaction chính)
-        const processingPayment = await this.paymentsRepository.createProcessingPayment({orderId, idempotencyKey, requestHash, method, amount,});
+                    return this.paymentsRepository.createProcessingPayment(paymentData, tx);
+                });
+            } catch (error) {
+                // Unique index bảo vệ idempotency key và một Payment PROCESSING trên mỗi Order.
+                if ((error as { code?: string })?.code === 'P2002') {
+                    throw new ConflictException({
+                        code: 'PAYMENT_IN_PROGRESS',
+                        message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
+                    });
+                }
+                throw error;
+            }
+        })();
 
         // 5. Gọi MockGatewayService (Call API I/O tốn thời gian, tuyệt đối KHÔNG đưa vào DB Lock)
         const gatewayResult = await this.mockGateway.charge(Number(amount), method as unknown as DtoPaymentMethod);

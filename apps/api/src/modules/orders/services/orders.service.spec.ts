@@ -26,11 +26,13 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
   let prismaMock: any;
   let txMock: any;
   let promotionsServiceMock: any;
+  let inventoryRepositoryMock: any;
 
   // Mock OrdersRepository
   const repository = {
     findActiveVariantById: vi.fn(),
     findByIdAndUserId: vi.fn(),
+    findByIdAndUserIdForUpdate: vi.fn(),
     updateStatusWithHistory: vi.fn(),
     markAsPaid: vi.fn(),
     findOrdersByUserId: vi.fn(),
@@ -56,6 +58,11 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
       inventoryReservation: {
         create: vi.fn(),
+        findMany: vi.fn(),
+      },
+
+      payment: {
+        findFirst: vi.fn(),
       },
 
       orderStatusHistory: {
@@ -74,6 +81,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     promotionsServiceMock = {
       quoteAndLock: vi.fn(),
       reserve: vi.fn(),
+      // Mô phỏng cổng quyết toán coupon khi thanh toán thành công và khi hủy đơn.
       consumeRedemption: vi.fn(),
       releaseRedemption: vi.fn(),
     };
@@ -81,7 +89,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     // Mock InventoryRepository
     // Các hàm này chuyển tiếp thao tác sang txMock
     // để giữ nguyên các assertion của test hiện tại.
-    const inventoryRepository = {
+    inventoryRepositoryMock = {
       findVariant: vi.fn(),
 
       reserveStock: vi.fn(
@@ -137,7 +145,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     // Khởi tạo InventoryService mới với PrismaService và InventoryRepository.
     const inventoryService = new InventoryService(
       prismaMock as unknown as PrismaService,
-      inventoryRepository as unknown as InventoryRepository,
+      inventoryRepositoryMock as unknown as InventoryRepository,
     );
 
     // Khởi tạo OrdersService
@@ -286,7 +294,11 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       total: 100000n,
     };
 
-    const txMock = {} as any;
+    // Transaction mock phục vụ cả các test transition và thao tác cancel có đọc Payment/Inventory.
+    const txMock = {
+      payment: { findFirst: vi.fn() },
+      inventoryReservation: { findMany: vi.fn() },
+    } as any;
 
     it('getOrderForPayment - ném NotFoundException nếu không tìm thấy đơn hoặc sai userId', async () => {
       repository.findByIdAndUserId.mockResolvedValue(null);
@@ -301,6 +313,23 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
       const result = await service.getOrderForPayment('o-1', 'u-1');
 
+      expect(result).toEqual(mockOrder);
+    });
+
+    it('getOrderForPaymentForUpdate - khóa Order trong transaction và trả về đúng chủ đơn', async () => {
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue(mockOrder);
+
+      const result = await service.getOrderForPaymentForUpdate(
+        'o-1',
+        'u-1',
+        txMock,
+      );
+
+      expect(repository.findByIdAndUserIdForUpdate).toHaveBeenCalledWith(
+        'o-1',
+        'u-1',
+        txMock,
+      );
       expect(result).toEqual(mockOrder);
     });
 
@@ -320,25 +349,25 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       );
     });
 
-/*
-*Bổ sung Mock và Test Cases cho markOrderPaid & cancelOrder trong orders.service.spec.ts
-  - Theo ADR-001 (Module Dependency Map), khi đơn hàng thanh toán thành công (markOrderPaid),
-  ngoài việc gọi OrdersRepository.markAsPaid (
-    để chuyển trạng thái
-      Order -> PAID,
-      InventoryReservation -> CONSUMED
-      và cộng điểm LoyaltyTransaction -> EARN đúng 1 lần
-  ), OrdersService phải gọi this.promotionsService.consumeRedemption(tx, orderId) trong cùng transaction tx.
+    it('transitionForPaymentRetry - truyền transaction khi được cung cấp', async () => {
+      await service.transitionForPaymentRetry(
+        'o-1',
+        'u-1',
+        'Retry trong transaction',
+        txMock,
+      );
 
-  - Tương tự, khi đơn hàng bị hủy hoặc quá hạn giữ chỗ 15 phút (cancelOrder),
-  OrdersService phải gọi this.promotionsService.releaseRedemption(client, orderId, isExpired) để nhả lượt dùng mã giảm giá (RELEASED hoặc EXPIRED).
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PAYMENT_FAILED,
+        OrderStatus.PENDING,
+        'u-1',
+        'Retry trong transaction',
+        txMock,
+      );
+    });
 
-  - Hiện tại trong orders.service.spec.ts,
-  đối tượng promotionsServiceMock mới chỉ khai báo quoteAndLock và reserve (thiếu consumeRedemption và releaseRedemption),
-  → sẽ gây lỗi `TypeError: this.promotionsService.consumeRedemption` is not a function khi chạy test!
-*/
-
-    it('markOrderPaid - gọi markAsPaid chuyển từ PENDING sang PAID và quyết toán coupon qua PromotionsService', async () => {
+    it('markOrderPaid - gọi markAsPaid chuyển từ PENDING sang PAID', async () => {
       await service.markOrderPaid('o-1', 'u-1', 100000n, txMock);
 
       expect(repository.markAsPaid).toHaveBeenCalledWith(
@@ -352,6 +381,84 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         txMock,
         'o-1',
       );
+      // Mỗi luồng thanh toán thành công chỉ consume coupon đúng một lần trong cùng transaction.
+      expect(promotionsServiceMock.consumeRedemption).toHaveBeenCalledTimes(1);
+    });
+
+    it('cancelOrder - khóa Order, đổi CANCELLED, release coupon và hoàn kho trong cùng transaction', async () => {
+      // Giả lập Order còn hạn, không có Payment PROCESSING và có một reservation ACTIVE.
+      const reservationExpiry = new Date(Date.now() + 60_000);
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue({
+        id: 'o-1',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: reservationExpiry,
+      });
+      txMock.payment.findFirst.mockResolvedValue(null);
+      txMock.inventoryReservation.findMany.mockResolvedValue([
+        { id: 'r-1', expiresAt: reservationExpiry },
+      ]);
+      inventoryRepositoryMock.findReservation.mockResolvedValue({
+        id: 'r-1',
+        orderId: 'o-1',
+        productVariantId: 'variant-1',
+        quantity: 2,
+        status: 'ACTIVE',
+        expiresAt: reservationExpiry,
+      });
+      inventoryRepositoryMock.transitionActiveReservation.mockResolvedValue({ count: 1 });
+      inventoryRepositoryMock.restoreStock.mockResolvedValue({ stock: 10, version: 1 });
+
+      await service.cancelOrder('o-1', 'u-1', 'Khách hàng hủy đơn', false, txMock);
+
+      // Xác nhận cùng transaction khóa Order, cập nhật history, release coupon và inventory.
+      expect(repository.findByIdAndUserIdForUpdate).toHaveBeenCalledWith(
+        'o-1',
+        'u-1',
+        txMock,
+      );
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PENDING,
+        OrderStatus.CANCELLED,
+        'u-1',
+        'Khách hàng hủy đơn',
+        txMock,
+      );
+      expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
+        txMock,
+        'o-1',
+        false,
+      );
+      expect(inventoryRepositoryMock.transitionActiveReservation).toHaveBeenCalledWith(
+        txMock,
+        'r-1',
+        'RELEASED',
+        'NOT_EXPIRED',
+      );
+      expect(inventoryRepositoryMock.restoreStock).toHaveBeenCalledWith(
+        txMock,
+        'variant-1',
+        2,
+      );
+    });
+
+    it('cancelOrder - không hủy Order khi Payment vẫn PROCESSING', async () => {
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue({
+        id: 'o-1',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: new Date(Date.now() + 60_000),
+      });
+      txMock.payment.findFirst.mockResolvedValue({ id: 'payment-1' });
+
+      await expect(
+        service.cancelOrder('o-1', 'u-1', 'Khách hàng hủy đơn', false, txMock),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.updateStatusWithHistory).not.toHaveBeenCalled();
+      expect(promotionsServiceMock.releaseRedemption).not.toHaveBeenCalled();
+      expect(inventoryRepositoryMock.restoreStock).not.toHaveBeenCalled();
     });
 
     it('markOrderPaymentFailed - gọi updateStatusWithHistory chuyển từ PENDING sang PAYMENT_FAILED', async () => {

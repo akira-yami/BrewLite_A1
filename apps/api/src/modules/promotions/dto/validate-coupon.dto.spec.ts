@@ -30,6 +30,16 @@ describe('ValidateCouponDto (Unit Test - TDD)', () => {
         expect(errors[0].property).toBe('code');
     });
 
+    it('Nên FAIL khi subtotal vượt Number.MAX_SAFE_INTEGER', async () => {
+        const dto = plainToInstance(ValidateCouponDto, {
+            code: 'WELCOME10',
+            subtotal: Number.MAX_SAFE_INTEGER + 1,
+        });
+        const errors = await validate(dto);
+
+        expect(errors.some((error) => error.property === 'subtotal')).toBe(true);
+    });
+
     it('Nên FAIL khi subtotal không phải là số dương', async () => {
         const dto = plainToInstance(ValidateCouponDto, {
         code: 'WELCOME10',

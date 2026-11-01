@@ -140,6 +140,83 @@ describe('SD-13 inventory concurrency on PostgreSQL', () => {
     expect(ingredientAfter.stockQuantity).toBe(20);
     expect(ingredientAfter.version).toBe(2);
   });
+  it('allows only one of two concurrent releases to restore ingredients', async () => {
+    const user = await prisma.user.create({
+      data: {
+        username: `concurrent-release-${randomUUID()}`,
+        passwordHash: 'integration-test-only',
+      },
+    });
+
+    // Kho có 20g, một reservation sẽ giữ 10g.
+    const { product, variant, ingredient } = await createProduct('CREL', 2);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Tạo đơn và reservation trong cùng transaction.
+    const reservation = await prisma.$transaction(async (tx) => {
+      const order = await createOrder(
+        tx as never,
+        'CREL',
+        user.id,
+        product,
+        variant.id,
+        expiresAt,
+      );
+
+      const reservations = await service.reserve(
+        tx,
+        order.id,
+        [{ productVariantId: variant.id, quantity: 1 }],
+        expiresAt,
+      );
+
+      return reservations[0];
+    });
+
+    if (!reservation) {
+      throw new Error('Inventory reservation was not created');
+    }
+
+    // Sau khi reserve, kho còn 10g.
+    const stockAfterReserve = await ingredientOf(ingredient.id);
+
+    expect(stockAfterReserve.stockQuantity).toBe(10);
+    expect(stockAfterReserve.version).toBe(1);
+
+    // Hai transaction cùng release một reservation.
+    const results = await Promise.allSettled([
+      service.release(reservation.id),
+      service.release(reservation.id),
+    ]);
+
+    const successes = results.filter(
+      (result) => result.status === 'fulfilled',
+    );
+
+    const failures = results.filter(
+      (result) => result.status === 'rejected',
+    );
+
+    // Chỉ một transaction được phép release thành công.
+    expect(successes).toHaveLength(1);
+    expect(failures).toHaveLength(1);
+
+    // Kiểm tra dữ liệu thực tế trong PostgreSQL.
+    const savedReservation =
+      await prisma.inventoryReservation.findUniqueOrThrow({
+        where: { id: reservation.id },
+      });
+
+    const ingredientAfterRelease = await ingredientOf(ingredient.id);
+
+    expect(savedReservation.status).toBe('RELEASED');
+
+    // Chỉ hoàn lại 10g đúng một lần.
+    expect(ingredientAfterRelease.stockQuantity).toBe(20);
+
+    // Version chỉ tăng từ 1 lên 2.
+    expect(ingredientAfterRelease.version).toBe(2);
+  });
 
   it('expires an overdue reservation and restores ingredients exactly once', async () => {
     const user = await prisma.user.create({

@@ -9,6 +9,6 @@ import { PromotionsRepository } from './repositories/promotions.repository.js';
     imports: [PrismaModule, AuthModule],
     controllers: [PromotionsController],
     providers: [PromotionsService, PromotionsRepository],
-    exports: [PromotionsService],
+    exports: [PromotionsService, PromotionsRepository],
 })
 export class PromotionsModule {}

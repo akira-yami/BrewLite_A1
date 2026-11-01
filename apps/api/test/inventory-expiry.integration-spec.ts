@@ -239,7 +239,196 @@ expect(couponAfterSecondRun.releasedAt).toEqual(
   expiredCouponRedemption.releasedAt,
 );
   });
-  
+  it('expires PAYMENT_FAILED orders and releases inventory and coupon exactly once', async () => {
+    const user = await prisma.user.create({
+      data: {
+        username: `expiry-payment-failed-${randomUUID()}`,
+        passwordHash: 'integration-test-only',
+      },
+    });
+
+    const ingredient = await prisma.ingredient.create({
+      data: {
+        code: `EXPFAILED-${randomUUID()}`,
+        name: 'Payment failed coffee beans',
+        unit: 'G',
+        stockQuantity: 20,
+      },
+    });
+
+    const product = await prisma.product.create({
+      data: {
+        sku: `EXPFAILED-${randomUUID()}`,
+        name: 'Payment failed integration product',
+        imageUrl: '/payment-failed-test.png',
+        variants: {
+          create: {
+            size: 'M',
+            price: 40000n,
+            recipeItems: {
+              create: {
+                ingredientId: ingredient.id,
+                quantity: 10,
+              },
+            },
+          },
+        },
+      },
+      include: {
+        variants: true,
+      },
+    });
+
+    const variant = product.variants[0];
+
+    if (!variant) {
+      throw new Error('Product variant was not created');
+    }
+
+    const futureExpiry = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Tạo đơn ở trạng thái PAYMENT_FAILED ngay từ đầu.
+    const order = await prisma.order.create({
+      data: {
+        orderNumber: `EXPFAILED-${randomUUID().slice(0, 8)}`,
+        userId: user.id,
+        subtotal: 40000n,
+        total: 40000n,
+        status: 'PAYMENT_FAILED',
+        reservationExpiresAt: futureExpiry,
+        items: {
+          create: {
+            productVariantId: variant.id,
+            productNameSnapshot: product.name,
+            variantNameSnapshot: 'M',
+            unitPrice: 40000n,
+            quantity: 1,
+          },
+        },
+        statusHistories: {
+          create: {
+            toStatus: 'PAYMENT_FAILED',
+          },
+        },
+      },
+    });
+
+    // Tạo coupon và redemption đang được giữ.
+    const coupon = await prisma.coupon.create({
+      data: {
+        code: `EXPFAILED-${randomUUID()}`,
+        discountType: 'FIXED_AMOUNT',
+        discountValue: 5000n,
+        startsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        endsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    const couponRedemption = await prisma.couponRedemption.create({
+      data: {
+        couponId: coupon.id,
+        userId: user.id,
+        orderId: order.id,
+        discountAmount: 5000n,
+        status: 'RESERVED',
+        expiresAt: futureExpiry,
+      },
+    });
+
+    // Giữ 10g nguyên liệu cho đơn hàng.
+    const reservations = await prisma.$transaction((tx) =>
+      inventoryService.reserve(
+        tx,
+        order.id,
+        [{ productVariantId: variant.id, quantity: 1 }],
+        futureExpiry,
+      ),
+    );
+
+    const reservation = reservations[0];
+
+    if (!reservation) {
+      throw new Error('Inventory reservation was not created');
+    }
+
+    // Đưa thời hạn đơn hàng và reservation về quá khứ.
+    const expiredAt = new Date(Date.now() - 60 * 1000);
+
+    await prisma.inventoryReservation.update({
+      where: { id: reservation.id },
+      data: { expiresAt: expiredAt },
+    });
+
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { reservationExpiresAt: expiredAt },
+    });
+
+    const stockBeforeExpiry = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredient.id },
+    });
+
+    expect(stockBeforeExpiry.stockQuantity).toBe(10);
+    expect(stockBeforeExpiry.version).toBe(1);
+
+    // Lần chạy thứ nhất: job phải hủy đơn và giải phóng tài nguyên.
+    await expiryJob.handleExpiredOrders();
+
+    const orderAfterExpiry = await prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+    });
+
+    const reservationAfterExpiry =
+      await prisma.inventoryReservation.findUniqueOrThrow({
+        where: { id: reservation.id },
+      });
+
+    const stockAfterExpiry = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredient.id },
+    });
+
+    const couponAfterExpiry =
+      await prisma.couponRedemption.findUniqueOrThrow({
+        where: { id: couponRedemption.id },
+      });
+
+    expect(orderAfterExpiry.status).toBe('CANCELLED');
+    expect(reservationAfterExpiry.status).toBe('EXPIRED');
+    expect(stockAfterExpiry.stockQuantity).toBe(20);
+    expect(stockAfterExpiry.version).toBe(2);
+    expect(couponAfterExpiry.status).toBe('EXPIRED');
+    expect(couponAfterExpiry.releasedAt).not.toBeNull();
+
+    const firstReleasedAt = couponAfterExpiry.releasedAt;
+
+    // Lần chạy thứ hai: không được giải phóng thêm lần nữa.
+    await expiryJob.handleExpiredOrders();
+
+    const orderAfterSecondRun = await prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+    });
+
+    const reservationAfterSecondRun =
+      await prisma.inventoryReservation.findUniqueOrThrow({
+        where: { id: reservation.id },
+      });
+
+    const stockAfterSecondRun = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredient.id },
+    });
+
+    const couponAfterSecondRun =
+      await prisma.couponRedemption.findUniqueOrThrow({
+        where: { id: couponRedemption.id },
+      });
+
+    expect(orderAfterSecondRun.status).toBe('CANCELLED');
+    expect(reservationAfterSecondRun.status).toBe('EXPIRED');
+    expect(stockAfterSecondRun.stockQuantity).toBe(20);
+    expect(stockAfterSecondRun.version).toBe(2);
+    expect(couponAfterSecondRun.status).toBe('EXPIRED');
+    expect(couponAfterSecondRun.releasedAt).toEqual(firstReleasedAt);
+  });
   it('rolls back order, inventory and coupon when coupon release fails', async () => {
     const user = await prisma.user.create({
       data: {

@@ -620,6 +620,10 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
 
     // KỊCH BẢN 3: Payment FAILED rồi hết hạn; Cron thật phải hủy Order, release coupon và hoàn kho.
     const promotion2 = await coupon();
+    // Lưu tồn kho trước khi tạo đơn để xác nhận Cron hoàn về đúng baseline ban đầu.
+    const stockBeforeExpiryOrder = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
     const orderResponse2 = await post(
       [{ productVariantId: variant.id, quantity: 1 }],
       promotion2.code,
@@ -698,7 +702,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       where: { id: variant.id },
     });
     expect(stockAfterExpiry).toMatchObject({
-      stock: stockAfterReservation.stock,
+      stock: stockBeforeExpiryOrder.stock,
       version: stockAfterReservation.version + 1,
     });
 
@@ -707,7 +711,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect(await prisma.productVariant.findUniqueOrThrow({
       where: { id: variant.id },
     })).toMatchObject({
-      stock: stockAfterReservation.stock,
+      stock: stockBeforeExpiryOrder.stock,
       version: stockAfterReservation.version + 1,
     });
     expect(await prisma.couponRedemption.findUniqueOrThrow({

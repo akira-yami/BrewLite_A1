@@ -23,6 +23,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let userId: string;
+  let otherUserId: string;
   let token: string;
   let otherToken: string;
   let baristaToken: string;
@@ -65,6 +66,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       ),
     );
     userId = users[0].id;
+    otherUserId = users[1].id;
     [token, otherToken, baristaToken] = users.map((user) =>
       jwt.sign({ sub: user.id, role: user.role, username: user.username }),
     );
@@ -416,10 +418,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       select: { userId: true },
     });
     expect(redemptions).toHaveLength(1);
-    expect([userId, (await prisma.user.findFirstOrThrow({
-      where: { username: { startsWith: 'orders-' }, id: { not: userId } },
-      select: { id: true },
-    })).id]).toContain(redemptions[0].userId);
+    expect([userId, otherUserId]).toContain(redemptions[0].userId);
   });
 
   it('fails before committing money outside the JSON integer range', async () => {

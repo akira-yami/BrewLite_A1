@@ -211,7 +211,7 @@ describe('SD-13 inventory expiry job', () => {
     // Mỗi ly sử dụng 10g nguyên liệu; kho ban đầu có 20g.
     const ingredient = await prisma.ingredient.create({
       data: {
-        code: `EXPCOUPON-BEAN-${randomUUID()}`,
+        code: `EXP-${randomUUID()}`,
         name: 'Expiry coupon coffee beans',
         unit: 'G',
         stockQuantity: 20,

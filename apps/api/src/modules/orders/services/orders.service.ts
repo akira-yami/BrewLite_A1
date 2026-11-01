@@ -503,6 +503,25 @@ export class OrdersService {
     return order;
   }
 
+  async getOrderForPaymentForUpdate(
+    orderId: string,
+    userId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    // Bảo đảm kiểm tra Order và ghi Payment PROCESSING diễn ra dưới cùng khóa dòng.
+    const order = await this.repository.findByIdAndUserIdForUpdate(
+      orderId,
+      userId,
+      tx,
+    );
+    if (!order) {
+      throw new NotFoundException(
+        'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập',
+      );
+    }
+    return order;
+  }
+
   async transitionForPaymentRetry(
     orderId: string,
     userId: string,

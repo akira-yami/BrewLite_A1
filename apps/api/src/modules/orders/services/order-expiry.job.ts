@@ -65,14 +65,35 @@ export class OrderExpiryJob {
 
       for (const order of expiredOrders) {
         try {
-          await this.prisma.$transaction(async (tx) => {
+          const wasExpired = await this.prisma.$transaction(async (tx) => {
+            // Khóa lại Order và đọc trạng thái mới nhất sau khi chờ các tiến trình thanh toán khác.
+            const lockedOrder = await this.ordersRepo.findByIdForUpdate(order.id, tx);
+            if (
+              !lockedOrder ||
+              ![OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED].includes(lockedOrder.status) ||
+              lockedOrder.reservationExpiresAt > now
+            ) {
+              return false;
+            }
+
+            // Chỉ hết hạn khi không còn Payment PROCESSING; khóa Order ngăn Payment mới chen vào.
+            const processingPayment = await tx.payment.findFirst({
+              where: {
+                orderId: order.id,
+                status: PaymentStatus.PROCESSING,
+              },
+              select: { id: true },
+            });
+            if (processingPayment) {
+              return false;
+            }
+
             // Chuyển trạng thái đơn và ghi lịch sử trong transaction.
-            // Nếu đơn đã bị tiến trình khác xử lý, thao tác sẽ thất bại.
             await this.ordersRepo.updateStatusWithHistory(
               order.id,
-              order.status,
+              lockedOrder.status,
               OrderStatus.CANCELLED,
-              order.userId,
+              lockedOrder.userId,
               `Hủy tự động do đơn hàng hết thời hạn thanh toán: ${order.id}`,
               tx,
             );
@@ -93,7 +114,6 @@ export class OrderExpiryJob {
               });
 
             // Chuyển reservation sang EXPIRED và hoàn kho.
-            // Thao tác dùng chung transaction với việc hủy đơn.
             for (const reservation of reservations) {
               await this.inventoryService.releaseInTransaction(
                 tx,
@@ -101,11 +121,14 @@ export class OrderExpiryJob {
                 true,
               );
             }
+            return true;
           });
 
-          this.logger.log(
-            `Đã hủy đơn ${order.id}, hết hạn coupon/reservation và hoàn kho thành công.`,
-          );
+          if (wasExpired) {
+            this.logger.log(
+              `Đã hủy đơn ${order.id}, hết hạn coupon/reservation và hoàn kho thành công.`,
+            );
+          }
         } catch (error) {
           if (error instanceof ConflictException) {
             this.logger.warn(

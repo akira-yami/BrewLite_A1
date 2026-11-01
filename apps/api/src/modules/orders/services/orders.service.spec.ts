@@ -31,6 +31,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
   const repository = {
     findActiveVariantById: vi.fn(),
     findByIdAndUserId: vi.fn(),
+    findByIdAndUserIdForUpdate: vi.fn(),
     updateStatusWithHistory: vi.fn(),
     markAsPaid: vi.fn(),
     findOrdersByUserId: vi.fn(),
@@ -301,6 +302,23 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
       const result = await service.getOrderForPayment('o-1', 'u-1');
 
+      expect(result).toEqual(mockOrder);
+    });
+
+    it('getOrderForPaymentForUpdate - khóa Order trong transaction và trả về đúng chủ đơn', async () => {
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue(mockOrder);
+
+      const result = await service.getOrderForPaymentForUpdate(
+        'o-1',
+        'u-1',
+        txMock,
+      );
+
+      expect(repository.findByIdAndUserIdForUpdate).toHaveBeenCalledWith(
+        'o-1',
+        'u-1',
+        txMock,
+      );
       expect(result).toEqual(mockOrder);
     });
 

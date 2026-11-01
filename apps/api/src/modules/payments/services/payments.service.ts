@@ -61,80 +61,77 @@ export class PaymentsService {
             };
         }
 
-        // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
-        // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
-const order = await this.ordersService.getOrderForPayment(orderId, userId);
-
-if (order.status === OrderStatus.PAID) {
-    throw new ConflictException({
-        code: 'ORDER_ALREADY_PAID',
-        message: 'Đơn hàng này đã được thanh toán.',
-    });
-}
-
-// Chỉ nhận đơn mới hoặc đơn thất bại thanh toán; đơn đã hủy/hết hạn không được mở lại.
-if (
-    order.status !== OrderStatus.PENDING &&
-    order.status !== OrderStatus.PAYMENT_FAILED
-) {
-    throw new ConflictException({
-        code: 'ORDER_INVALID_TRANSITION',
-        message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
-    });
-}
-
-// Kiểm tra hạn giữ chỗ cho cả lần thanh toán đầu và mọi lần retry.
-if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
-    throw new ConflictException({
-        code: 'ORDER_EXPIRED',
-        message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
-    });
-}
-
-const isPaymentRetry = order.status === OrderStatus.PAYMENT_FAILED;
-const paymentData = { orderId, idempotencyKey, requestHash, method, amount };
-
-// Tạo Payment PROCESSING; retry phải đổi Order và ghi Payment nguyên tử trong cùng transaction.
-const processingPayment = await (async () => {
-    try {
-        if (isPaymentRetry) {
-            return await this.prisma.$transaction(async (tx) => {
-                // Chỉ một request được phép chuyển PAYMENT_FAILED về PENDING.
-                try {
-                    await this.ordersService.transitionForPaymentRetry(
+        // 3. Khóa Order và kiểm tra trạng thái/hạn giữ chỗ ngay trước khi tạo Payment.
+        const paymentData = { orderId, idempotencyKey, requestHash, method, amount };
+        const processingPayment = await (async () => {
+            try {
+                return await this.prisma.$transaction(async (tx) => {
+                    // Cron expiry và Payment cùng khóa dòng Order để quyết định bên nào được thực thi trước.
+                    const order = await this.ordersService.getOrderForPaymentForUpdate(
                         orderId,
                         userId,
-                        'Khách hàng thực hiện lại thanh toán',
                         tx,
                     );
-                } catch (error) {
-                    // Request retry song song đã giành quyền chuyển trạng thái trước request hiện tại.
-                    if (error instanceof ConflictException) {
+
+                    if (order.status === OrderStatus.PAID) {
                         throw new ConflictException({
-                            code: 'PAYMENT_IN_PROGRESS',
-                            message: 'Một yêu cầu thanh toán khác đang được xử lý cho đơn hàng này.',
+                            code: 'ORDER_ALREADY_PAID',
+                            message: 'Đơn hàng này đã được thanh toán.',
                         });
                     }
-                    throw error;
+
+                    if (
+                        order.status !== OrderStatus.PENDING &&
+                        order.status !== OrderStatus.PAYMENT_FAILED
+                    ) {
+                        throw new ConflictException({
+                            code: 'ORDER_INVALID_TRANSITION',
+                            message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
+                        });
+                    }
+
+                    // Kiểm tra lại expiry bên trong khóa để chặn request đọc Order trước hạn nhưng ghi Payment sau hạn.
+                    if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
+                        throw new ConflictException({
+                            code: 'ORDER_EXPIRED',
+                            message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+                        });
+                    }
+
+                    if (order.status === OrderStatus.PAYMENT_FAILED) {
+                        // Chuyển PAYMENT_FAILED về PENDING và tạo Payment cùng transaction.
+                        try {
+                            await this.ordersService.transitionForPaymentRetry(
+                                orderId,
+                                userId,
+                                'Khách hàng thực hiện lại thanh toán',
+                                tx,
+                            );
+                        } catch (error) {
+                            // Một tiến trình khác đã thắng quyền chuyển trạng thái.
+                            if (error instanceof ConflictException) {
+                                throw new ConflictException({
+                                    code: 'PAYMENT_IN_PROGRESS',
+                                    message: 'Một yêu cầu thanh toán khác đang được xử lý cho đơn hàng này.',
+                                });
+                            }
+                            throw error;
+                        }
+                    }
+
+                    return this.paymentsRepository.createProcessingPayment(paymentData, tx);
+                });
+            } catch (error) {
+                // Unique index bảo vệ idempotency key và một Payment PROCESSING trên mỗi Order.
+                if ((error as { code?: string })?.code === 'P2002') {
+                    throw new ConflictException({
+                        code: 'PAYMENT_IN_PROGRESS',
+                        message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
+                    });
                 }
-
-                // Nếu tạo Payment thất bại, transaction sẽ rollback cả lần chuyển trạng thái.
-                return this.paymentsRepository.createProcessingPayment(paymentData, tx);
-            });
-        }
-
-        return await this.paymentsRepository.createProcessingPayment(paymentData);
-    } catch (error) {
-        // Partial unique index của PostgreSQL ngăn nhiều Payment PROCESSING trên cùng Order.
-        if ((error as { code?: string })?.code === 'P2002') {
-            throw new ConflictException({
-                code: 'PAYMENT_IN_PROGRESS',
-                message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
-            });
-        }
-        throw error;
-    }
-})();
+                throw error;
+            }
+        })();
 
         // 5. Gọi MockGatewayService (Call API I/O tốn thời gian, tuyệt đối KHÔNG đưa vào DB Lock)
         const gatewayResult = await this.mockGateway.charge(Number(amount), method as unknown as DtoPaymentMethod);

@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { PaymentMethod } from '../src/modules/payments/dto/create-payment.dto.js';
 import { PaymentStatus } from '../src/modules/payments/dto/payment-response.dto.js';
@@ -13,6 +13,7 @@ describe('Foundation on migrated PostgreSQL', () => {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
   let userId: string;
   let variantId: string;
+  let ingredientId: string;
   let orderId: string;
   const payment = () => ({
     orderId, idempotencyKey: randomUUID(), requestHash: 'a'.repeat(64),
@@ -25,9 +26,14 @@ describe('Foundation on migrated PostgreSQL', () => {
     userId = user.id;
     const product = await prisma.product.create({ data: {
       sku: randomUUID(), name: 'Smoke product', imageUrl: '/smoke.png',
-      variants: { create: { size: 'M', price: 40000n, stock: 2 } },
+      variants: { create: { size: 'M', price: 40000n } },
     }, include: { variants: true } });
     variantId = product.variants[0].id;
+    const ingredient = await prisma.ingredient.create({ data: {
+      code: `SMOKE-${randomUUID().slice(0, 20)}`, name: 'Smoke coffee beans', unit: 'G', stockQuantity: 100,
+    } });
+    ingredientId = ingredient.id;
+    await prisma.recipeItem.create({ data: { productVariantId: variantId, ingredientId, quantity: 10 } });
     const order = await prisma.order.create({ data: {
       orderNumber: `SMOKE-${randomUUID().slice(0, 20)}`, userId,
       subtotal: 40000n, total: 40000n, reservationExpiresAt: new Date(Date.now() + 900000),
@@ -52,21 +58,60 @@ describe('Foundation on migrated PostgreSQL', () => {
     expect(barista.role).toBe('BARISTA');
   });
 
-  it('has all 14 domain tables and the default stock version', async () => {
+  it('has all 18 domain tables and the default ingredient version', async () => {
     const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
     expect(tables.map(t => t.tablename).sort()).toEqual([
       'users', 'products', 'product_variants', 'toppings', 'product_toppings', 'orders',
       'order_items', 'order_item_toppings', 'payments', 'order_status_histories',
       'inventory_reservations', 'coupons', 'coupon_redemptions', 'loyalty_transactions',
+      'ingredients', 'recipe_items', 'inventory_reservation_items', 'topping_recipe_items',
     ].sort());
-    expect((await prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } })).version).toBe(0);
+    expect((await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).version).toBe(0);
   });
 
-  it('rejects negative stock, invalid order totals and zero item quantities', async () => {
-    await expect(prisma.productVariant.update({ where: { id: variantId }, data: { stock: -1 } })).rejects.toThrow();
+  it('never stores finished-drink quantities on products or variants', async () => {
+    const columns = await prisma.$queryRaw<Array<{ table_name: string; column_name: string }>>`
+      SELECT table_name, column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name IN ('products', 'product_variants')
+        AND column_name IN ('stock', 'quantity', 'version')
+    `;
+    expect(columns).toEqual([]);
+  });
+
+  it('rejects negative ingredient stock, non-positive recipe quantities, invalid order totals and zero item quantities', async () => {
+    await expect(prisma.ingredient.update({ where: { id: ingredientId }, data: { stockQuantity: -1 } })).rejects.toThrow();
+    await expect(prisma.recipeItem.update({
+      where: { productVariantId_ingredientId: { productVariantId: variantId, ingredientId } },
+      data: { quantity: 0 },
+    })).rejects.toThrow();
     await expect(prisma.order.update({ where: { id: orderId }, data: { total: 1n } })).rejects.toThrow();
     await expect(prisma.orderItem.updateMany({ where: { orderId }, data: { quantity: 0 } })).rejects.toThrow();
-    expect((await prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } })).stock).toBe(2);
+    expect((await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).stockQuantity).toBe(100);
+  });
+
+  it('stores toppings as prepackaged (one portion = one ingredient quantity) or prepared (several ingredients)', async () => {
+    const pearl = await prisma.topping.create({ data: {
+      code: `SMOKE-TOP-${randomUUID().slice(0, 16)}`, name: 'Pearl 3Q', price: 8000n,
+      recipeItems: { create: { ingredientId, quantity: 30 } },
+    } });
+    expect(pearl.type).toBe('PREPACKAGED');
+    const second = await prisma.ingredient.create({ data: {
+      code: `SMOKE-SUGAR-${randomUUID().slice(0, 16)}`, name: 'Brown sugar', unit: 'G', stockQuantity: 500,
+    } });
+    const prepared = await prisma.topping.create({ data: {
+      code: `SMOKE-TOP-${randomUUID().slice(0, 16)}`, name: 'Black pearl', price: 9000n, type: 'PREPARED',
+      recipeItems: { create: [{ ingredientId, quantity: 20 }, { ingredientId: second.id, quantity: 15 }] },
+    } });
+    expect(await prisma.toppingRecipeItem.count({ where: { toppingId: prepared.id } })).toBe(2);
+    await expect(prisma.toppingRecipeItem.update({
+      where: { toppingId_ingredientId: { toppingId: pearl.id, ingredientId } },
+      data: { quantity: 0 },
+    })).rejects.toThrow();
+    await expect(prisma.toppingRecipeItem.create({ data: { toppingId: pearl.id, ingredientId, quantity: 5 } })).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('allows one recipe line per variant and ingredient', async () => {
+    await expect(prisma.recipeItem.create({ data: { productVariantId: variantId, ingredientId, quantity: 5 } })).rejects.toMatchObject({ code: 'P2002' });
   });
 
   it('preserves nullable preferences and stores both percentage boundaries', async () => {
@@ -122,12 +167,12 @@ describe('Foundation on migrated PostgreSQL', () => {
 
   it('enforces foreign keys and rolls back the whole transaction on a CHECK violation', async () => {
     await expect(prisma.inventoryReservation.create({ data: { orderId, productVariantId: randomUUID(), quantity: 1, expiresAt: new Date() } })).rejects.toMatchObject({ code: 'P2003' });
-    const before = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } });
+    const before = await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
     await expect(prisma.$transaction(async tx => {
-      await tx.productVariant.update({ where: { id: variantId }, data: { stock: { decrement: 1 }, version: { increment: 1 } } });
+      await tx.ingredient.update({ where: { id: ingredientId }, data: { stockQuantity: { decrement: 10 }, version: { increment: 1 } } });
       await tx.order.update({ where: { id: orderId }, data: { discountAmount: 50000n } });
     })).rejects.toThrow();
-    const after = await prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } });
-    expect({ stock: after.stock, version: after.version }).toEqual({ stock: before.stock, version: before.version });
+    const after = await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
+    expect({ stock: after.stockQuantity, version: after.version }).toEqual({ stock: before.stockQuantity, version: before.version });
   });
 });

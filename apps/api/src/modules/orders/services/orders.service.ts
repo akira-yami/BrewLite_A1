@@ -1,33 +1,38 @@
-import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
-import { randomUUID } from 'node:crypto';
-import { UsersService } from '../../users/users.service.js';
-import { orderMoney } from '../../../common/utils/order-money.js';
-import { CatalogService } from '../../catalog/services/catalog.service.js';
-import {
-  InventoryService,
-  InventoryVersionConflict,
-} from '../../inventory/services/inventory.service.js';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CreateOrderDto, CreateOrderItemDto } from '../dto/create-order.dto.js';
-import { OrdersRepository } from '../repositories/orders.repository.js';
-import { OrderStatus, Prisma } from '../../../generated/prisma/client.js';
+import { randomUUID } from 'node:crypto';
+import { orderMoney } from '../../../common/utils/order-money.js';
+import {
+  maxServings,
+  type RecipeLine,
+} from '../../../common/utils/recipe-capacity.js';
 import { PrismaService } from '../../../database/prisma.service.js';
+import { OrderStatus, Prisma } from '../../../generated/prisma/client.js';
+import { CatalogService } from '../../catalog/services/catalog.service.js';
+import {
+  InventoryService,
+  InventoryVersionConflict,
+  type InventoryNeeds,
+} from '../../inventory/services/inventory.service.js';
 import { PromotionsService } from '../../promotions/services/promotions.service.js';
-import { toOrderItemResponse } from '../mappers/order-item.mapper.js';
+import { UsersService } from '../../users/users.service.js';
 import type {
   CreateOrderResponseDto,
   OrderResponseDto,
 } from '../dto/create-order-response.dto.js';
+import { CreateOrderDto, CreateOrderItemDto } from '../dto/create-order.dto.js';
 import type {
   OrderDetailResponseDto,
   PaymentSummaryDto,
   StatusTimelineDto,
 } from '../dto/order-detail-response.dto.js';
+import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
+import { toOrderItemResponse } from '../mappers/order-item.mapper.js';
+import { OrdersRepository } from '../repositories/orders.repository.js';
 
 @Injectable()
 export class OrdersService {
@@ -61,7 +66,7 @@ export class OrdersService {
             const {
               items: preparedItems,
               subtotal,
-              variantNeeds,
+              needs,
             } = await this.validateAndPriceItems(normalizedItems, tx);
             // 3.1. Thẩm định và khóa Coupon (nếu khách hàng có áp dụng mã)
             let discountAmount = 0n;
@@ -136,7 +141,7 @@ export class OrdersService {
               tx,
               order.id,
               reservationExpiresAt,
-              variantNeeds,
+              needs,
             );
 
             // 3.6. Giữ lượt dùng mã giảm giá (CouponRedemption) nếu có
@@ -378,12 +383,15 @@ export class OrdersService {
     tx: Prisma.TransactionClient = this.prisma,
   ) {
     const preparedItems = [];
-    const requiredStock = new Map<string, number>();
-    const availableStock = new Map<string, number>();
-    const variantNeeds = new Map<
-      string,
-      { quantity: number; version: number }
-    >();
+    // Nhu cầu nguyên liệu suy ra từ công thức (BOM); không có tồn kho thành phẩm.
+    const needs: InventoryNeeds = {
+      ingredients: new Map(),
+      variants: new Map(),
+    };
+    const ingredientStock = new Map<string, number>();
+    type QuotedRecipeLine = RecipeLine & { ingredientId: string };
+    const quotedRecipes = new Map<string, QuotedRecipeLine[]>();
+    const quotedToppingRecipes = new Map<string, QuotedRecipeLine[]>();
 
     let subtotal = 0n;
 
@@ -403,19 +411,41 @@ export class OrdersService {
         });
       }
 
-      // 2. Cộng dồn số lượng nếu nhiều dòng chọn cùng một size.
+      // 2. Quy đổi số ly thành nhu cầu nguyên liệu theo công thức (BOM).
+      // Cộng dồn nếu nhiều dòng chọn cùng size hoặc dùng chung nguyên liệu.
       const variantId = variant.id;
+      quotedRecipes.set(variantId, variant.recipeItems);
 
-      requiredStock.set(
-        variantId,
-        (requiredStock.get(variantId) ?? 0) + item.quantity,
-      );
+      const variantNeed = needs.variants.get(variantId) ?? {
+        quantity: 0,
+        ingredients: new Map<string, number>(),
+      };
+      variantNeed.quantity += item.quantity;
+      needs.variants.set(variantId, variantNeed);
 
-      availableStock.set(variantId, variant.stock);
-      variantNeeds.set(variantId, {
-        quantity: requiredStock.get(variantId)!,
-        version: variant.version,
-      });
+      const addNeed = (
+        line: {
+          ingredientId: string;
+          quantity: number;
+          ingredient: { stockQuantity: number; version: number };
+        },
+        cups: number,
+      ) => {
+        const amount = line.quantity * cups;
+        const ingredientId = line.ingredientId;
+        variantNeed.ingredients.set(
+          ingredientId,
+          (variantNeed.ingredients.get(ingredientId) ?? 0) + amount,
+        );
+        const total = needs.ingredients.get(ingredientId);
+        needs.ingredients.set(ingredientId, {
+          quantity: (total?.quantity ?? 0) + amount,
+          version: line.ingredient.version,
+        });
+        ingredientStock.set(ingredientId, line.ingredient.stockQuantity);
+      };
+
+      for (const line of variant.recipeItems) addNeed(line, item.quantity);
 
       // 3. Kiểm tra topping thuộc sản phẩm và đang hoạt động.
       const selectedToppings = (item.toppingIds ?? []).map((toppingId) => {
@@ -436,6 +466,13 @@ export class OrdersService {
 
         return relation.topping;
       });
+
+      // 3b. Mỗi ly kèm 1 phần topping: quy đổi theo công thức topping (nhập sẵn
+      // hoặc chế biến) và gộp vào nhu cầu nguyên liệu của dòng giữ chỗ này.
+      for (const topping of selectedToppings) {
+        quotedToppingRecipes.set(topping.id, topping.recipeItems);
+        for (const line of topping.recipeItems) addNeed(line, item.quantity);
+      }
 
       // 4. Lấy giá từ database, không nhận giá từ frontend.
       const toppingTotal = selectedToppings.reduce(
@@ -472,25 +509,47 @@ export class OrdersService {
       });
     }
 
-    // 6. Kiểm tra tổng số lượng cần mua với tồn kho hiện tại.
-    for (const [variantId, quantity] of requiredStock) {
-      const stock = availableStock.get(variantId) ?? 0;
-
-      if (quantity > stock) {
-        throw new ConflictException({
-          error: {
-            code: 'OUT_OF_STOCK',
-            message: 'Insufficient stock',
-            details: [{ variantId, available: stock }],
-          },
-        });
+    // 6. Kiểm tra tổng nhu cầu nguyên liệu với tồn kho nguyên liệu hiện tại.
+    // Variant chưa có công thức hoặc dùng nguyên liệu ngừng dùng thì không bán được.
+    // Topping chưa có công thức hoặc thiếu nguyên liệu cũng không bán được.
+    const isShort = (recipe: QuotedRecipeLine[]) =>
+      recipe.length === 0 ||
+      recipe.some(
+        (line) =>
+          !line.ingredient.isActive ||
+          (needs.ingredients.get(line.ingredientId)?.quantity ?? 0) >
+            (ingredientStock.get(line.ingredientId) ?? 0),
+      );
+    const unavailable: Array<{
+      variantId?: string;
+      toppingId?: string;
+      available: number;
+    }> = [];
+    for (const [variantId, recipe] of quotedRecipes) {
+      if (isShort(recipe)) {
+        unavailable.push({ variantId, available: maxServings(recipe) });
       }
+    }
+    for (const [toppingId, recipe] of quotedToppingRecipes) {
+      if (isShort(recipe)) {
+        unavailable.push({ toppingId, available: maxServings(recipe) });
+      }
+    }
+
+    if (unavailable.length > 0) {
+      throw new ConflictException({
+        error: {
+          code: 'OUT_OF_STOCK',
+          message: 'Insufficient ingredients',
+          details: unavailable,
+        },
+      });
     }
 
     return {
       items: preparedItems,
       subtotal,
-      variantNeeds,
+      needs,
     };
   }
 

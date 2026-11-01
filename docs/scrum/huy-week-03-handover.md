@@ -3,7 +3,7 @@
 Ngày hoàn thiện kỹ thuật: 20/10/2026. Nhánh: `codex/huy-week-3-rbac-ownership`, base `cd49fe6`.
 
 Phạm vi:
-- **Design Trước Code:** Cập nhật tài liệu thiết kế SD-06 trong `docs/architecture/sequence-diagrams-auth.md` bổ sung Giai đoạn 3 (Ownership Guard & User Isolation) và chuẩn hóa ma trận mã lỗi 401/403/404.
+- **Design Trước Code:** Cập nhật tài liệu thiết kế SD-06 trong `Huy-A2/docs/architecture/sequence-diagrams-auth.md` bổ sung Giai đoạn 3 (Ownership Guard & User Isolation) và chuẩn hóa ma trận mã lỗi 401/403/404.
 - **Backend:** Xây dựng `OwnershipGuard` kiểm soát quyền sở hữu và `HttpExceptionFilter` chuẩn hóa mã lỗi 401 (`UNAUTHORIZED`) và 403 (`FORBIDDEN_RESOURCE`) theo đúng chuẩn envelope của BrewLite. Bổ sung endpoint `GET /api/v1/auth/users/:userId` và `GET /api/v1/auth/barista-only`.
 - **Frontend:** Cập nhật `AuthApiError` trong `apps/web/src/features/auth/api.ts` hỗ trợ bóc tách mã lỗi `code` từ response server; đảm bảo 403 Forbidden hiển thị thông báo thân thiện và bảo toàn phiên làm việc của người dùng (không bị logout như 401).
 - **Review:** Lập báo cáo phản biện kỹ thuật độc lập cho thiết kế SD-12 và logic Coupon của Dev Kiệt (`docs/reviews/huy-review-coupon-sd12.md`).

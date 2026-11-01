@@ -3,18 +3,12 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/a
 export type PaymentMethod = 'E_WALLET' | 'CARD';
 
 export interface PaymentResponse {
-  paymentId: string;
-  orderId: string;
-  orderNumber: string;
-  amount: number;
-  method: PaymentMethod;
-  success?: boolean;
-  paymentStatus: 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
-  orderStatus: string;
+  success: boolean;
+  isRetried: boolean;
+  status: 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
   gatewayTransactionId?: string | null;
-  failureCode?: string | null;
+  errorCode?: string | null;
   message?: string;
-  processedAt: string;
 }
 
 export class PaymentApiError extends Error {

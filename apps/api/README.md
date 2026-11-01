@@ -35,7 +35,28 @@ JWT_AUDIENCE=brewlite-web
 
 Sau khi migrate, chạy `npm run db:seed` để bổ sung catalog mẫu. Seed chỉ thêm sản phẩm, size, topping và liên kết còn thiếu theo SKU/code/khóa liên kết; có thể chạy nhiều lần mà không tạo bản ghi trùng.
 
-Seed giữ nguyên ID, giá, tồn kho, version, trạng thái và nội dung đã chỉnh sửa của bản ghi hiện có. Không xóa đơn hàng, chi tiết đơn, topping của đơn hoặc giữ chỗ tồn kho. Toàn bộ seed chạy trong một transaction: nếu gặp lỗi, dữ liệu vừa thêm được rollback và lệnh trả mã lỗi.
+Seed cũng bổ sung nguyên liệu (`ingredients`) và công thức (`recipe_items`) cho từng size còn thiếu. Seed giữ nguyên ID, giá, tồn kho nguyên liệu, version, trạng thái và nội dung đã chỉnh sửa của bản ghi hiện có (kể cả công thức đã sửa). Không xóa đơn hàng, chi tiết đơn, topping của đơn hoặc giữ chỗ tồn kho. Toàn bộ seed chạy trong một transaction: nếu gặp lỗi, dữ liệu vừa thêm được rollback và lệnh trả mã lỗi.
+
+## Tồn kho theo nguyên liệu và công thức (BOM)
+
+Thành phẩm (ly cà phê, trà sữa...) **không có số lượng trong CSDL**: `products` và `product_variants` không có cột `stock`, `quantity` hay `version`. Tồn kho chỉ nằm ở nguyên liệu thô.
+
+| Bảng | Vai trò |
+|---|---|
+| `ingredients` | Nguyên liệu thô. `stock_quantity` tính theo đơn vị cơ sở của `unit` (`G`, `ML`, `PCS`); `version` dùng cho compare-and-set khi trừ kho. |
+| `recipe_items` | Công thức (BOM): khóa chính `(product_variant_id, ingredient_id)`, `quantity` là lượng nguyên liệu cho 1 ly. |
+| `inventory_reservation_items` | Lượng nguyên liệu thực tế đã giữ cho từng reservation, dùng để hoàn đúng số lượng khi hủy hoặc hết hạn, kể cả khi công thức đổi sau đó. |
+
+Topping theo cùng nguyên tắc, bảng `topping_recipe_items` (công thức 1 phần topping) và cột `toppings.type`:
+
+- `PREPACKAGED` (nhập sẵn: thạch hộp, trân châu 3Q, flan đóng hộp): đúng 1 dòng công thức, 1 phần = 1 định lượng nguyên liệu thô, ví dụ 30g trân châu 3Q.
+- `PREPARED` (chế biến: trân châu đen đường đen, kem cheese tự đánh): bán thành phẩm, 1 phần gồm nhiều nguyên liệu thô (bột năng, đường đen, sữa tươi...). Không có tồn kho riêng cho bán thành phẩm; tồn kho chỉ nằm ở nguyên liệu thô.
+
+Mỗi ly kèm một phần topping, nguyên liệu của topping được trừ cùng lúc với nguyên liệu của ly và ghi vào reservation. `toppings[].available` trong API là `true` khi topping đang hoạt động và mọi nguyên liệu đủ cho ít nhất 1 phần. Topping chưa có công thức bị coi là hết hàng (tạo đơn trả `OUT_OF_STOCK` kèm `toppingId`). Số lượng công thức là số nguyên theo đơn vị cơ sở nên chọn đơn vị (g, ml) đủ nhỏ để không cần phần thập phân. Migration `20261101100000_topping_recipe`.
+
+Số ly tối đa của một size được tính khi đọc, không lưu: `min(floor(stock_quantity / recipe_items.quantity))` trên mọi dòng công thức. Ví dụ kho 100g cà phê và công thức 10g/ly cho tối đa 10 ly. Size chưa có công thức hoặc có nguyên liệu `is_active = false` được coi là 0 ly. API menu/detail trả giá trị này ở `variants[].availableServings` (thay cho `stock`).
+
+Khi tạo đơn, hệ thống quy đổi số ly thành nhu cầu nguyên liệu theo công thức, cộng dồn các nguyên liệu dùng chung giữa các dòng, rồi trừ kho nguyên liệu bằng `UPDATE ... WHERE version = ? AND stock_quantity >= ?` theo thứ tự ID trong transaction `Serializable`. Migration `20261101090000_ingredient_recipe_inventory` tạo ba bảng trên và xóa `product_variants.stock`/`version`. Số lượng thành phẩm cũ không được chuyển đổi; sau khi `npm run prisma:deploy`, chạy `npm run db:seed` để có nguyên liệu và công thức mẫu.
 
 ## Kiểm tra
 
@@ -53,7 +74,7 @@ Build/typecheck tự generate client; `src/generated/prisma` được bỏ qua t
 
 `sugarLevel Int? @map("sugar_level")` và `iceLevel Int? @map("ice_level")` nhận phần trăm nguyên 0..100. Null hoặc không gửi dùng công thức chuẩn; 0 là không đường/đá. Migration `20261010090000_order_item_sugar_ice_levels` thêm hai cột nullable và CHECK, giữ đơn cũ với null. Cập nhật DB đang dùng bằng `npm run prisma:deploy`, rồi `npm run prisma:generate` (hoặc build/typecheck).
 
-`CreateOrderDto` validate các trường mới; `toOrderItemResponse` trả nguyên lựa chọn từ snapshot, không phụ thu. Đây là contract cho orders controller/service chưa triển khai; khi tích hợp, lưu bằng `value ?? null` để giữ 0 và tổng hợp tồn kho theo variant qua các dòng khác tùy chọn. Xem [API spec](../../docs/architecture/api-spec.md).
+`CreateOrderDto` validate các trường mới; `toOrderItemResponse` trả nguyên lựa chọn từ snapshot, không phụ thu. Đây là contract cho orders controller/service chưa triển khai; khi tích hợp, lưu bằng `value ?? null` để giữ 0 và tổng hợp tồn kho theo variant qua các dòng khác tùy chọn. Xem [API spec](../../Khang-A2/docs/architecture/api-spec.md).
 
 ## Ghi chú của OrderItem
 
@@ -76,5 +97,5 @@ Integration kiểm tra CHECK, FK, partial unique payment/loyalty và rollback; c
 
 ## Hợp đồng Orders tuần 2
 
-S1-10/SD-10 được bàn giao tại [Orders contract](../../docs/architecture/orders-contract.md), [UC-06](../../docs/use-cases/UC-06-tao-don-hang.md), [OpenAPI](../../docs/api/orders.openapi.yaml) và [mã PlantUML riêng](../../docs/architecture/diagrams/SD-10-create-order.puml). DTO request/response chuẩn bị cho S2-W3; `POST /orders` chưa được đăng ký. `couponCode` được trim, giữ nguyên hoa/thường và từ chối chuỗi trắng.
+S1-10/SD-10 được bàn giao tại [Orders contract](../../Khang-A2/docs/architecture/orders-contract.md), [UC-06](../../Khang-A2/docs/use-cases/UC-06-tao-don-hang.md), [OpenAPI](../../docs/api/orders.openapi.yaml) và [mã PlantUML riêng](../../Khang-A2/docs/architecture/diagrams/SD-10-create-order.puml). DTO request/response chuẩn bị cho S2-W3; `POST /orders` chưa được đăng ký. `couponCode` được trim, giữ nguyên hoa/thường và từ chối chuỗi trắng.
 

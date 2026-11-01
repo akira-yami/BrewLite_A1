@@ -4,7 +4,7 @@ Trạng thái tại 22/10/2026: **chưa ghi nhận biên bản Retrospective** t
 
 ## Đầu vào kiểm chứng được
 
-Xem [Sprint 1](../sprint-01.md), [tiến độ](../progress-report.md) và [truy vết](../../traceability-matrix.md). Dùng kết quả test có ngày/SHA và phản hồi review thật; không quy phát hiện kỹ thuật thành lời nhận xét của thành viên.
+Xem [Sprint 1](../sprint-01.md), [tiến độ](../progress-report.md) và [truy vết](../../../Khang-A2/docs/traceability-matrix.md). Dùng kết quả test có ngày/SHA và phản hồi review thật; không quy phát hiện kỹ thuật thành lời nhận xét của thành viên.
 
 ## Nội dung cần thảo luận
 

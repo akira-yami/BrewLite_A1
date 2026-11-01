@@ -16,6 +16,57 @@ env:
   CI: "true"
 
 jobs:
+  checkout-e2e:
+    name: Checkout E2E gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18.4-alpine3.23
+        env:
+          POSTGRES_USER: brewlite
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: brewlite_checkout_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U brewlite -d brewlite_checkout_e2e"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://brewlite:ci_only_password@localhost:5432/brewlite_checkout_e2e?schema=public
+      JWT_SECRET: cf40f6ffdda376c12dfb4370b2f84db0a740a6c4efc6eb71032602c99e6ad933
+      NEXT_PUBLIC_API_URL: http://localhost:3101/api/v1
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm ci --prefix apps/api
+      - run: npm ci --prefix apps/web
+      - name: Prepare isolated database and production servers
+        run: |
+          cd apps/api
+          npm run prisma:generate
+          npm run prisma:deploy
+          node --import=tsx prisma/seed-e2e.ts
+          npm run build
+          cd ../web
+          npm run build
+          npx playwright install --with-deps chromium
+      # No continue-on-error: payment contract/retry regressions must fail this job.
+      - run: npm run test:e2e --prefix apps/web
+      - name: Upload browser traces and report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: checkout-e2e-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+
   documentation:
     name: Documentation
     runs-on: ubuntu-24.04

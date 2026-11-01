@@ -1,6 +1,5 @@
 import { CatalogModule } from '../catalog/catalog.module.js';
 import { UsersService } from '../users/users.service.js';
-import { InventoryService } from '../inventory/inventory.service.js';
 
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../database/prisma.module.js';
@@ -12,9 +11,9 @@ import { OrdersController } from './controllers/orders.controller.js';
 import { OrderExpiryJob } from './services/order-expiry.job.js';
 
 @Module({
-  imports: [PrismaModule, PromotionsModule, CatalogModule,  InventoryModule,],
+  imports: [PrismaModule, PromotionsModule, CatalogModule, InventoryModule],
   controllers: [OrdersController],
-  providers: [OrdersRepository, OrdersService, InventoryService, UsersService, OrderExpiryJob],
+  providers: [OrdersRepository, OrdersService, UsersService, OrderExpiryJob],
   exports: [OrdersService],
 })
 export class OrdersModule {}

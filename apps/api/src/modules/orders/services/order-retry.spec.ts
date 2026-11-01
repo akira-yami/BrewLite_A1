@@ -1,21 +1,33 @@
-
 import { describe, expect, it, vi } from 'vitest';
-import { OrdersService } from './orders.service.js';
 import { CatalogService } from '../../catalog/services/catalog.service.js';
 import { InventoryService } from '../../inventory/services/inventory.service.js';
+import { InventoryRepository } from '../../inventory/repositories/inventory.repository.js';
 import { UsersService } from '../../users/users.service.js';
+import { OrdersService } from './orders.service.js';
+
+// Công thức một dòng: mỗi ly dùng `quantity` đơn vị của `ingredientId`.
+function recipe(
+  ingredientId: string,
+  quantity: number,
+  stockQuantity: number,
+  version = 7,
+) {
+  return [
+    {
+      ingredientId,
+      quantity,
+      ingredient: { id: ingredientId, stockQuantity, version, isActive: true },
+    },
+  ];
+}
 
 function setup() {
   const variant = {
     id: 'variant',
-    version: 7,
     size: 'M',
     price: 40000n,
-    stock: 10,
-    product: {
-      name: 'Coffee',
-      productToppings: [],
-    },
+    recipeItems: recipe('bean', 10, 100),
+    product: { name: 'Coffee', productToppings: [] },
   };
 
   const tx = {
@@ -25,6 +37,8 @@ function setup() {
 
     productVariant: {
       findFirst: vi.fn().mockResolvedValue(variant),
+    },
+    ingredient: {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
 
@@ -50,60 +64,11 @@ function setup() {
     $transaction: vi.fn(async (callback) => callback(tx)),
   };
 
-  // Mock InventoryRepository.
-  // Thứ tự tham số phải giống InventoryRepository thật:
-  // transaction, variantId, expectedVersion, quantity.
-  const inventoryRepository = {
-    findVariant: vi.fn(),
-
-    reserveStock: vi.fn(
-      async (
-        transaction,
-        variantId,
-        expectedVersion,
-        quantity,
-      ) => {
-        return transaction.productVariant.updateMany({
-          where: {
-            id: variantId,
-            version: expectedVersion,
-            stock: { gte: quantity },
-            isActive: true,
-          },
-          data: {
-            stock: { decrement: quantity },
-            version: { increment: 1 },
-          },
-        });
-      },
-    ),
-
-    createReservation: vi.fn(
-      async (
-        transaction,
-        orderId,
-        variantId,
-        quantity,
-        expiresAt,
-      ) => {
-        return transaction.inventoryReservation.create({
-          data: {
-            orderId,
-            productVariantId: variantId,
-            quantity,
-            status: 'ACTIVE',
-            expiresAt,
-          },
-        });
-      },
-    ),
-  };
-
   const catalog = new CatalogService({} as any);
 
   const inventory = new InventoryService(
     prisma as any,
-    inventoryRepository as any,
+    new InventoryRepository(),
   );
 
   const service = new OrdersService(
@@ -134,52 +99,38 @@ function setup() {
 }
 
 describe('Order transaction regression checks', () => {
-  it('quotes and updates within the same Serializable transaction with the expected version', async () => {
+  it('quotes and updates within the same Serializable transaction with the expected ingredient version', async () => {
     const { service, tx, prisma, dto } = setup();
 
     await service.createOrder('user', dto);
-
-    expect(prisma.$transaction).toHaveBeenCalledWith(
-      expect.any(Function),
-      {
-        isolationLevel: 'Serializable',
-      },
-    );
-
-    expect(tx.productVariant.updateMany).toHaveBeenCalledWith({
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+    });
+    expect(tx.ingredient.updateMany).toHaveBeenCalledWith({
       where: {
-        id: 'variant',
+        id: 'bean',
         version: 7,
         isActive: true,
-        stock: { gte: 1 },
+        stockQuantity: { gte: 10 },
       },
-      data: {
-        stock: { decrement: 1 },
-        version: { increment: 1 },
-      },
+      data: { stockQuantity: { decrement: 10 }, version: { increment: 1 } },
     });
   });
 
   it('re-quotes after a version conflict and snapshots the new price/version', async () => {
     const { service, tx, dto, variant } = setup();
-
-    tx.productVariant.updateMany.mockResolvedValueOnce({
-      count: 0,
-    });
-
+    tx.ingredient.updateMany.mockResolvedValueOnce({ count: 0 });
     tx.productVariant.findFirst
       .mockResolvedValueOnce(variant)
       .mockResolvedValueOnce({
         ...variant,
-        version: 8,
         price: 45000n,
+        recipeItems: recipe('bean', 10, 100, 8),
       });
-
     const response = await service.createOrder('user', dto);
 
     expect(response.total).toBe(45000);
-
-    expect(tx.productVariant.updateMany).toHaveBeenLastCalledWith(
+    expect(tx.ingredient.updateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           version: 8,
@@ -223,45 +174,31 @@ describe('Order transaction regression checks', () => {
 
     expect(new Set(numbers).size).toBe(2);
 
-    expect(
-      numbers.every((value) => value.length <= 30),
-    ).toBe(true);
+    expect(numbers.every((value) => value.length <= 30)).toBe(true);
   });
 
   it('stops after three version conflicts with INVENTORY_CONFLICT', async () => {
     const { service, tx, prisma, dto } = setup();
-
-    tx.productVariant.updateMany.mockResolvedValue({
-      count: 0,
-    });
-
-    await expect(
-      service.createOrder('user', dto),
-    ).rejects.toMatchObject({
-      response: {
-        error: {
-          code: 'INVENTORY_CONFLICT',
-        },
-      },
+    tx.ingredient.updateMany.mockResolvedValue({ count: 0 });
+    await expect(service.createOrder('user', dto)).rejects.toMatchObject({
+      response: { error: { code: 'INVENTORY_CONFLICT' } },
     });
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(3);
   });
 
-  it('does not retry insufficient stock or an inactive principal', async () => {
+  it('does not retry insufficient ingredients or an inactive principal', async () => {
     const { service, tx, prisma, dto, variant } = setup();
-
+    // Còn 9g, mỗi ly cần 10g => làm được 0 ly.
     tx.productVariant.findFirst.mockResolvedValue({
       ...variant,
-      stock: 0,
+      recipeItems: recipe('bean', 10, 9),
     });
-
-    await expect(
-      service.createOrder('user', dto),
-    ).rejects.toMatchObject({
+    await expect(service.createOrder('user', dto)).rejects.toMatchObject({
       response: {
         error: {
           code: 'OUT_OF_STOCK',
+          details: [{ variantId: 'variant', available: 0 }],
         },
       },
     });
@@ -270,25 +207,24 @@ describe('Order transaction regression checks', () => {
 
     tx.user.findFirst.mockResolvedValue(null);
 
-    await expect(
-      service.createOrder('user', dto),
-    ).rejects.toMatchObject({
+    await expect(service.createOrder('user', dto)).rejects.toMatchObject({
       status: 401,
     });
 
     expect(tx.order.create).not.toHaveBeenCalled();
   });
 
-  it('reserves multiple variants in UUID order with aggregated quantities', async () => {
+  it('reserves ingredients in ID order with quantities aggregated across variants', async () => {
     const { service, tx, dto, variant } = setup();
-
-    tx.productVariant.findFirst.mockImplementation(
-      async ({ where }) => ({
-        ...variant,
-        id: where.id,
-      }),
-    );
-
+    // Hai size dùng chung "bean"; "a-cup" chỉ thuộc variant a.
+    tx.productVariant.findFirst.mockImplementation(async ({ where }) => ({
+      ...variant,
+      id: where.id,
+      recipeItems:
+        where.id === 'a'
+          ? [...recipe('bean', 10, 100), ...recipe('a-cup', 1, 50)]
+          : recipe('bean', 20, 100),
+    }));
     dto.items = [
       {
         productVariantId: 'b',
@@ -307,13 +243,19 @@ describe('Order transaction regression checks', () => {
     await service.createOrder('user', dto);
 
     expect(
-      tx.productVariant.updateMany.mock.calls.map(([args]) => [
+      tx.ingredient.updateMany.mock.calls.map(([args]) => [
         args.where.id,
-        args.data.stock.decrement,
+        args.data.stockQuantity.decrement,
       ]),
     ).toEqual([
-      ['a', 1],
-      ['b', 3],
+      ['a-cup', 1],
+      // a: 1 ly x 10 + b: 3 ly x 20 = 70.
+      ['bean', 70],
     ]);
+    expect(
+      tx.inventoryReservation.create.mock.calls.map(
+        ([args]) => args.data.productVariantId,
+      ),
+    ).toEqual(['a', 'b']);
   });
 });

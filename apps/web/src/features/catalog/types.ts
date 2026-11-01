@@ -4,7 +4,8 @@ export interface ProductVariant {
   id: string;
   size: ProductSize;
   price: number;
-  stock: number;
+  /** Số ly tối đa làm được, API tính từ công thức và tồn kho nguyên liệu. */
+  availableServings: number;
 }
 
 export interface Topping {

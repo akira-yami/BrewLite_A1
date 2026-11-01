@@ -153,6 +153,29 @@ describe('PaymentsService (Unit Test - TDD)', () => {
 
             expect(result.success).toBe(false);
         });
+        it('retry key mới chuyển FAILED về PENDING trước khi gọi gateway', async () => {
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({ status: OrderStatus.PAYMENT_FAILED, reservationExpiresAt: new Date(Date.now() + 60000) });
+            paymentsRepoMock.createProcessingPayment.mockResolvedValue({ id: 'retry' });
+            gatewayMock.charge.mockResolvedValue({ success: true });
+            await service.processPayment({ idempotencyKey, orderId, userId, method, amount });
+            expect(ordersServiceMock.transitionForPaymentRetry).toHaveBeenCalledWith(orderId, userId, expect.any(String));
+            expect(ordersServiceMock.transitionForPaymentRetry.mock.invocationCallOrder[0]).toBeLessThan(gatewayMock.charge.mock.invocationCallOrder[0]);
+        });
+
+        it('không retry FAILED đã hết hạn và không gọi gateway', async () => {
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({ status: OrderStatus.PAYMENT_FAILED, reservationExpiresAt: new Date(0) });
+            await expect(service.processPayment({ idempotencyKey, orderId, userId, method, amount })).rejects.toMatchObject({ response: { code: 'ORDER_EXPIRED' } });
+            expect(ordersServiceMock.transitionForPaymentRetry).not.toHaveBeenCalled();
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('không gọi gateway nếu CAS retry bị từ chối', async () => {
+            ordersServiceMock.getOrderForPayment.mockResolvedValue({ status: OrderStatus.PAYMENT_FAILED });
+            ordersServiceMock.transitionForPaymentRetry.mockRejectedValue(new ConflictException('Concurrent transition'));
+            await expect(service.processPayment({ idempotencyKey, orderId, userId, method, amount })).rejects.toThrow('Concurrent transition');
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
         it('8. Nên ném 409 ORDER_EXPIRED nếu đơn hàng PENDING nhưng đã quá hạn giữ chỗ', async () => {
             paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
 

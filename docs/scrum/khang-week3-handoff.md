@@ -37,17 +37,17 @@ Các log được ghi từ cùng nội dung source/test đóng tại commit `f15
 
 | Kiểm tra | Kết quả | Log có giờ chạy và exit code |
 |---|---|---|
-| Backend unit | 181/181, 26 file | [backend-unit.txt](./evidence/khang-week3-2026-10-23/backend-unit.txt) |
-| Backend HTTP | 16/16, 2 file | [backend-http.txt](./evidence/khang-week3-2026-10-23/backend-http.txt) |
-| PostgreSQL integration | 27/27, 4 file | [backend-integration.txt](./evidence/khang-week3-2026-10-23/backend-integration.txt) |
-| Frontend unit | 53/53 | [frontend-unit.txt](./evidence/khang-week3-2026-10-23/frontend-unit.txt) |
-| Backend TypeScript và lint | PASS | [backend-static.txt](./evidence/khang-week3-2026-10-23/backend-static.txt) |
-| Frontend TypeScript | PASS | [frontend-static.txt](./evidence/khang-week3-2026-10-23/frontend-static.txt) |
-| Deploy 8 migration lên database kiểm thử mới | PASS | [database-migrations.txt](./evidence/khang-week3-2026-10-23/database-migrations.txt) |
+| Backend unit | 181/181, 26 file | [backend-unit.txt](evidence/khang-week3-2026-10-23/backend-unit.txt) |
+| Backend HTTP | 16/16, 2 file | [backend-http.txt](evidence/khang-week3-2026-10-23/backend-http.txt) |
+| PostgreSQL integration | 27/27, 4 file | [backend-integration.txt](evidence/khang-week3-2026-10-23/backend-integration.txt) |
+| Frontend unit | 53/53 | [frontend-unit.txt](evidence/khang-week3-2026-10-23/frontend-unit.txt) |
+| Backend TypeScript và lint | PASS | [backend-static.txt](evidence/khang-week3-2026-10-23/backend-static.txt) |
+| Frontend TypeScript | PASS | [frontend-static.txt](evidence/khang-week3-2026-10-23/frontend-static.txt) |
+| Deploy 8 migration lên database kiểm thử mới | PASS | [database-migrations.txt](evidence/khang-week3-2026-10-23/database-migrations.txt) |
 
-Một lần chạy toàn bộ integration trên database dùng lại bị trùng SKU fixture của test catalog, không phải lỗi tạo đơn. [Log lần không đạt](./evidence/khang-week3-2026-10-23/backend-integration-reused-db.txt) được giữ nguyên; sau đó chạy lại trên database kiểm thử mới đã migrate và đạt 27/27. Các dòng ERROR trong log đạt là tình huống cố ý gây lỗi để kiểm tra rollback/giới hạn tiền.
+Một lần chạy toàn bộ integration trên database dùng lại bị trùng SKU fixture của test catalog, không phải lỗi tạo đơn. [Log lần không đạt](evidence/khang-week3-2026-10-23/backend-integration-reused-db.txt) được giữ nguyên; sau đó chạy lại trên database kiểm thử mới đã migrate và đạt 27/27. Các dòng ERROR trong log đạt là tình huống cố ý gây lỗi để kiểm tra rollback/giới hạn tiền.
 
-[manifest.json](./evidence/khang-week3-2026-10-23/manifest.json) chứa SHA đầy đủ, timestamp ISO 8601, kết quả và SHA-256 của từng log. Có thể tải log rồi đối chiếu hash; metadata này hỗ trợ truy vết, không thay thế việc thầy tự chạy test.
+[manifest.json](evidence/khang-week3-2026-10-23/manifest.json) chứa SHA đầy đủ, timestamp ISO 8601, kết quả và SHA-256 của từng log. Có thể tải log rồi đối chiếu hash; metadata này hỗ trợ truy vết, không thay thế việc thầy tự chạy test.
 
 ## 4. Giới hạn và cách xác nhận
 

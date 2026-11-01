@@ -293,7 +293,11 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       total: 100000n,
     };
 
-    const txMock = {} as any;
+    // Transaction mock phục vụ cả các test transition và thao tác cancel có đọc Payment/Inventory.
+    const txMock = {
+      payment: { findFirst: vi.fn() },
+      inventoryReservation: { findMany: vi.fn() },
+    } as any;
 
     it('getOrderForPayment - ném NotFoundException nếu không tìm thấy đơn hoặc sai userId', async () => {
       repository.findByIdAndUserId.mockResolvedValue(null);

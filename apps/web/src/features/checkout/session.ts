@@ -1,0 +1,120 @@
+export type CheckoutPaymentMethod = 'E_WALLET' | 'CARD';
+
+export interface CheckoutCouponQuote {
+  code: string;
+  subtotal: number;
+  discountAmount: number;
+}
+
+export interface PendingCheckoutState {
+  orderId: string;
+  idempotencyKey: string | null;
+  method: CheckoutPaymentMethod | null;
+  cartFingerprint: string;
+}
+
+type StorageReader = Pick<Storage, 'getItem' | 'removeItem'>;
+type StorageWriter = Pick<Storage, 'setItem' | 'removeItem'>;
+
+const COUPON_STORAGE_KEY = 'brewlite_checkout_coupon';
+const PENDING_CHECKOUT_STORAGE_KEY = 'brewlite_pending_checkout';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function readCheckoutCoupon(storage: StorageReader): CheckoutCouponQuote | null {
+  try {
+    const raw = storage.getItem(COUPON_STORAGE_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+
+    if (
+      !isRecord(value)
+      || typeof value.code !== 'string'
+      || value.code.trim().length === 0
+      || !Number.isSafeInteger(value.subtotal)
+      || (value.subtotal as number) <= 0
+      || !Number.isSafeInteger(value.discountAmount)
+      || (value.discountAmount as number) < 0
+      || (value.discountAmount as number) > (value.subtotal as number)
+    ) {
+      storage.removeItem(COUPON_STORAGE_KEY);
+      return null;
+    }
+
+    return {
+      code: value.code.trim(),
+      subtotal: value.subtotal as number,
+      discountAmount: value.discountAmount as number,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeCheckoutCoupon(
+  storage: StorageWriter,
+  quote: CheckoutCouponQuote | null,
+): void {
+  try {
+    if (quote === null) {
+      storage.removeItem(COUPON_STORAGE_KEY);
+      return;
+    }
+    storage.setItem(COUPON_STORAGE_KEY, JSON.stringify(quote));
+  } catch {
+    // Checkout still validates the coupon on the server when storage is unavailable.
+  }
+}
+
+export function readPendingCheckout(storage: StorageReader): PendingCheckoutState | null {
+  try {
+    const raw = storage.getItem(PENDING_CHECKOUT_STORAGE_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    const validMethod = (method: unknown) => method === 'E_WALLET' || method === 'CARD';
+
+    if (
+      !isRecord(value)
+      || typeof value.orderId !== 'string'
+      || value.orderId.trim().length === 0
+      || typeof value.cartFingerprint !== 'string'
+      || value.cartFingerprint.length === 0
+      || !(
+        value.idempotencyKey === null
+        || (typeof value.idempotencyKey === 'string' && value.idempotencyKey.length > 0)
+      )
+      || !(value.method === null || validMethod(value.method))
+      || (value.idempotencyKey !== null && value.method === null)
+      || (value.idempotencyKey === null && value.method !== null)
+    ) {
+      storage.removeItem(PENDING_CHECKOUT_STORAGE_KEY);
+      return null;
+    }
+
+    return {
+      orderId: value.orderId,
+      idempotencyKey: value.idempotencyKey as string | null,
+      method: value.method as CheckoutPaymentMethod | null,
+      cartFingerprint: value.cartFingerprint,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writePendingCheckout(
+  storage: StorageWriter,
+  checkout: PendingCheckoutState | null,
+): void {
+  try {
+    if (checkout === null) {
+      storage.removeItem(PENDING_CHECKOUT_STORAGE_KEY);
+      return;
+    }
+    storage.setItem(PENDING_CHECKOUT_STORAGE_KEY, JSON.stringify(checkout));
+  } catch {
+    // The component retains the in-memory attempt if session storage is unavailable.
+  }
+}

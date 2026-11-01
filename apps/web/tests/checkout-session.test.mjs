@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import ts from 'typescript';
+import { readFileSync } from 'node:fs';
+
+function loadSession() {
+  const source = readFileSync(
+    new URL('../src/features/checkout/session.ts', import.meta.url),
+    'utf8',
+  );
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  });
+  const compiledModule = { exports: {} };
+  new Function('module', 'exports', outputText)(compiledModule, compiledModule.exports);
+  return compiledModule.exports;
+}
+
+function makeStorage() {
+  const values = new Map();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+}
+
+test('coupon quote survives route changes and rejects an invalid discount', () => {
+  const session = loadSession();
+  const storage = makeStorage();
+  const quote = { code: 'WELCOME10', subtotal: 100000, discountAmount: 10000 };
+
+  session.writeCheckoutCoupon(storage, quote);
+  assert.deepEqual(session.readCheckoutCoupon(storage), quote);
+
+  storage.setItem('brewlite_checkout_coupon', JSON.stringify({
+    code: 'WELCOME10',
+    subtotal: 100000,
+    discountAmount: 150000,
+  }));
+  assert.equal(session.readCheckoutCoupon(storage), null);
+  assert.equal(storage.getItem('brewlite_checkout_coupon'), null);
+});
+
+test('pending payment attempt survives reload with order, key and method unchanged', () => {
+  const session = loadSession();
+  const storage = makeStorage();
+  const pending = {
+    orderId: 'order-123',
+    idempotencyKey: 'attempt-key-123',
+    method: 'CARD',
+    cartFingerprint: '[{"productVariantId":"variant-1","quantity":1}]',
+  };
+
+  session.writePendingCheckout(storage, pending);
+  assert.deepEqual(session.readPendingCheckout(storage), pending);
+});
+
+test('confirmed failure rotates only the key and preserves the existing order for retry', () => {
+  const session = loadSession();
+  const storage = makeStorage();
+  const failed = {
+    orderId: 'order-123',
+    idempotencyKey: null,
+    method: null,
+    cartFingerprint: '[{"productVariantId":"variant-1","quantity":1}]',
+  };
+
+  session.writePendingCheckout(storage, failed);
+  assert.deepEqual(session.readPendingCheckout(storage), failed);
+});
+
+test('incomplete pending key/method state is discarded', () => {
+  const session = loadSession();
+  const storage = makeStorage();
+  storage.setItem('brewlite_pending_checkout', JSON.stringify({
+    orderId: 'order-123',
+    idempotencyKey: 'key-without-method',
+    method: null,
+    cartFingerprint: 'cart-fingerprint',
+  }));
+  assert.equal(session.readPendingCheckout(storage), null);
+  assert.equal(storage.getItem('brewlite_pending_checkout'), null);
+});

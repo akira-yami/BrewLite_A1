@@ -1,15 +1,15 @@
 'use client';
-import { useState } from 'react';
-// import { CheckoutAPI } from '@/services/checkout.api';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
-import { validateCoupon } from '@/api/coupons.api'; // Nhập đúng đường dẫn file của em
+import { CouponApiError, validateCoupon } from '@/api/coupons.api';
+import { readCheckoutCoupon, writeCheckoutCoupon, type CheckoutCouponQuote } from '@/features/checkout/session';
 
 interface CartDrawerProps {
   open: boolean;
   onClose: () => void;
   onEditOptions: (item: CartItem) => void;
-  onCheckout: () => void;
+  onCheckout: (coupon: CheckoutCouponQuote | null) => void;
 }
 
 export function CartDrawer({
@@ -29,6 +29,27 @@ export function CartDrawer({
   } | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
+  const applyingRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedQuote = readCheckoutCoupon(window.sessionStorage);
+    if (savedQuote && savedQuote.subtotal === cartStore.getSnapshot().subtotal) {
+      setAppliedCoupon(savedQuote);
+    } else if (savedQuote) {
+      writeCheckoutCoupon(window.sessionStorage, null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      typeof window !== 'undefined'
+      && appliedCoupon
+      && appliedCoupon.subtotal !== subtotal
+    ) {
+      writeCheckoutCoupon(window.sessionStorage, null);
+    }
+  }, [appliedCoupon, subtotal]);
 
   // Không dùng effect để đồng bộ state: quote chỉ được áp dụng khi subtotal vẫn khớp.
   const couponIsStale = appliedCoupon !== null && appliedCoupon.subtotal !== subtotal;
@@ -38,6 +59,7 @@ export function CartDrawer({
     ?? (couponIsStale ? 'Giỏ hàng thay đổi, vui lòng áp dụng lại mã giảm giá.' : null);
 
   const handleApplyCoupon = async () => {
+    if (applyingRef.current) return;
     setCouponError(null);
     if (!couponInput.trim()) {
       setCouponError('Vui lòng nhập mã giảm giá.');
@@ -46,23 +68,49 @@ export function CartDrawer({
 
     const requestedCode = couponInput.trim();
     const requestedSubtotal = subtotal;
+    applyingRef.current = true;
     setIsApplying(true);
     try {
-      // Gửi subtotal hiện tại để backend tính quote; không tin quote nếu giỏ đổi trong lúc chờ.
       const data = await validateCoupon(requestedCode, requestedSubtotal);
+      if (cartStore.getSnapshot().subtotal !== requestedSubtotal) {
+        setCouponError('Giỏ hàng đã thay đổi trong lúc kiểm tra. Vui lòng áp dụng lại mã giảm giá.');
+        return;
+      }
 
-      setAppliedCoupon({
+      const quote = {
         code: requestedCode,
         subtotal: requestedSubtotal,
         discountAmount: data.discountAmount,
-      });
+      };
+      setAppliedCoupon(quote);
+      if (typeof window !== 'undefined') {
+        writeCheckoutCoupon(window.sessionStorage, quote);
+      }
       setCouponInput('');
-    } catch (error: unknown) {
-      // Bắt lỗi API dưới dạng unknown và chỉ đọc message sau khi kiểm tra kiểu.
-      const message = error instanceof Error ? error.message : '';
-      setCouponError(message || 'Mã giảm giá không hợp lệ hoặc chưa đủ điều kiện.');
+    } catch (reason: unknown) {
+      if (reason instanceof CouponApiError) {
+        if (reason.status === 401) {
+          setCouponError('Vui lòng đăng nhập để kiểm tra mã giảm giá.');
+        } else if (reason.code === 'COUPON_NOT_APPLICABLE') {
+          setCouponError('Mã giảm giá không hợp lệ, đã hết hạn hoặc chưa đủ điều kiện áp dụng.');
+        } else if (reason.status === 0 || reason.status >= 500) {
+          setCouponError('Dịch vụ mã giảm giá đang gặp sự cố. Vui lòng thử lại.');
+        } else {
+          setCouponError(
+            reason.message && !/^[A-Z][A-Z0-9_]+$/.test(reason.message)
+              ? reason.message
+              : 'Không thể áp dụng mã giảm giá. Vui lòng kiểm tra lại mã.',
+          );
+        }
+      } else {
+        setCouponError('Không thể kết nối đến dịch vụ mã giảm giá. Vui lòng thử lại.');
+      }
       setAppliedCoupon(null);
+      if (typeof window !== 'undefined') {
+        writeCheckoutCoupon(window.sessionStorage, null);
+      }
     } finally {
+      applyingRef.current = false;
       setIsApplying(false);
     }
   };
@@ -70,6 +118,9 @@ export function CartDrawer({
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
     setCouponError(null);
+    if (typeof window !== 'undefined') {
+      writeCheckoutCoupon(window.sessionStorage, null);
+    }
   };
 
   return (
@@ -282,7 +333,8 @@ export function CartDrawer({
 
               <button
                 type="button"
-                onClick={onCheckout}
+                onClick={() => onCheckout(visibleCoupon)}
+                disabled={isApplying}
                 className="mt-3 w-full rounded-full bg-[#163E2B] py-3 text-sm font-black text-white shadow-md transition hover:bg-[#1f4f38] active:scale-[0.99]"
               >
                 Tiến hành đặt & thanh toán

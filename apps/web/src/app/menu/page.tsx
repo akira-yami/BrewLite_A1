@@ -9,6 +9,7 @@ import { ProductDetailModal } from '@/features/catalog/components/ProductDetailM
 import { useMenuProducts } from '@/features/catalog/hooks/useMenuProducts';
 import { useScrollHeader } from '@/features/catalog/hooks/useScrollHeader';
 import { Product } from '@/features/catalog/types';
+import { writeCheckoutCoupon } from '@/features/checkout/session';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -420,7 +421,8 @@ export default function MenuPage() {
           setPreviewingProduct(product);
           setIsCartOpen(false);
         }}
-        onCheckout={() => {
+        onCheckout={(coupon) => {
+          writeCheckoutCoupon(window.sessionStorage, coupon);
           setIsCartOpen(false);
           router.push('/checkout');
         }}

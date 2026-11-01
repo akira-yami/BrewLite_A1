@@ -55,3 +55,65 @@ for (const retry of [false, true]) {
     await expect(page.getByRole('heading', { name: 'Giỏ hàng đang trống' })).toBeVisible();
   });
 }
+
+test('double click and reload replay a pending payment with the same order and idempotency key', async ({ page, request }) => {
+  const registration = await request.post(`${api}/auth/register`, {
+    data: {
+      username: `e2e_pending_${randomUUID().replaceAll('-', '').slice(0, 18)}`,
+      password: 'E2e-password-123',
+    },
+  });
+  expect(registration.ok()).toBeTruthy();
+  const { data: { accessToken } } = await registration.json();
+
+  await page.goto('/menu');
+  await page.evaluate(token => localStorage.setItem('brewlite_token', token), accessToken);
+  await page.reload();
+  await page.getByRole('button', { name: '+ Thêm', exact: true }).first().click();
+  await page.getByRole('button', { name: /món trong giỏ/ }).click();
+  await page.getByRole('button', { name: 'Tiến hành đặt & thanh toán' }).click();
+  await expect(page).toHaveURL(/\\/checkout/);
+
+  const attempts: Array<{ orderId: string; key: string }> = [];
+  await page.route(`${api}/payments`, async (route) => {
+    const payload = route.request().postDataJSON();
+    attempts.push({
+      orderId: payload.orderId,
+      key: route.request().headers()['idempotency-key'],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          success: false,
+          isRetried: false,
+          status: 'PROCESSING',
+          gatewayTransactionId: null,
+          errorCode: 'PAYMENT_IN_PROGRESS',
+          message: 'Giao dịch đang được xử lý.',
+        },
+      }),
+    });
+  });
+
+  const payButton = page.getByRole('button', { name: /^Thanh toán / });
+  await payButton.evaluate((button: HTMLButtonElement) => {
+    button.click();
+    button.click();
+  });
+  await page.waitForResponse(response => response.url() === `${api}/payments` && response.request().method() === 'POST');
+  await expect(page.getByRole('button', { name: 'Kiểm tra trạng thái giao dịch' })).toBeVisible();
+  expect(attempts).toHaveLength(1);
+
+  await page.reload();
+  const retryButton = page.getByRole('button', { name: 'Kiểm tra trạng thái giao dịch' });
+  await expect(retryButton).toBeVisible();
+  const replay = page.waitForResponse(response => response.url() === `${api}/payments` && response.request().method() === 'POST');
+  await retryButton.click();
+  await replay;
+
+  expect(attempts).toHaveLength(2);
+  expect(attempts[1]).toEqual(attempts[0]);
+});

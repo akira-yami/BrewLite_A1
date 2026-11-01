@@ -2,14 +2,23 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
-import { createOrderApi, OrdersApiError } from '@/features/orders/api';
+import { useEffect, useRef, useState } from 'react';
+import { createOrderApi, getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
+import type { OrderDetail } from '@/features/orders/types';
 import {
   createPaymentApi,
   PaymentApiError,
   type PaymentMethod,
 } from '@/features/payments/api';
 import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import {
+  readCheckoutCoupon,
+  readPendingCheckout,
+  writeCheckoutCoupon,
+  writePendingCheckout,
+  type CheckoutCouponQuote,
+  type PendingCheckoutState,
+} from '@/features/checkout/session';
 
 const paymentOptions: Array<{ method: PaymentMethod; title: string; description: string; icon: string }> = [
   { method: 'E_WALLET', title: 'Ví điện tử', description: 'Thanh toán nhanh qua ví BrewLite', icon: '◉' },
@@ -20,16 +29,24 @@ function newIdempotencyKey() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
+  }
+  throw new Error('Trình duyệt không hỗ trợ tạo khóa thanh toán an toàn. Vui lòng cập nhật trình duyệt.');
 }
 
 function paymentFailureMessage(failureCode?: string | null, message?: string) {
   if (failureCode === 'INSUFFICIENT_FUNDS') {
     return 'Số dư hoặc hạn mức thanh toán không đủ. Giỏ hàng của bạn vẫn được giữ nguyên.';
   }
-
-  return message ?? 'Thanh toán chưa thành công. Giỏ hàng của bạn vẫn được giữ nguyên để thử lại.';
+  if (failureCode === 'PAYMENT_DECLINED') {
+    return 'Ngân hàng hoặc ví điện tử từ chối giao dịch. Bạn có thể chọn phương thức khác để thử lại.';
+  }
+  return message && !/^[A-Z][A-Z0-9_]+$/.test(message)
+    ? message
+    : 'Thanh toán chưa thành công. Đơn hàng và giỏ hàng của bạn vẫn được giữ nguyên để thử lại.';
 }
 
 export default function CheckoutPage() {
@@ -37,45 +54,135 @@ export default function CheckoutPage() {
   const cart = useCartStore();
   const [method, setMethod] = useState<PaymentMethod>('E_WALLET');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const createdOrderId = useRef<string | null>(null);
-  const paymentAttemptKey = useRef<string | null>(null);
+  const [couponQuote, setCouponQuote] = useState<CheckoutCouponQuote | null>(null);
+  const [orderSummary, setOrderSummary] = useState<OrderDetail | null>(null);
+  const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState | null>(null);
+  const pendingCheckoutRef = useRef<PendingCheckoutState | null>(null);
+  const submitLock = useRef(false);
+
+  const persistPendingCheckout = (next: PendingCheckoutState | null) => {
+    pendingCheckoutRef.current = next;
+    setPendingCheckout(next);
+    if (typeof window !== 'undefined') {
+      writePendingCheckout(window.sessionStorage, next);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const savedCoupon = readCheckoutCoupon(window.sessionStorage);
+    setCouponQuote(savedCoupon);
+
+    const savedCheckout = readPendingCheckout(window.sessionStorage);
+    if (savedCheckout) {
+      pendingCheckoutRef.current = savedCheckout;
+      setPendingCheckout(savedCheckout);
+      if (savedCheckout.method) setMethod(savedCheckout.method);
+
+      const token = window.localStorage.getItem('brewlite_token');
+      if (token) {
+        void getOrderDetailApi(token, savedCheckout.orderId)
+          .then(setOrderSummary)
+          .catch(() => {
+            // The same idempotency key remains available even when this read-only refresh fails.
+          });
+      }
+    }
+
+    setIsRestoring(false);
+  }, []);
+
+  const hasUnresolvedPayment = Boolean(pendingCheckout?.idempotencyKey);
+  const cartFingerprint = JSON.stringify(cartStore.getOrderItems());
+  const pendingCartChanged = Boolean(
+    pendingCheckout && pendingCheckout.cartFingerprint !== cartFingerprint,
+  );
+  const couponMatchesCart = Boolean(
+    couponQuote && couponQuote.subtotal === cart.subtotal,
+  );
+  const previewDiscount = couponMatchesCart ? couponQuote?.discountAmount ?? 0 : 0;
+  const displayedSubtotal = orderSummary?.subtotal ?? cart.subtotal;
+  const displayedDiscount = orderSummary?.discountAmount ?? previewDiscount;
+  const displayedTotal = orderSummary?.total ?? Math.max(0, cart.subtotal - previewDiscount);
 
   const handlePayment = async () => {
-    if (cart.items.length === 0) return;
-
-    const token = localStorage.getItem('brewlite_token');
-    if (!token) {
-      setError('Vui lòng đăng nhập trước khi đặt hàng.');
+    if (submitLock.current || isRestoring || cart.items.length === 0) return;
+    if (pendingCartChanged) {
+      setError('Giỏ hàng đã thay đổi so với đơn hàng đang chờ thanh toán. Không tạo giao dịch mới để tránh thanh toán nhầm đơn.');
       return;
     }
 
+    // Lock synchronously; React state alone does not stop two clicks in the same event turn.
+    submitLock.current = true;
     setIsSubmitting(true);
     setError(null);
 
     try {
-      let orderId = createdOrderId.current;
-      if (!orderId) {
-        const order = await createOrderApi(token, { items: cartStore.getOrderItems() });
-        orderId = order.id;
-        createdOrderId.current = order.id;
+      const token = localStorage.getItem('brewlite_token');
+      if (!token) {
+        setError('Vui lòng đăng nhập trước khi đặt hàng.');
+        return;
       }
 
-      const idempotencyKey = paymentAttemptKey.current ?? newIdempotencyKey();
-      paymentAttemptKey.current = idempotencyKey;
-      const payment = await createPaymentApi(token, { orderId, method }, idempotencyKey);
+      let checkout = pendingCheckoutRef.current;
+      if (!checkout) {
+        const items = cartStore.getOrderItems();
+        const couponCode = couponMatchesCart ? couponQuote?.code : undefined;
+        const order = await createOrderApi(token, {
+          items,
+          ...(couponCode ? { couponCode } : {}),
+        });
 
-      // Chỉ failure đã xác nhận mới cấp key mới. Lỗi mạng giữ key để replay,
-      // tránh một click thử lại trở thành một giao dịch thanh toán khác.
-      if (payment.status !== 'SUCCEEDED' || payment.success === false) {
-        paymentAttemptKey.current = null;
+        setOrderSummary(order);
+        checkout = {
+          orderId: order.id,
+          idempotencyKey: null,
+          method: null,
+          cartFingerprint: JSON.stringify(items),
+        };
+        persistPendingCheckout(checkout);
+      }
+
+      const idempotencyKey = checkout.idempotencyKey ?? newIdempotencyKey();
+      const attempt: PendingCheckoutState = {
+        ...checkout,
+        idempotencyKey,
+        method,
+      };
+
+      // Persist before POST so reload/network loss replays the same order and key.
+      persistPendingCheckout(attempt);
+      const payment = await createPaymentApi(
+        token,
+        { orderId: attempt.orderId, method: attempt.method as PaymentMethod },
+        idempotencyKey,
+      );
+
+      if (payment.status === 'SUCCEEDED' && payment.success === true) {
+        cartStore.clearCart();
+        persistPendingCheckout(null);
+        writeCheckoutCoupon(window.sessionStorage, null);
+        router.replace(`/orders/confirmation?orderId=${encodeURIComponent(attempt.orderId)}`);
+        return;
+      }
+
+      if (payment.status === 'FAILED') {
+        // Only a definitive failure permits a new key; retry the same Order.
+        persistPendingCheckout({
+          orderId: attempt.orderId,
+          idempotencyKey: null,
+          method: null,
+          cartFingerprint: attempt.cartFingerprint,
+        });
         setError(paymentFailureMessage(payment.errorCode, payment.message));
         return;
       }
 
-      cartStore.clearCart();
-      // Payment response không trả orderId; dùng ID đã được server tạo ở bước trên.
-      router.replace(`/orders/confirmation?orderId=${encodeURIComponent(orderId)}`);
+      // PROCESSING or an inconsistent response is not a confirmed failure.
+      setError('Giao dịch đang được xử lý hoặc chưa có kết quả xác nhận. Hãy kiểm tra lại bằng cùng khóa thanh toán; không tạo đơn mới.');
     } catch (reason) {
       if (reason instanceof OrdersApiError) {
         if (reason.status === 401) {
@@ -83,28 +190,27 @@ export default function CheckoutPage() {
         } else if (reason.status === 409) {
           setError('Một số món vừa hết hàng hoặc không còn khả dụng. Giỏ hàng vẫn được giữ nguyên.');
         } else {
-          setError(reason.message);
+          setError(reason.message || 'Không thể tạo đơn hàng. Vui lòng kiểm tra lại giỏ hàng.');
         }
       } else if (reason instanceof PaymentApiError) {
-        if (reason.code === 'PAYMENT_IN_PROGRESS') {
-          setError('Giao dịch đang được xử lý. Vui lòng chờ rồi thử lại với cùng phương thức.');
-        } else if (reason.code === 'ORDER_EXPIRED') {
-          // Bắt đúng mã lỗi ORDER_EXPIRED từ server trả về
+        if (reason.code === 'ORDER_EXPIRED') {
           setError('Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ. Vui lòng đặt lại đơn mới.');
-          
-          // QUAN TRỌNG: Reset ID để tạo đơn hàng mới cho lần bấm thanh toán tiếp theo
-          createdOrderId.current = null;
-          paymentAttemptKey.current = null;
-          
+          persistPendingCheckout(null);
+          setOrderSummary(null);
+        } else if (reason.code === 'PAYMENT_IN_PROGRESS') {
+          setError('Giao dịch đang được xử lý. Hãy chờ rồi kiểm tra lại bằng cùng khóa thanh toán.');
         } else if (reason.status === 401) {
-          setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+          setError('Phiên đăng nhập đã hết hạn. Khóa thanh toán được giữ để tiếp tục an toàn sau khi đăng nhập.');
         } else {
-          setError(`${reason.message} Giỏ hàng của bạn vẫn được giữ nguyên.`);
+          // A transport/server error does not prove that the gateway declined the payment.
+          setError('Chưa xác định được kết quả thanh toán. Giữ nguyên đơn hàng và khóa giao dịch; hãy thử kiểm tra lại.');
         }
       } else {
-        setError('Không thể kết nối đến máy chủ thanh toán. Giỏ hàng của bạn vẫn được giữ nguyên.');
+        // A timeout/connection reset is an unknown outcome, never a reason to rotate the key.
+        setError('Mất kết nối hoặc chưa nhận được xác nhận thanh toán. Đơn hàng và Idempotency-Key được giữ nguyên để kiểm tra lại.');
       }
     } finally {
+      submitLock.current = false;
       setIsSubmitting(false);
     }
   };
@@ -128,10 +234,14 @@ export default function CheckoutPage() {
     <main className="min-h-screen bg-[#FBF8F3] px-4 py-8 text-[#1A1612] sm:py-12">
       <section className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <div className="rounded-3xl border border-[#E5DCD2] bg-white p-5 shadow-sm sm:p-8">
-          <Link href="/menu" className="text-sm font-bold text-[#163E2B] hover:underline">← Quay lại giỏ hàng</Link>
+          {hasUnresolvedPayment ? (
+            <p className="text-sm font-bold text-[#163E2B]">Đang xác minh giao dịch trước đó. Không đổi phương thức hoặc tạo đơn mới trong lúc này.</p>
+          ) : (
+            <Link href="/menu" className="text-sm font-bold text-[#163E2B] hover:underline">← Quay lại giỏ hàng</Link>
+          )}
           <p className="mt-6 text-xs font-black uppercase tracking-[0.2em] text-[#B85D36]">BrewLite checkout</p>
           <h1 className="mt-2 text-3xl font-black text-[#163E2B] sm:text-4xl">Chọn phương thức thanh toán</h1>
-          <p className="mt-2 text-sm leading-6 text-[#756A63]">Đơn hàng sẽ được tạo trước, sau đó thanh toán qua phương thức bạn chọn.</p>
+          <p className="mt-2 text-sm leading-6 text-[#756A63]">Đơn hàng được máy chủ tạo và tính lại giá, coupon, tồn kho trước khi bắt đầu thanh toán.</p>
 
           <div className="mt-6 space-y-3">
             {paymentOptions.map((option) => {
@@ -141,17 +251,22 @@ export default function CheckoutPage() {
                   key={option.method}
                   type="button"
                   onClick={() => setMethod(option.method)}
+                  disabled={hasUnresolvedPayment || isSubmitting || isRestoring}
                   className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
                     selected ? 'border-[#163E2B] bg-[#E8F1EC]' : 'border-[#E5DCD2] bg-[#FCFAF7] hover:border-[#9fb9ab]'
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
                   aria-pressed={selected}
                 >
-                  <span className={`flex h-11 w-11 items-center justify-center rounded-full text-xl ${selected ? 'bg-[#163E2B] text-white' : 'bg-white text-[#163E2B]'}`} aria-hidden="true">{option.icon}</span>
+                  <span className={`flex h-11 w-11 items-center justify-center rounded-full text-xl ${
+                    selected ? 'bg-[#163E2B] text-white' : 'bg-white text-[#163E2B]'
+                  }`} aria-hidden="true">{option.icon}</span>
                   <span className="flex-1">
                     <span className="block text-sm font-black text-[#1E1813]">{option.title}</span>
                     <span className="mt-1 block text-xs text-[#756A63]">{option.description}</span>
                   </span>
-                  <span className={`h-5 w-5 rounded-full border-2 ${selected ? 'border-[#163E2B] bg-[#163E2B] shadow-[inset_0_0_0_3px_#E8F1EC]' : 'border-[#B9AEA4]'}`} />
+                  <span className={`h-5 w-5 rounded-full border-2 ${
+                    selected ? 'border-[#163E2B] bg-[#163E2B] shadow-[inset_0_0_0_3px_#E8F1EC]' : 'border-[#B9AEA4]'
+                  }`} />
                 </button>
               );
             })}
@@ -162,16 +277,34 @@ export default function CheckoutPage() {
               {error}
             </div>
           )}
+          {pendingCartChanged && (
+            <div role="alert" className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+              Giỏ hàng đã thay đổi so với đơn hàng đang chờ. Hãy xử lý đơn hàng cũ trong mục Đơn hàng trước khi thanh toán giỏ mới.
+              <Link href="/orders" className="ml-1 font-bold underline">Mở Đơn hàng</Link>
+            </div>
+          )}
 
           <button
             type="button"
             onClick={handlePayment}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isRestoring || pendingCartChanged}
             className="mt-6 w-full rounded-full bg-[#163E2B] px-5 py-3.5 text-sm font-black text-white shadow-md transition hover:bg-[#1f4f38] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? 'Đang tạo đơn và thanh toán...' : `Thanh toán ${formatVnd(cart.subtotal)}`}
+            {isRestoring
+              ? 'Đang khôi phục phiên thanh toán...'
+              : isSubmitting
+                ? 'Đang xử lý thanh toán...'
+                : hasUnresolvedPayment
+                  ? 'Kiểm tra trạng thái giao dịch'
+                  : pendingCheckout
+                    ? `Thử thanh toán lại ${formatVnd(displayedTotal)}`
+                    : `Thanh toán ${formatVnd(displayedTotal)}`}
           </button>
-          <p className="mt-3 text-center text-xs leading-5 text-[#756A63]">Tổng tiền cuối cùng được máy chủ xác nhận theo giá và tồn kho hiện tại.</p>
+          <p className="mt-3 text-center text-xs leading-5 text-[#756A63]">
+            {hasUnresolvedPayment
+              ? 'Mọi lần kiểm tra đều dùng lại Idempotency-Key cũ để tránh tạo giao dịch trùng.'
+              : 'Tổng tiền cuối cùng do máy chủ xác nhận theo giá, coupon và tồn kho hiện tại.'}
+          </p>
         </div>
 
         <aside className="h-fit rounded-3xl border border-[#E5DCD2] bg-white p-5 shadow-sm sm:p-6">
@@ -189,8 +322,23 @@ export default function CheckoutPage() {
           </div>
           <div className="mt-4 flex items-center justify-between text-sm">
             <span className="text-[#756A63]">Tạm tính ({cart.totalQuantity} món)</span>
-            <strong className="font-mono text-lg text-[#163E2B]">{formatVnd(cart.subtotal)}</strong>
+            <strong className="font-mono text-[#163E2B]">{formatVnd(displayedSubtotal)}</strong>
           </div>
+          {(displayedDiscount > 0 || Boolean(couponQuote?.code)) && (
+            <div className="mt-2 flex items-center justify-between text-sm">
+              <span className="text-[#756A63]">
+                Giảm giá{couponQuote?.code ? ` (${couponQuote.code})` : ''}
+              </span>
+              <strong className="font-mono text-[#163E2B]">−{formatVnd(displayedDiscount)}</strong>
+            </div>
+          )}
+          <div className="mt-4 flex items-center justify-between border-t border-[#EDE6DD] pt-4 text-sm">
+            <span className="font-black text-[#163E2B]">Tổng thanh toán</span>
+            <strong className="font-mono text-lg text-[#163E2B]">{formatVnd(displayedTotal)}</strong>
+          </div>
+          {couponQuote && !couponMatchesCart && !orderSummary && (
+            <p className="mt-2 text-xs text-amber-700">Giỏ hàng đã thay đổi sau khi báo giá coupon được tạo. Máy chủ sẽ không áp dụng báo giá cũ.</p>
+          )}
         </aside>
       </section>
     </main>

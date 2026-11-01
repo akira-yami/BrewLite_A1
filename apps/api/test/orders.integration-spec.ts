@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConflictException, INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
+import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
 if (
@@ -521,95 +522,214 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       ).expect(400);
     }
   });
-  it('Regression: Xử lý Payment Fail, Retry an toàn và Expiry Coupon (UC-06, UC-08, SD-12)', async () => {
-    // Để mock Gateway, ta lấy instance từ app (chỉ mock cổng bên ngoài)
+  it('Regression: Payment FAILED → retry success consumes coupon once; expired FAILED order releases coupon and stock safely', async () => {
+    // Chỉ mock Gateway bên ngoài; Order, Payment, Coupon và Inventory vẫn chạy trên PostgreSQL thật.
     const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');
     const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
-    const { OrdersService } = await import('../src/modules/orders/services/orders.service.js');
 
     const paymentsService = app.get(PaymentsService);
     const mockGateway = app.get(MockGatewayService);
-    const ordersService = app.get(OrdersService);
+    const expiryJob = app.get(OrderExpiryJob);
+    const gatewayCharge = vi.spyOn(mockGateway, 'charge');
 
-    // ==========================================
-    // KỊCH BẢN 1: TẠO ĐƠN & THANH TOÁN THẤT BẠI
-    // ==========================================
     const variant = await product();
-    const promotion = await coupon(); // Tạo coupon với usageLimit = 1
+    const promotion = await coupon();
 
-    const orderRes = await post(
+    // KỊCH BẢN 1: Thanh toán thất bại phải giữ coupon và inventory để khách retry.
+    const orderResponse = await post(
       [{ productVariantId: variant.id, quantity: 1 }],
       promotion.code,
     ).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const totalAmount = BigInt(orderResponse.body.data.total);
 
-    const orderId = orderRes.body.data.id;
-    const totalAmount = orderRes.body.data.total;
-
-    // Xác nhận coupon đang bị giữ (RESERVED)
-    let redemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId } });
+    let redemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId },
+    });
     expect(redemption.status).toBe('RESERVED');
 
-    // Thanh toán lần 1: Bị từ chối do hết tiền
-    vi.spyOn(mockGateway, 'charge').mockResolvedValueOnce({ success: false, errorCode: 'INSUFFICIENT_FUNDS' });
-
-    await paymentsService.processPayment({
+    gatewayCharge.mockResolvedValueOnce({
+      success: false,
+      errorCode: 'INSUFFICIENT_FUNDS',
+    });
+    const failedPaymentResult = await paymentsService.processPayment({
       idempotencyKey: `fail-key-${randomUUID()}`,
       orderId,
       userId,
       method: 'E_WALLET',
-      amount: BigInt(totalAmount),
+      amount: totalAmount,
     });
-
-    // ÉP NGHIỆP VỤ: Đơn hàng thành PAYMENT_FAILED, nhưng Coupon VẪN PHẢI LÀ RESERVED (để khách retry)
-    const failedOrder = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-    expect(failedOrder.status).toBe('PAYMENT_FAILED');
-
-    redemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId } });
+    expect(failedPaymentResult.success).toBe(false);
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
+      .toMatchObject({ status: 'PAYMENT_FAILED' });
+    expect(await prisma.payment.findFirstOrThrow({ where: { orderId } }))
+      .toMatchObject({ status: 'FAILED', failureCode: 'INSUFFICIENT_FUNDS' });
+    redemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId },
+    });
     expect(redemption.status).toBe('RESERVED');
+    expect(await prisma.inventoryReservation.findFirstOrThrow({ where: { orderId } }))
+      .toMatchObject({ status: 'ACTIVE' });
 
-    // ==========================================
-    // KỊCH BẢN 2: RETRY THANH TOÁN THÀNH CÔNG
-    // ==========================================
-    // Khách dùng Idempotency-Key mới để retry
-    vi.spyOn(mockGateway, 'charge').mockResolvedValueOnce({ success: true, gatewayTransactionId: `GW-RETRY-${randomUUID()}` });
-
-    await paymentsService.processPayment({
-      idempotencyKey: `success-key-${randomUUID()}`,
+    // KỊCH BẢN 2: Retry bằng key mới thành công; chỉ quyết toán coupon và Loyalty một lần.
+    const successKey = `success-key-${randomUUID()}`;
+    gatewayCharge.mockResolvedValueOnce({
+      success: true,
+      gatewayTransactionId: `GW-RETRY-${randomUUID()}`,
+    });
+    const successResult = await paymentsService.processPayment({
+      idempotencyKey: successKey,
       orderId,
       userId,
       method: 'E_WALLET',
-      amount: BigInt(totalAmount),
+      amount: totalAmount,
     });
+    expect(successResult.success).toBe(true);
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
+      .toMatchObject({ status: 'PAID' });
+    expect(await prisma.couponRedemption.findFirstOrThrow({ where: { orderId } }))
+      .toMatchObject({ status: 'CONSUMED', consumedAt: expect.any(Date) });
+    expect(await prisma.inventoryReservation.findFirstOrThrow({ where: { orderId } }))
+      .toMatchObject({ status: 'CONSUMED' });
+    expect(await prisma.payment.count({ where: { orderId } })).toBe(2);
+    expect(await prisma.loyaltyTransaction.count({
+      where: { orderId, type: 'EARN' },
+    })).toBe(1);
 
-    // ÉP NGHIỆP VỤ: Đơn hàng thành PAID, Coupon ĐÃ ĐƯỢC QUYẾT TOÁN (CONSUMED)
-    const paidOrder = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-    expect(paidOrder.status).toBe('PAID');
+    // Replay cùng key phải trả kết quả cũ, không gọi Gateway và không consume coupon lần hai.
+    const gatewayCallsAfterSuccess = gatewayCharge.mock.calls.length;
+    const replayResult = await paymentsService.processPayment({
+      idempotencyKey: successKey,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: totalAmount,
+    });
+    expect(replayResult).toMatchObject({
+      success: true,
+      isRetried: true,
+      status: 'SUCCEEDED',
+    });
+    expect(gatewayCharge).toHaveBeenCalledTimes(gatewayCallsAfterSuccess);
+    expect(await prisma.couponRedemption.count({
+      where: { orderId, status: 'CONSUMED' },
+    })).toBe(1);
+    expect(await prisma.loyaltyTransaction.count({
+      where: { orderId, type: 'EARN' },
+    })).toBe(1);
 
-    redemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId } });
-    expect(redemption.status).toBe('CONSUMED');
-
-    // ==========================================
-    // KỊCH BẢN 3: HẾT HẠN (EXPIRY) VÀ NHẢ LƯỢT
-    // ==========================================
+    // KỊCH BẢN 3: Payment FAILED rồi hết hạn; Cron thật phải hủy Order, release coupon và hoàn kho.
     const promotion2 = await coupon();
-    const orderRes3 = await post(
+    const orderResponse2 = await post(
       [{ productVariantId: variant.id, quantity: 1 }],
       promotion2.code,
     ).expect(201);
-    const orderId3 = orderRes3.body.data.id;
-
-    // Dùng Prisma ép thời gian `expiresAt` về quá khứ 16 phút (cách Senior lách luật Fake Timers)
-    await prisma.couponRedemption.updateMany({
-      where: { orderId: orderId3 },
-      data: { expiresAt: new Date(Date.now() - 16 * 60 * 1000) }
+    const expiredOrderId = orderResponse2.body.data.id;
+    const expiredOrderAmount = BigInt(orderResponse2.body.data.total);
+    const stockAfterReservation = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
     });
 
-    // Kích hoạt hàm hủy đơn (Mô phỏng CronJob hoặc Khách ấn Hủy)
-    await ordersService.cancelOrder(orderId3, userId, 'Quá hạn thanh toán', true);
+    gatewayCharge.mockResolvedValueOnce({
+      success: false,
+      errorCode: 'INSUFFICIENT_FUNDS',
+    });
+    await paymentsService.processPayment({
+      idempotencyKey: `expiry-fail-key-${randomUUID()}`,
+      orderId: expiredOrderId,
+      userId,
+      method: 'E_WALLET',
+      amount: expiredOrderAmount,
+    });
+    expect(await prisma.order.findUniqueOrThrow({
+      where: { id: expiredOrderId },
+    })).toMatchObject({ status: 'PAYMENT_FAILED' });
+    const expiryRedemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId: expiredOrderId },
+    });
+    const expiryReservation = await prisma.inventoryReservation.findFirstOrThrow({
+      where: { orderId: expiredOrderId },
+    });
+    expect(expiryRedemption.status).toBe('RESERVED');
+    expect(expiryReservation.status).toBe('ACTIVE');
 
-    // ÉP NGHIỆP VỤ: Coupon phải được nhả ra (EXPIRED) để khách khác có thể dùng
-    const expiredRedemption = await prisma.couponRedemption.findFirstOrThrow({ where: { orderId: orderId3 } });
-    expect(expiredRedemption.status).toBe('EXPIRED');
+    // Đẩy hạn giữ chỗ của Order, Coupon và Inventory về quá khứ để kiểm tra nhánh expiry.
+    const expiredAt = new Date(Date.now() - 60_000);
+    await prisma.order.update({
+      where: { id: expiredOrderId },
+      data: { reservationExpiresAt: expiredAt },
+    });
+    await prisma.couponRedemption.update({
+      where: { id: expiryRedemption.id },
+      data: { expiresAt: expiredAt },
+    });
+    await prisma.inventoryReservation.update({
+      where: { id: expiryReservation.id },
+      data: { expiresAt: expiredAt },
+    });
+
+    // Retry trước khi Cron chạy phải bị chặn ngay bởi deadline đã qua.
+    const gatewayCallsBeforeExpiredRetry = gatewayCharge.mock.calls.length;
+    const expiredRetryError = await paymentsService.processPayment({
+      idempotencyKey: `expired-retry-key-${randomUUID()}`,
+      orderId: expiredOrderId,
+      userId,
+      method: 'E_WALLET',
+      amount: expiredOrderAmount,
+    }).then(() => null, (error: unknown) => error);
+    expect(expiredRetryError).toBeInstanceOf(ConflictException);
+    expect((expiredRetryError as ConflictException).getResponse()).toMatchObject({
+      code: 'ORDER_EXPIRED',
+    });
+    expect(gatewayCharge).toHaveBeenCalledTimes(gatewayCallsBeforeExpiredRetry);
+
+    // Cron job thật phải kết thúc toàn bộ vòng đời trong cùng transaction.
+    await expiryJob.handleExpiredOrders();
+    expect(await prisma.order.findUniqueOrThrow({
+      where: { id: expiredOrderId },
+    })).toMatchObject({ status: 'CANCELLED' });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({
+      where: { id: expiryRedemption.id },
+    })).toMatchObject({ status: 'EXPIRED', releasedAt: expect.any(Date) });
+    expect(await prisma.inventoryReservation.findUniqueOrThrow({
+      where: { id: expiryReservation.id },
+    })).toMatchObject({ status: 'EXPIRED' });
+    const stockAfterExpiry = await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    });
+    expect(stockAfterExpiry).toMatchObject({
+      stock: stockAfterReservation.stock,
+      version: stockAfterReservation.version + 2,
+    });
+
+    // Chạy Cron lặp và retry sau khi đã CANCELLED đều không được tạo side effect lần hai.
+    await expiryJob.handleExpiredOrders();
+    expect(await prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+    })).toMatchObject({
+      stock: stockAfterReservation.stock,
+      version: stockAfterReservation.version + 2,
+    });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({
+      where: { id: expiryRedemption.id },
+    })).toMatchObject({ status: 'EXPIRED' });
+
+    const cancelledRetryError = await paymentsService.processPayment({
+      idempotencyKey: `cancelled-retry-key-${randomUUID()}`,
+      orderId: expiredOrderId,
+      userId,
+      method: 'E_WALLET',
+      amount: expiredOrderAmount,
+    }).then(() => null, (error: unknown) => error);
+    expect(cancelledRetryError).toBeInstanceOf(ConflictException);
+    expect((cancelledRetryError as ConflictException).getResponse()).toMatchObject({
+      code: 'ORDER_INVALID_TRANSITION',
+    });
+    expect(gatewayCharge).toHaveBeenCalledTimes(gatewayCallsBeforeExpiredRetry);
+    expect(await prisma.payment.count({ where: { orderId: expiredOrderId } })).toBe(1);
+    expect(await prisma.couponRedemption.count({
+      where: { orderId: expiredOrderId, status: 'CONSUMED' },
+    })).toBe(0);
   });
 
   it('blocks a second PROCESSING payment for the same order even when its idempotency key differs', async () => {

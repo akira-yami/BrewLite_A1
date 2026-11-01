@@ -158,7 +158,12 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             paymentsRepoMock.createProcessingPayment.mockResolvedValue({ id: 'retry' });
             gatewayMock.charge.mockResolvedValue({ success: true });
             await service.processPayment({ idempotencyKey, orderId, userId, method, amount });
-            expect(ordersServiceMock.transitionForPaymentRetry).toHaveBeenCalledWith(orderId, userId, expect.any(String));
+            expect(ordersServiceMock.transitionForPaymentRetry).toHaveBeenCalledWith(
+                orderId,
+                userId,
+                'Khách hàng thực hiện lại thanh toán',
+                prismaMock,
+            );
             expect(ordersServiceMock.transitionForPaymentRetry.mock.invocationCallOrder[0]).toBeLessThan(gatewayMock.charge.mock.invocationCallOrder[0]);
         });
 

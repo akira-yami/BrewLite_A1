@@ -35,13 +35,19 @@ describe('getProducts', () => {
             id: 'variant-1',
             size: 'M',
             price: 35000n,
-            stock: 10,
+            // 100g / 10g mỗi ly = 10 ly.
+            recipeItems: [
+              { quantity: 10, ingredient: { stockQuantity: 100, isActive: true } },
+            ],
           },
           {
             id: 'variant-2',
             size: 'S',
             price: 30000n,
-            stock: 20,
+            // 200g / 10g mỗi ly = 20 ly.
+            recipeItems: [
+              { quantity: 10, ingredient: { stockQuantity: 200, isActive: true } },
+            ],
           },
         ],
         productToppings: [
@@ -52,6 +58,9 @@ describe('getProducts', () => {
               name: 'Trân châu',
               price: 8000n,
               isActive: true,
+              recipeItems: [
+                { quantity: 30, ingredient: { stockQuantity: 300, isActive: true } },
+              ],
             },
           },
         ],
@@ -73,13 +82,13 @@ describe('getProducts', () => {
           id: 'variant-1',
           size: 'M',
           price: 35000,
-          stock: 10,
+          availableServings: 10,
         },
         {
           id: 'variant-2',
           size: 'S',
           price: 30000,
-          stock: 20,
+          availableServings: 20,
         },
       ],
       toppings: [
@@ -132,13 +141,19 @@ describe('getProducts', () => {
             id: 'variant-1',
             size: 'M',
             price: 35000n,
-            stock: 10,
+            // 100g cà phê / 10g mỗi ly = 10 ly.
+            recipeItems: [
+              { quantity: 10, ingredient: { stockQuantity: 100, isActive: true } },
+            ],
           },
           {
             id: 'variant-2',
             size: 'S',
             price: 30000n,
-            stock: 20,
+            recipeItems: [
+              { quantity: 8, ingredient: { stockQuantity: 100, isActive: true } },
+              { quantity: 50, ingredient: { stockQuantity: 500, isActive: true } },
+            ],
           },
         ],
         productToppings: [
@@ -149,6 +164,10 @@ describe('getProducts', () => {
               name: 'Trân châu',
               price: 8000n,
               isActive: true,
+              // Topping nhập sẵn: 1 phần = 30g trân châu 3Q, kho còn 300g.
+              recipeItems: [
+                { quantity: 30, ingredient: { stockQuantity: 300, isActive: true } },
+              ],
             },
           },
         ],
@@ -164,6 +183,10 @@ describe('getProducts', () => {
       expect(result.variants).toHaveLength(2);
       expect(result.variants[0].price).toBe(35000);
       expect(result.variants[1].price).toBe(30000);
+      expect(result.variants[0].availableServings).toBe(10);
+      // Nguyên liệu hạn chế nhất quyết định: min(floor(100/8), floor(500/50)) = 10.
+      expect(result.variants[1].availableServings).toBe(10);
+      expect(result.variants[0]).not.toHaveProperty('stock');
 
       expect(result.toppings[0]).toEqual({
         id: 'topping-1',
@@ -176,6 +199,48 @@ describe('getProducts', () => {
       expect(repository.findDetailById).toHaveBeenCalledWith('product-1');
     });
 
+    it('topping chỉ available khi còn đủ nguyên liệu cho ít nhất 1 phần', async () => {
+      const topping = (id: string, recipeItems: unknown[]) => ({
+        topping: {
+          id,
+          code: id,
+          name: id,
+          price: 5000n,
+          isActive: true,
+          recipeItems,
+        },
+      });
+      repository.findDetailById.mockResolvedValue({
+        id: 'product-1',
+        sku: 'COFFEE-01',
+        name: 'Cà phê sữa',
+        description: null,
+        imageUrl: 'coffee.jpg',
+        variants: [],
+        productToppings: [
+          // Nhập sẵn, đủ 1 phần (30g / 30g).
+          topping('prepackaged-ok', [
+            { quantity: 30, ingredient: { stockQuantity: 30, isActive: true } },
+          ]),
+          // Chế biến từ nhiều nguyên liệu, thiếu đường đen (5g < 15g).
+          topping('prepared-short', [
+            { quantity: 20, ingredient: { stockQuantity: 500, isActive: true } },
+            { quantity: 15, ingredient: { stockQuantity: 5, isActive: true } },
+          ]),
+          // Chưa có công thức.
+          topping('no-recipe', []),
+        ],
+      });
+
+      const result = await service.getProductDetailById('product-1');
+
+      expect(result.toppings.map((t) => [t.id, t.available])).toEqual([
+        ['prepackaged-ok', true],
+        ['prepared-short', false],
+        ['no-recipe', false],
+      ]);
+    });
+
     it('ném NotFoundException khi không tìm thấy sản phẩm', async () => {
       repository.findDetailById.mockResolvedValue(null);
 
@@ -183,29 +248,33 @@ describe('getProducts', () => {
         service.getProductDetailById('product-khong-ton-tai'),
       ).rejects.toThrow(NotFoundException);
     });
-    it('vẫn trả về size hết hàng kèm stock bằng 0', async () => {
-  repository.findDetailById.mockResolvedValue({
-    id: 'product-1',
-    sku: 'COFFEE-01',
-    name: 'Cà phê sữa',
-    description: null,
-    imageUrl: 'coffee.jpg',
-    variants: [
-      {
-        id: 'variant-1',
-        size: 'M',
-        price: 35000n,
-        stock: 0,
-      },
-    ],
-    productToppings: [],
-  });
+    it('vẫn trả về size hết nguyên liệu hoặc chưa có công thức với availableServings bằng 0', async () => {
+      repository.findDetailById.mockResolvedValue({
+        id: 'product-1',
+        sku: 'COFFEE-01',
+        name: 'Cà phê sữa',
+        description: null,
+        imageUrl: 'coffee.jpg',
+        variants: [
+          {
+            id: 'variant-1',
+            size: 'M',
+            price: 35000n,
+            recipeItems: [
+              { quantity: 10, ingredient: { stockQuantity: 9, isActive: true } },
+            ],
+          },
+          { id: 'variant-2', size: 'L', price: 40000n, recipeItems: [] },
+        ],
+        productToppings: [],
+      });
 
-  const result = await service.getProductDetailById('product-1');
+      const result = await service.getProductDetailById('product-1');
 
-  expect(result.variants).toHaveLength(1);
-  expect(result.variants[0].stock).toBe(0);
-});
+      expect(result.variants).toHaveLength(2);
+      expect(result.variants[0].availableServings).toBe(0);
+      expect(result.variants[1].availableServings).toBe(0);
+    });
   }
 );
 });

@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../src/generated/prisma/client.js';
+import { randomUUID } from 'node:crypto';
 import { seedCatalog } from '../prisma/seed-catalog.js';
+import { PrismaClient } from '../src/generated/prisma/client.js';
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
 if (
@@ -23,6 +23,37 @@ describe('Non-destructive catalog seed', () => {
   let variantId: string;
   let toppingId: string;
   let orderId: string;
+  const seededIngredientCodes = [
+    'COFFEE_BEAN_CAU_DAT',
+    'COLD_BREW_CONCENTRATE',
+    'CONDENSED_MILK',
+    'FRESH_MILK',
+    'BLACK_TEA',
+    'OOLONG_TEA',
+    'PEACH_SYRUP',
+    'ORANGE',
+    'LEMONGRASS',
+    'EGG_CREAM',
+    'CUP_S',
+    'CUP_M',
+    'CUP_L',
+    'PEARL_3Q',
+    'JELLY_BOX',
+    'FLAN_CUP',
+    'TAPIOCA_STARCH',
+    'BROWN_SUGAR',
+    'CREAM_CHEESE',
+    'WHIPPING_CREAM',
+    'HONEY',
+  ];
+  const seededToppingCodes = [
+    'TOP_PEARL',
+    'TOP_JELLY',
+    'TOP_FLAN',
+    'TOP_BLACK_PEARL',
+    'TOP_CHEESE',
+    'TOP_ESPRESSO',
+  ];
 
   beforeAll(async () => {
     const testSuffix = randomUUID();
@@ -38,8 +69,6 @@ const product = await prisma.product.create({
           create: {
             size: 'M',
             price: 99000n,
-            stock: 3,
-            version: 7,
             isActive: false,
           },
         },
@@ -137,15 +166,21 @@ const product = await prisma.product.create({
       },
       orderBy: { sku: 'asc' },
       include: {
-        variants: { orderBy: { size: 'asc' } },
+        variants: {
+          orderBy: { size: 'asc' },
+          include: { recipeItems: { orderBy: { ingredientId: 'asc' } } },
+        },
         productToppings: { orderBy: { toppingId: 'asc' } },
       },
     }),
-    toppings: await prisma.topping.findMany({
-      where: {
-        code: { in: ['TOP_PEARL', 'TOP_CHEESE', 'TOP_ESPRESSO'] },
-      },
+    ingredients: await prisma.ingredient.findMany({
+      where: { code: { in: seededIngredientCodes } },
       orderBy: { code: 'asc' },
+    }),
+    toppings: await prisma.topping.findMany({
+      where: { code: { in: seededToppingCodes } },
+      orderBy: { code: 'asc' },
+      include: { recipeItems: { orderBy: { ingredientId: 'asc' } } },
     }),
   });
 
@@ -172,20 +207,53 @@ const product = await prisma.product.create({
     expect(await existing()).toEqual(before);
     const result = await catalog();
     expect(result.products).toHaveLength(6);
-    expect(result.toppings).toHaveLength(3);
+    expect(result.toppings).toHaveLength(seededToppingCodes.length);
     expect(result.products.flatMap((product) => product.variants)).toHaveLength(
       17,
     );
     expect(
       result.products.flatMap((product) => product.productToppings),
-    ).toHaveLength(18);
+    ).toHaveLength(6 * seededToppingCodes.length);
+    expect(result.ingredients).toHaveLength(seededIngredientCodes.length);
+    // Mọi size bán được phải có công thức (BOM).
+    const variants = result.products.flatMap((product) => product.variants);
+    expect(variants.every((variant) => variant.recipeItems.length > 0)).toBe(
+      true,
+    );
+    expect(variants.flatMap((variant) => variant.recipeItems)).toHaveLength(55);
+
+    // Topping nhập sẵn có đúng 1 dòng công thức; topping chế biến có nhiều nguyên liệu.
+    const byCode = new Map(result.toppings.map((t) => [t.code, t]));
+    expect(byCode.get('TOP_PEARL')).toMatchObject({ type: 'PREPACKAGED' });
+    expect(byCode.get('TOP_PEARL')?.recipeItems).toHaveLength(1);
+    expect(byCode.get('TOP_PEARL')?.recipeItems[0].quantity).toBe(30);
+    expect(byCode.get('TOP_BLACK_PEARL')).toMatchObject({ type: 'PREPARED' });
+    expect(byCode.get('TOP_BLACK_PEARL')?.recipeItems.length).toBeGreaterThan(1);
+    for (const topping of result.toppings) {
+      expect(topping.recipeItems.length).toBeGreaterThan(0);
+      if (topping.type === 'PREPACKAGED') {
+        expect(topping.recipeItems).toHaveLength(1);
+      }
+    }
   });
 
-  it('repeated runs preserve IDs, timestamps and stock without creating duplicates', async () => {
+  it('repeated runs preserve IDs, timestamps and ingredient stock without creating duplicates', async () => {
+    // Tồn kho nguyên liệu do vận hành chỉnh sửa không được seed đặt lại.
+    await prisma.ingredient.update({
+      where: { code: 'COFFEE_BEAN_CAU_DAT' },
+      data: { stockQuantity: 1234 },
+    });
     const beforeCatalog = await catalog();
     const beforeExisting = await existing();
     await seedCatalog(prisma);
     expect(await catalog()).toEqual(beforeCatalog);
     expect(await existing()).toEqual(beforeExisting);
+    expect(
+      (
+        await prisma.ingredient.findUniqueOrThrow({
+          where: { code: 'COFFEE_BEAN_CAU_DAT' },
+        })
+      ).stockQuantity,
+    ).toBe(1234);
   });
 });

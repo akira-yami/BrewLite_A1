@@ -12,7 +12,7 @@ Chưa có chuỗi SP thực tế từng ngày hoặc biên bản Planning xác n
 | 2: BL-05..07 | 18 | Chưa ghi nhận |
 | 3: BL-08..10 | 29 | Chưa ghi nhận |
 
-Đây là SP trong [Product Backlog](./product-backlog.md), không thay SP của workbook 33 task đã gửi nhóm. Các giá trị này không dùng làm mẫu số đóng góp cá nhân.
+Đây là SP trong [Product Backlog](product-backlog.md), không thay SP của workbook 33 task đã gửi nhóm. Các giá trị này không dùng làm mẫu số đóng góp cá nhân.
 
 ## Cách ghi khi có dữ liệu
 

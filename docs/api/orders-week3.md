@@ -37,7 +37,7 @@ Base URL: `http://localhost:3001/api/v1`. Các route dưới đây cần `Author
 }
 ```
 
-Không gửi giá, tổng tiền, trạng thái hay userId. Server đọc giá/catalog trong cùng transaction `Serializable`, kiểm tra tài khoản còn active, lưu snapshot rồi giữ tồn qua Inventory/Catalog. Các biến thể được xử lý theo UUID tăng dần; lệnh trừ tồn kiểm tra `version` và `stock >= quantity`. Khi tranh chấp, toàn transaction được thử lại tối đa 3 lần tổng cộng với giá/version đọc lại. Không retry lỗi dữ liệu, thiếu hàng hoặc coupon không hợp lệ.
+Không gửi giá, tổng tiền, trạng thái hay userId. Server đọc giá/catalog và công thức (BOM) trong cùng transaction `Serializable`, kiểm tra tài khoản còn active, lưu snapshot rồi giữ nguyên liệu qua Inventory. Số ly được quy đổi thành lượng nguyên liệu theo công thức; không có tồn kho thành phẩm. Mỗi topping được chọn tiêu hao một phần theo công thức topping (nhập sẵn: 1 định lượng nguyên liệu; chế biến: nhiều nguyên liệu) cho mỗi ly. Các nguyên liệu được xử lý theo UUID tăng dần; lệnh trừ kho kiểm tra `ingredients.version` và `stock_quantity >= lượng cần`. Khi tranh chấp, toàn transaction được thử lại tối đa 3 lần tổng cộng với giá/version đọc lại. Không retry lỗi dữ liệu, thiếu nguyên liệu hoặc coupon không hợp lệ.
 
 Hai dòng cùng variant, cùng topping (không phụ thuộc thứ tự), đường, đá và ghi chú đã trim được gộp; quantity sau gộp tối đa 20. Khác đường/đá vẫn là hai dòng, nhưng chỉ tạo một reservation tổng theo variant. Tất cả tiền được kiểm tra trong miền số nguyên an toàn trước khi ghi.
 

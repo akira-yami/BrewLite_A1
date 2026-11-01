@@ -1,6 +1,5 @@
-
-import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 
 import { OrdersRepository } from '../src/modules/orders/repositories/orders.repository.js';
@@ -72,7 +71,19 @@ describe('Orders -> Inventory integration', () => {
     await prisma.$disconnect();
   });
 
-  async function createFixture(stock: number) {
+  // Mỗi ly dùng 10g cà phê; kho có đủ nguyên liệu cho `cups` ly.
+  const GRAMS_PER_CUP = 10;
+
+  async function createFixture(cups: number) {
+    const ingredient = await prisma.ingredient.create({
+      data: {
+        code: `OI-BEAN-${randomUUID()}`,
+        name: 'Orders inventory coffee beans',
+        unit: 'G',
+        stockQuantity: cups * GRAMS_PER_CUP,
+      },
+    });
+
     const user = await prisma.user.create({
       data: {
         username: `orders-inventory-${randomUUID()}`,
@@ -91,7 +102,9 @@ describe('Orders -> Inventory integration', () => {
           create: {
             size: 'M',
             price: 40000n,
-            stock,
+            recipeItems: {
+              create: { ingredientId: ingredient.id, quantity: GRAMS_PER_CUP },
+            },
           },
         },
       },
@@ -106,11 +119,11 @@ describe('Orders -> Inventory integration', () => {
       throw new Error('Integration fixture did not create a product variant');
     }
 
-    return { user, variant };
+    return { user, variant, ingredient };
   }
 
-  it('creates an order and reserves stock in the same transaction', async () => {
-    const { user, variant } = await createFixture(3);
+  it('creates an order and reserves ingredients in the same transaction', async () => {
+    const { user, variant, ingredient } = await createFixture(3);
 
     const order = await ordersService.createOrder(user.id, {
       items: [
@@ -125,12 +138,12 @@ describe('Orders -> Inventory integration', () => {
       where: { id: order.id },
       include: {
         items: true,
-        inventoryReservations: true,
+        inventoryReservations: { include: { items: true } },
       },
     });
 
-    const variantAfter = await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    const ingredientAfter = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredient.id },
     });
 
     expect(savedOrder.items).toHaveLength(1);
@@ -140,12 +153,18 @@ describe('Orders -> Inventory integration', () => {
     expect(savedOrder.inventoryReservations[0].quantity).toBe(2);
     expect(savedOrder.inventoryReservations[0].status).toBe('ACTIVE');
 
-    expect(variantAfter.stock).toBe(1);
-    expect(variantAfter.version).toBe(1);
+    // Lượng nguyên liệu giữ cho reservation: 2 ly x 10g.
+    expect(savedOrder.inventoryReservations[0].items).toMatchObject([
+      { ingredientId: ingredient.id, quantity: 20 },
+    ]);
+
+    // 30g - 20g = 10g, đủ cho đúng 1 ly nữa.
+    expect(ingredientAfter.stockQuantity).toBe(10);
+    expect(ingredientAfter.version).toBe(1);
   });
 
   it('rolls back the order and stock when inventory reservation fails', async () => {
-    const { user, variant } = await createFixture(3);
+    const { user, variant, ingredient } = await createFixture(3);
 
     // Tạo repository riêng để chủ động gây lỗi khi tạo reservation.
     const failingInventoryRepository = new InventoryRepository();
@@ -187,8 +206,8 @@ describe('Orders -> Inventory integration', () => {
       where: { userId: user.id },
     });
 
-    const variantAfter = await prisma.productVariant.findUniqueOrThrow({
-      where: { id: variant.id },
+    const ingredientAfter = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredient.id },
     });
 
     const reservations = await prisma.inventoryReservation.findMany({
@@ -196,8 +215,8 @@ describe('Orders -> Inventory integration', () => {
     });
 
     expect(ordersAfter).toBe(ordersBefore);
-    expect(variantAfter.stock).toBe(3);
-    expect(variantAfter.version).toBe(0);
+    expect(ingredientAfter.stockQuantity).toBe(30);
+    expect(ingredientAfter.version).toBe(0);
     expect(reservations).toHaveLength(0);
   });
 });

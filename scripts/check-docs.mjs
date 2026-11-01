@@ -9,7 +9,11 @@ const read = (path) => readFileSync(resolve(root, path), 'utf8').replaceAll('\r\
 const sha = (value) => createHash('sha256').update(value).digest('hex');
 const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
   entry.isDirectory() ? walk(resolve(dir, entry.name)) : [resolve(dir, entry.name)]);
-const markdown = [resolve(root, 'README.md'), ...walk(resolve(root, 'docs')).filter((f) => f.endsWith('.md'))];
+const ownerFolders = ['Khang-A2', 'Huy-A2', 'Hoang-A2', 'Kiet-A2', 'Khai-A2'];
+const markdown = [
+  ...['README.md', 'apps/api/README.md', 'apps/web/README.md'].map((path) => resolve(root, path)),
+  ...['docs', ...ownerFolders].flatMap((directory) => walk(resolve(root, directory)).filter((file) => file.endsWith('.md'))),
+];
 let links = 0;
 for (const file of markdown) {
   const text = readFileSync(file, 'utf8');
@@ -23,17 +27,21 @@ for (const file of markdown) {
     if (!existsSync(resolve(dirname(file), target))) errors.push(`${relative(root, file)}: missing ${href}`);
   }
 }
-const directory = 'docs/architecture/diagrams';
+const directory = 'Khang-A2/docs/architecture/diagrams';
 const manifest = JSON.parse(read(`${directory}/manifest.json`));
-const sources = readdirSync(resolve(root, directory)).filter((f) => f.endsWith('.puml')).sort();
+if (manifest.version !== 2 || manifest.pathBase !== 'repository') errors.push('Diagram manifest must use repository-relative paths');
+const sources = ownerFolders.flatMap((owner) => {
+  const directory = resolve(root, owner, 'docs/architecture/diagrams');
+  return existsSync(directory) ? walk(directory).filter((file) => file.endsWith('.puml')).map((file) => relative(root, file).replaceAll('\\', '/')) : [];
+}).sort();
 if (JSON.stringify(sources) !== JSON.stringify(manifest.entries.map((e) => e.source).sort())) {
   errors.push('Diagram manifest does not list every current PlantUML source exactly once');
 }
 for (const entry of manifest.entries) {
-  if (sha(read(`${directory}/${entry.source}`)) !== entry.sha256) errors.push(`Stale source: ${entry.source}; render again`);
+  if (sha(read(entry.source)) !== entry.sha256) errors.push(`Stale source: ${entry.source}; render again`);
   for (const format of ['svg', 'png']) {
     const name = entry.source.replace(/\.puml$/, `.${format}`);
-    const path = resolve(root, directory, name);
+    const path = resolve(root, name);
     if (!existsSync(path) || sha(readFileSync(path)) !== entry.outputs[name]) errors.push(`Stale/missing export: ${name}`);
   }
 }
@@ -47,7 +55,7 @@ for (const [name, expected] of Object.entries(contract)) {
   const domain = read(`${directory}/CD-01-domain.puml`);
   for (const value of expected) if (!new RegExp(`\\b${value}\\b`).test(domain)) errors.push(`CD-01 missing ${name}.${value}`);
 }
-const inventory = JSON.parse(read('docs/document-register.json'));
+const inventory = JSON.parse(read('Khang-A2/docs/document-register.json'));
 for (const entry of inventory.artifacts) {
   for (const path of entry.paths) if (!existsSync(resolve(root, path))) errors.push(`${entry.task}: missing ${path}`);
 }

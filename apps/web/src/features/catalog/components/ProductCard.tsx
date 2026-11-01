@@ -16,7 +16,7 @@ export const ProductCard = ({
   onCustomize,
   onQuickAdd,
 }: ProductCardProps) => {
-  const canQuickAdd = product.variants.some((variant) => variant.stock > 0);
+  const canQuickAdd = product.variants.some((variant) => variant.availableServings > 0);
 
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-[#E8DFC8] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md">

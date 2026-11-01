@@ -2,7 +2,19 @@
 
 BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt, được xây dựng cho bài tập lớn môn Công nghệ Phần mềm. Sản phẩm hướng tới luồng đặt món nhanh tại quầy: xem menu, chọn size/topping, quản lý giỏ hàng, đăng nhập, tạo đơn, thanh toán và theo dõi trạng thái.
 
-> Cập nhật Orders tuần 3 ngày 23/10/2026: đã có `POST /orders`, `GET /orders/me`, `GET /orders/:id`, snapshot đường/đá/ghi chú, transaction giữ tồn và kiểm tra quyền sở hữu. Xem [API và cách kiểm chứng Orders](./docs/api/orders-week3.md). [Bản bàn giao có commit, ngày giờ và log kiểm thử](./docs/scrum/khang-week3-handoff.md). Nút đặt/thanh toán trên giao diện giỏ hàng chưa được nối vào toàn bộ luồng checkout.
+## Gói bàn giao tài liệu Assignment 2
+
+Tài liệu và sơ đồ A2 đã được chuyển vào các thư mục ở gốc theo sheet `Assignment 2` và `SO_DO` của bảng phân công. Mỗi gói có README ghi task, file gốc, tài liệu phối hợp và phần còn thiếu:
+
+- [Khang-A2](Khang-A2/README.md): yêu cầu chung, kiến trúc/ERD, Orders, Class/Activity, deployment và truy vết.
+- [Huy-A2](Huy-A2/README.md): Auth/JWT/RBAC và bảo mật.
+- [Hoang-A2](Hoang-A2/README.md): phân công Catalog/Inventory, tham chiếu dùng chung và các sơ đồ chưa có tệp độc lập.
+- [Kiet-A2](Kiet-A2/README.md): Payment/Retry/Idempotency và Coupon.
+- [Khai-A2](Khai-A2/README.md): wireflow giao diện khách hàng và phân công frontend/E2E.
+
+[Danh sách chuyển file và hash](Khang-A2/handover-manifest.json) ghi nguồn trước khi chuyển. `docs/` giữ tài liệu API thực thi, Scrum, review và bằng chứng A1; các liên kết thiết kế dùng chung trỏ tới gói người phụ trách. Đây là gói tham khảo đang được bàn giao, không xác nhận hoàn thành A2.
+
+> Cập nhật Orders tuần 3 ngày 23/10/2026: đã có `POST /orders`, `GET /orders/me`, `GET /orders/:id`, snapshot đường/đá/ghi chú, transaction giữ tồn và kiểm tra quyền sở hữu. Xem [API và cách kiểm chứng Orders](docs/api/orders-week3.md). [Bản bàn giao có commit, ngày giờ và log kiểm thử](docs/scrum/khang-week3-handoff.md). Nút đặt/thanh toán trên giao diện giỏ hàng chưa được nối vào toàn bộ luồng checkout.
 
 ## Công nghệ và hiện trạng
 
@@ -73,6 +85,11 @@ BrewLite/
 │  └─ tsconfig/
 ├─ tests/e2e/
 ├─ scripts/
+├─ Khang-A2/
+├─ Huy-A2/
+├─ Hoang-A2/
+├─ Kiet-A2/
+├─ Khai-A2/
 └─ docs/
 ```
 
@@ -91,7 +108,7 @@ BrewLite/
 
 ## Chức năng MVP
 
-Đây là phạm vi cần nghiệm thu. Trạng thái từng yêu cầu nằm trong [ma trận truy vết](./docs/traceability-matrix.md); danh sách này không có nghĩa mọi chức năng đã hoàn thành.
+Đây là phạm vi cần nghiệm thu. Trạng thái từng yêu cầu nằm trong [ma trận truy vết](Khang-A2/docs/traceability-matrix.md); danh sách này không có nghĩa mọi chức năng đã hoàn thành.
 
 - Hiển thị menu và chi tiết sản phẩm.
 - Chọn size, topping, mức đường và đá.
@@ -118,22 +135,22 @@ Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào
 
 ## Tài liệu
 
-- [Mục lục tài liệu](./docs/README.md)
-- [Phân tích đề bài](./docs/phan-tich-de-bai.md)
-- [Truy vết yêu cầu A1/A2, code, test và review](./docs/traceability-matrix.md)
-- [Tiến độ thực tế ngày 22/10/2026](./docs/scrum/progress-report.md)
-- [Kiến trúc hệ thống](./docs/architecture/system-architecture.md)
-- [Class Diagram](./docs/architecture/class-diagram.md)
-- [Deployment Diagram và khoảng trống production](./docs/architecture/deployment-diagram.md)
-- [ERD](./docs/architecture/erd.md)
-- [Đặc tả entity](./docs/architecture/entities.md)
-- [Thiết kế cơ sở dữ liệu](./docs/architecture/database-design.md)
-- [Đặc tả REST API](./docs/architecture/api-spec.md)
-- [Thiết kế bảo mật](./docs/architecture/security.md)
-- [Các quyết định kiến trúc](./docs/decisions/ADR-001-project-architecture.md)
-- [Product Backlog](./docs/scrum/product-backlog.md)
-- [Kế hoạch 3 Sprint](./docs/scrum/sprint-01.md)
-- [Chiến lược kiểm thử](./docs/testing/test-strategy.md)
+- [Mục lục tài liệu](docs/README.md)
+- [Phân tích đề bài](Khang-A2/docs/phan-tich-de-bai.md)
+- [Truy vết yêu cầu A1/A2, code, test và review](Khang-A2/docs/traceability-matrix.md)
+- [Tiến độ thực tế ngày 22/10/2026](docs/scrum/progress-report.md)
+- [Kiến trúc hệ thống](Khang-A2/docs/architecture/system-architecture.md)
+- [Class Diagram](Khang-A2/docs/architecture/class-diagram.md)
+- [Deployment Diagram và khoảng trống production](Khang-A2/docs/architecture/deployment-diagram.md)
+- [ERD](docs/architecture/erd.md)
+- [Đặc tả entity](Khang-A2/docs/architecture/entities.md)
+- [Thiết kế cơ sở dữ liệu](Khang-A2/docs/architecture/database-design.md)
+- [Đặc tả REST API](Khang-A2/docs/architecture/api-spec.md)
+- [Thiết kế bảo mật](Huy-A2/docs/architecture/security.md)
+- [Các quyết định kiến trúc](Khang-A2/docs/decisions/ADR-001-project-architecture.md)
+- [Product Backlog](docs/scrum/product-backlog.md)
+- [Kế hoạch 3 Sprint](docs/scrum/sprint-01.md)
+- [Chiến lược kiểm thử](Khang-A2/docs/testing/test-strategy.md)
 
 ## Khởi chạy dự án
 
@@ -150,7 +167,7 @@ Compose chạy service `migrate` trước backend. Kiểm tra trạng thái bằ
 
 `JWT_SECRET` bắt buộc và không có giá trị mặc định. Compose dừng ngay nếu biến thiếu hoặc rỗng; mỗi môi trường cần secret riêng. Không commit file `.env` thật.
 
-Khi chạy trực tiếp trên host, tạo database PostgreSQL rồi làm theo [README API](./apps/api/README.md): dùng `apps/api/.env.example` với hostname `localhost`, chạy migrate trước start. Root `.env.example` dùng hostname `postgres` cho Compose.
+Khi chạy trực tiếp trên host, tạo database PostgreSQL rồi làm theo [README API](apps/api/README.md): dùng `apps/api/.env.example` với hostname `localhost`, chạy migrate trước start. Root `.env.example` dùng hostname `postgres` cho Compose.
 
 ## CI trên GitHub Actions
 
@@ -161,13 +178,13 @@ Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull requ
 - **Database migrations and integration:** PostgreSQL 18 riêng cho mỗi lần chạy; validate/generate Prisma, apply migration hai lần để kiểm tra chạy lặp, kiểm tra migration status và chạy integration test với database thật.
 - **Documentation:** kiểm tra liên kết tài liệu, nguồn/SVG/PNG qua manifest, enum Prisma và danh mục tạo phẩm A2 Task 1–3; chạy bằng `node scripts/check-docs.mjs`.
 
-CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ruleset `BrewLite CI quality gate` bắt buộc cả bốn job đạt trên main, strict và không có bypass actor; xem [snapshot GitHub và run pass/fail](./docs/deployment/ci-quality-gates.md). Cấu hình YAML không tự thiết lập rule trên GitHub. Repo hiện có CI, chưa có workflow CD. Xem [kế hoạch bàn giao](./docs/deployment/release-checklist.md) và [quy trình version tài liệu](./docs/document-control.md).
+CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ruleset `BrewLite CI quality gate` bắt buộc cả bốn job đạt trên main, strict và không có bypass actor; xem [snapshot GitHub và run pass/fail](Khang-A2/docs/deployment/ci-quality-gates.md). Cấu hình YAML không tự thiết lập rule trên GitHub. Repo hiện có CI, chưa có workflow CD. Xem [kế hoạch bàn giao](Khang-A2/docs/deployment/release-checklist.md) và [quy trình version tài liệu](Khang-A2/docs/document-control.md).
 
 ## Quy ước phát triển
 
 `OrderItem.note` là ghi chú món tùy chọn, tối đa 500 ký tự sau trim; thiếu/rỗng thành null. UI nhập và hiển thị ghi chú, giỏ persist và tách dòng khác ghi chú; DTO/mapper giữ cùng snapshot, không thay đổi giá. Migration bổ sung riêng giữ đơn cũ với note null.
 
-`OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo [hợp đồng API](./docs/architecture/api-spec.md).
+`OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo [hợp đồng API](Khang-A2/docs/architecture/api-spec.md).
 
 - Backend không tin giá, tổng tiền, user ID hoặc trạng thái do frontend gửi.
 - Tiền lưu bằng số nguyên theo đơn vị VND; không dùng số thực.

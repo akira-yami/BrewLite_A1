@@ -1,7 +1,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CatalogRepository } from './catalog.repository.js';
 import { PrismaService } from '../../../database/prisma.service.js';
+import { CatalogRepository } from './catalog.repository.js';
 
 describe('CatalogRepository', () => {
   let repository: CatalogRepository;
@@ -34,6 +34,7 @@ describe('CatalogRepository', () => {
       include: {
         variants: {
           where: { isActive: true },
+          include: { recipeItems: { include: { ingredient: true } } },
         },
         productToppings: {
           where: {
@@ -42,7 +43,9 @@ describe('CatalogRepository', () => {
             },
           },
           include: {
-            topping: true,
+            topping: {
+              include: { recipeItems: { include: { ingredient: true } } },
+            },
           },
         },
       },

@@ -1,11 +1,3 @@
-
-import { CatalogService } from '../../catalog/services/catalog.service.js';
-import { UsersService } from '../../users/users.service.js';
-
-// Sử dụng InventoryService mới
-import { InventoryService } from '../../inventory/services/inventory.service.js';
-import { InventoryRepository } from '../../inventory/repositories/inventory.repository.js';
-
 import {
   BadRequestException,
   ConflictException,
@@ -13,13 +5,29 @@ import {
 } from '@nestjs/common';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { PrismaService } from '../../../database/prisma.service.js';
+import { OrderStatus } from '../../../generated/prisma/client.js';
+import { CatalogService } from '../../catalog/services/catalog.service.js';
+import { InventoryService } from '../../inventory/services/inventory.service.js';
+import { InventoryRepository } from '../../inventory/repositories/inventory.repository.js';
+import { PromotionsService } from '../../promotions/services/promotions.service.js';
+import { UsersService } from '../../users/users.service.js';
 import { OrdersRepository } from '../repositories/orders.repository.js';
 import { OrdersService } from './orders.service.js';
 
-import { OrderStatus } from '../../../generated/prisma/client.js';
-import { PrismaService } from '../../../database/prisma.service.js';
-import { PromotionsService } from '../../promotions/services/promotions.service.js';
+// Một dòng công thức: `quantity` đơn vị nguyên liệu cho mỗi ly, kho còn `stockQuantity`.
+function recipeLine(quantity: number, stockQuantity: number) {
+  return {
+    ingredientId: 'ingredient-1',
+    quantity,
+    ingredient: {
+      id: 'ingredient-1',
+      stockQuantity,
+      version: 0,
+      isActive: true,
+    },
+  };
+}
 
 describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
   let service: OrdersService;
@@ -49,8 +57,8 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       order: {
         create: vi.fn(),
       },
-
-      productVariant: {
+      productVariant: {},
+      ingredient: {
         updateMany: vi.fn(),
       },
 
@@ -76,67 +84,10 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       reserve: vi.fn(),
     };
 
-    // Mock InventoryRepository
-    // Các hàm này chuyển tiếp thao tác sang txMock
-    // để giữ nguyên các assertion của test hiện tại.
-    const inventoryRepository = {
-      findVariant: vi.fn(),
-
-      reserveStock: vi.fn(
-        (
-          tx: any,
-          variantId: string,
-          expectedVersion: number,
-          quantity: number,
-        ) =>
-          tx.productVariant.updateMany({
-            where: {
-              id: variantId,
-              version: expectedVersion,
-              stock: { gte: quantity },
-              isActive: true,
-            },
-            data: {
-              stock: { decrement: quantity },
-              version: { increment: 1 },
-            },
-          }),
-      ),
-
-      createReservation: vi.fn(
-        (
-          tx: any,
-          orderId: string,
-          variantId: string,
-          quantity: number,
-          expiresAt: Date,
-        ) =>
-          tx.inventoryReservation.create({
-            data: {
-              orderId,
-              productVariantId: variantId,
-              quantity,
-              status: 'ACTIVE',
-              expiresAt,
-            },
-          }),
-      ),
-
-      findReservation: vi.fn(),
-      transitionActiveReservation: vi.fn(),
-      restoreStock: vi.fn(),
-    };
-
     // CatalogService vẫn được sử dụng để kiểm tra và tính giá sản phẩm.
     const catalog = new CatalogService({} as any);
 
     txMock.productVariant.findFirst = repository.findActiveVariantById;
-
-    // Khởi tạo InventoryService mới với PrismaService và InventoryRepository.
-    const inventoryService = new InventoryService(
-      prismaMock as unknown as PrismaService,
-      inventoryRepository as unknown as InventoryRepository,
-    );
 
     // Khởi tạo OrdersService
     service = new OrdersService(
@@ -144,17 +95,20 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       prismaMock as unknown as PrismaService,
       promotionsServiceMock as unknown as PromotionsService,
       catalog,
-      inventoryService,
+      new InventoryService(
+        prismaMock as PrismaService,
+        new InventoryRepository(),
+      ),
       new UsersService(),
     );
 
     // Dữ liệu sản phẩm mặc định cho các bài test
     repository.findActiveVariantById.mockResolvedValue({
       id: 'variant-1',
-      version: 0,
       size: 'M',
       price: 35000n,
-      stock: 10,
+      // Công thức: 10g cà phê mỗi ly; kho có 100g => tối đa 10 ly.
+      recipeItems: [recipeLine(10, 100)],
       product: {
         name: 'Cà phê sữa',
         productToppings: [
@@ -164,6 +118,19 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
               name: 'Trân châu',
               price: 8000n,
               isActive: true,
+              // Topping nhập sẵn: 1 phần = 30g trân châu 3Q, kho còn 300g.
+              recipeItems: [
+                {
+                  ingredientId: 'pearl',
+                  quantity: 30,
+                  ingredient: {
+                    id: 'pearl',
+                    stockQuantity: 300,
+                    version: 2,
+                    isActive: true,
+                  },
+                },
+              ],
             },
           },
         ],
@@ -219,7 +186,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         id: 'variant-1',
         size: 'M',
         price: 35000n,
-        stock: 10,
+        recipeItems: [recipeLine(10, 100)],
         product: {
           name: 'Cà phê sữa',
           productToppings: [
@@ -244,6 +211,147 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
           },
         ]),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('từ chối size chưa có công thức vì không tính được nguyên liệu', async () => {
+      repository.findActiveVariantById.mockResolvedValue({
+        id: 'variant-1',
+        size: 'M',
+        price: 35000n,
+        recipeItems: [],
+        product: { name: 'Cà phê sữa', productToppings: [] },
+      });
+
+      await expect(
+        service.validateAndPriceItems([
+          { productVariantId: 'variant-1', quantity: 1 },
+        ]),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('tính nhu cầu nguyên liệu theo công thức và cộng dồn các dòng cùng size', async () => {
+      const result = await service.validateAndPriceItems([
+        { productVariantId: 'variant-1', quantity: 3 },
+        { productVariantId: 'variant-1', quantity: 2, sugarLevel: 0 },
+      ]);
+
+      expect(result.needs.ingredients.get('ingredient-1')).toEqual({
+        quantity: 50,
+        version: 0,
+      });
+      expect(result.needs.variants.get('variant-1')).toEqual({
+        quantity: 5,
+        ingredients: new Map([['ingredient-1', 50]]),
+      });
+    });
+
+    describe('topping theo công thức', () => {
+      const lineOf = (
+        ingredientId: string,
+        quantity: number,
+        stockQuantity: number,
+      ) => ({
+        ingredientId,
+        quantity,
+        ingredient: {
+          id: ingredientId,
+          stockQuantity,
+          version: 0,
+          isActive: true,
+        },
+      });
+      const variantWith = (toppingRecipe: unknown[]) => ({
+        id: 'variant-1',
+        size: 'M',
+        price: 35000n,
+        recipeItems: [
+          lineOf('ingredient-1', 10, 100),
+          lineOf('milk', 20, 1000),
+        ],
+        product: {
+          name: 'Trà sữa',
+          productToppings: [
+            {
+              topping: {
+                id: 'topping-1',
+                name: 'Trân châu đen',
+                price: 8000n,
+                isActive: true,
+                recipeItems: toppingRecipe,
+              },
+            },
+          ],
+        },
+      });
+      const order = {
+        productVariantId: 'variant-1',
+        quantity: 2,
+        toppingIds: ['topping-1'],
+      };
+
+      it('topping nhập sẵn: 1 phần = 1 định lượng nguyên liệu thô', async () => {
+        repository.findActiveVariantById.mockResolvedValue(
+          variantWith([lineOf('pearl', 30, 300)]),
+        );
+
+        const { needs } = await service.validateAndPriceItems([order]);
+
+        // 2 ly x 1 phần x 30g trân châu 3Q.
+        expect(needs.ingredients.get('pearl')).toEqual({
+          quantity: 60,
+          version: 0,
+        });
+      });
+
+      it('topping chế biến: bán thành phẩm gồm nhiều nguyên liệu, gộp với nguyên liệu dùng chung của ly', async () => {
+        repository.findActiveVariantById.mockResolvedValue(
+          variantWith([
+            lineOf('tapioca', 20, 1000),
+            lineOf('brown-sugar', 15, 1000),
+            // Sữa tươi dùng chung với công thức của ly.
+            lineOf('milk', 10, 1000),
+          ]),
+        );
+
+        const { needs } = await service.validateAndPriceItems([order]);
+
+        expect(needs.ingredients.get('tapioca')?.quantity).toBe(40);
+        expect(needs.ingredients.get('brown-sugar')?.quantity).toBe(30);
+        // Ly: 2 x 20ml + topping: 2 x 10ml.
+        expect(needs.ingredients.get('milk')?.quantity).toBe(60);
+        expect(needs.variants.get('variant-1')?.ingredients.get('milk')).toBe(
+          60,
+        );
+      });
+
+      it('từ chối khi topping thiếu một nguyên liệu dù ly vẫn đủ', async () => {
+        repository.findActiveVariantById.mockResolvedValue(
+          variantWith([
+            lineOf('tapioca', 20, 1000),
+            // Cần 2 x 15 = 30g nhưng chỉ còn 20g.
+            lineOf('brown-sugar', 15, 20),
+          ]),
+        );
+
+        await expect(
+          service.validateAndPriceItems([order]),
+        ).rejects.toMatchObject({
+          response: {
+            error: {
+              code: 'OUT_OF_STOCK',
+              details: [{ toppingId: 'topping-1', available: 1 }],
+            },
+          },
+        });
+      });
+
+      it('từ chối topping chưa có công thức', async () => {
+        repository.findActiveVariantById.mockResolvedValue(variantWith([]));
+
+        await expect(service.validateAndPriceItems([order])).rejects.toThrow(
+          ConflictException,
+        );
+      });
     });
 
     it('từ chối khi tổng số lượng cùng size vượt tồn kho', async () => {
@@ -289,9 +397,9 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     it('getOrderForPayment - ném NotFoundException nếu không tìm thấy đơn hoặc sai userId', async () => {
       repository.findByIdAndUserId.mockResolvedValue(null);
 
-      await expect(
-        service.getOrderForPayment('o-1', 'u-1'),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.getOrderForPayment('o-1', 'u-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('getOrderForPayment - trả về order nếu hợp lệ', async () => {
@@ -400,21 +508,21 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
     it('tạo đơn hàng thành công không có coupon: trừ tồn kho, tạo reservation, ghi history và trả về đúng DTO', async () => {
       txMock.order.create.mockResolvedValue(mockOrderDb);
-      txMock.productVariant.updateMany.mockResolvedValue({ count: 1 });
+      txMock.ingredient.updateMany.mockResolvedValue({ count: 1 });
 
       const result = await service.createOrder('u-1', mockDto as any);
 
       expect(txMock.order.create).toHaveBeenCalled();
-
-      expect(txMock.productVariant.updateMany).toHaveBeenCalledWith({
+      // 2 ly x 10g = 20g nguyên liệu bị trừ; không có tồn kho thành phẩm.
+      expect(txMock.ingredient.updateMany).toHaveBeenCalledWith({
         where: {
-          id: 'variant-1',
+          id: 'ingredient-1',
           version: 0,
-          stock: { gte: 2 },
           isActive: true,
+          stockQuantity: { gte: 20 },
         },
         data: {
-          stock: { decrement: 2 },
+          stockQuantity: { decrement: 20 },
           version: { increment: 1 },
         },
       });
@@ -426,6 +534,13 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
           quantity: 2,
           status: 'ACTIVE',
           expiresAt: expect.any(Date),
+          // Nguyên liệu của ly (2 x 10g) và của topping (2 phần x 30g).
+          items: {
+            create: [
+              { ingredientId: 'ingredient-1', quantity: 20 },
+              { ingredientId: 'pearl', quantity: 60 },
+            ],
+          },
         },
       });
 
@@ -461,8 +576,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       };
 
       txMock.order.create.mockResolvedValue(mockOrderWithCoupon);
-      txMock.productVariant.updateMany.mockResolvedValue({ count: 1 });
-
+      txMock.ingredient.updateMany.mockResolvedValue({ count: 1 });
       promotionsServiceMock.quoteAndLock.mockResolvedValue({
         couponId: 'c-1',
         discountAmount: 10000n,
@@ -489,13 +603,13 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       expect(result.total).toBe(76000);
     });
 
-    it('ném ConflictException nếu updateMany stock trả về count = 0 (hết hàng trong transaction)', async () => {
+    it('ném ConflictException nếu updateMany nguyên liệu trả về count = 0 (hết nguyên liệu trong transaction)', async () => {
       txMock.order.create.mockResolvedValue(mockOrderDb);
-      txMock.productVariant.updateMany.mockResolvedValue({ count: 0 });
+      txMock.ingredient.updateMany.mockResolvedValue({ count: 0 });
 
-      await expect(
-        service.createOrder('u-1', mockDto as any),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.createOrder('u-1', mockDto as any)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 

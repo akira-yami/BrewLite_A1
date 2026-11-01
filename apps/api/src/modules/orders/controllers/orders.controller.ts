@@ -60,4 +60,21 @@ export class OrdersController {
     const data = await this.orders.getOrderDetail(orderId, user.id);
     return { data };
   }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancelOrder(
+    @Param('id', ParseUUIDPipe) orderId: string,
+    @CurrentUser() user: Principal,
+  ) {
+    // Không nhận lý do từ client để giữ nội dung lịch sử trạng thái nhất quán.
+    await this.orders.cancelOrder(
+      orderId,
+      user.id,
+      'Khách hàng yêu cầu hủy đơn hàng',
+      false,
+    );
+    const data = await this.orders.getOrderDetail(orderId, user.id);
+    return { data };
+  }
 }

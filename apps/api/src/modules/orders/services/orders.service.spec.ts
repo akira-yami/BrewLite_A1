@@ -74,6 +74,8 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     promotionsServiceMock = {
       quoteAndLock: vi.fn(),
       reserve: vi.fn(),
+      // Mô phỏng cổng quyết toán coupon được OrdersService gọi khi Order chuyển sang PAID.
+      consumeRedemption: vi.fn(),
     };
 
     // Mock InventoryRepository
@@ -345,6 +347,10 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         'u-1',
         100000n,
         txMock,
+      );
+      expect(promotionsServiceMock.consumeRedemption).toHaveBeenCalledWith(
+        txMock,
+        'o-1',
       );
     });
 

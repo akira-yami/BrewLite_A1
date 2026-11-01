@@ -205,7 +205,8 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                 amount,
             });
 
-            expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+            // Transaction đầu tiên đổi Order + tạo PROCESSING; transaction thứ hai quyết toán Gateway.
+            expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
             expect(ordersServiceMock.transitionForPaymentRetry).toHaveBeenCalledWith(
                 orderId,
                 userId,

@@ -65,14 +65,17 @@ export default function CheckoutPage() {
       paymentAttemptKey.current = idempotencyKey;
       const payment = await createPaymentApi(token, { orderId, method }, idempotencyKey);
 
-      if (payment.paymentStatus !== 'SUCCEEDED' || payment.success === false) {
+      // Chỉ failure đã xác nhận mới cấp key mới. Lỗi mạng giữ key để replay,
+      // tránh một click thử lại trở thành một giao dịch thanh toán khác.
+      if (payment.status !== 'SUCCEEDED' || payment.success === false) {
         paymentAttemptKey.current = null;
-        setError(paymentFailureMessage(payment.failureCode, payment.message));
+        setError(paymentFailureMessage(payment.errorCode, payment.message));
         return;
       }
 
       cartStore.clearCart();
-      router.replace(`/orders/confirmation?orderId=${encodeURIComponent(payment.orderId)}`);
+      // Payment response không trả orderId; dùng ID đã được server tạo ở bước trên.
+      router.replace(`/orders/confirmation?orderId=${encodeURIComponent(orderId)}`);
     } catch (reason) {
       if (reason instanceof OrdersApiError) {
         if (reason.status === 401) {

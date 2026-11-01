@@ -119,11 +119,27 @@ jobs:
     name: Backend
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18.4-alpine3.23
+        env:
+          POSTGRES_USER: brewlite
+          POSTGRES_PASSWORD: ci_only_password
+          POSTGRES_DB: brewlite_foundation_smoke_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U brewlite -d brewlite_foundation_smoke_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     defaults:
       run:
         working-directory: apps/api
     env:
       DATABASE_URL: postgresql://brewlite:ci_only_password@localhost:5432/brewlite_foundation_smoke_ci?schema=public
+      SMOKE_DATABASE_URL: postgresql://brewlite:ci_only_password@localhost:5432/brewlite_foundation_smoke_ci?schema=public
+      MOCK_PAYMENT_MODE: deterministic
       JWT_SECRET: cf40f6ffdda376c12dfb4370b2f84db0a740a6c4efc6eb71032602c99e6ad933
       JWT_ISSUER: brewlite-api
       JWT_AUDIENCE: brewlite-web
@@ -142,6 +158,8 @@ jobs:
         run: npm ci
       - name: Generate Prisma client
         run: npm run prisma:generate
+      - name: Apply migrations for API E2E
+        run: npm run prisma:deploy
       - name: Lint
         run: npm run lint
       - name: Typecheck

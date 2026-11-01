@@ -6,7 +6,8 @@ import { PrismaClient } from '../src/generated/prisma/client.js';
 import { OrdersRepository } from '../src/modules/orders/repositories/orders.repository.js';
 import { OrdersService } from '../src/modules/orders/services/orders.service.js';
 
-import { InventoryService } from '../src/modules/inventory/inventory.service.js';
+import { InventoryService } from '../src/modules/inventory/services/inventory.service.js';
+import { InventoryRepository } from '../src/modules/inventory/repositories/inventory.repository.js';
 
 import { CatalogRepository } from '../src/modules/catalog/repositories/catalog.repository.js';
 import { CatalogService } from '../src/modules/catalog/services/catalog.service.js';
@@ -45,7 +46,14 @@ describe('Orders -> Inventory integration', () => {
   );
 
   const usersService = new UsersService();
-  const inventoryService = new InventoryService(catalogService);
+
+  // Sử dụng InventoryService mới với Prisma và InventoryRepository.
+  const inventoryRepository = new InventoryRepository();
+
+  const inventoryService = new InventoryService(
+    prisma as never,
+    inventoryRepository,
+  );
 
   const ordersService = new OrdersService(
     ordersRepository,
@@ -139,24 +147,23 @@ describe('Orders -> Inventory integration', () => {
   it('rolls back the order and stock when inventory reservation fails', async () => {
     const { user, variant } = await createFixture(3);
 
-    // Tạo CatalogService riêng để gây lỗi trong bước reserve của transaction.
-    const failingCatalogService = new CatalogService(
-      new CatalogRepository(prisma as never),
-    );
+    // Tạo repository riêng để chủ động gây lỗi khi tạo reservation.
+    const failingInventoryRepository = new InventoryRepository();
 
-    failingCatalogService.reserveVariant = async () => {
+    failingInventoryRepository.createReservation = async () => {
       throw new Error('Injected reservation creation failure');
     };
 
     const failingInventoryService = new InventoryService(
-      failingCatalogService,
+      prisma as never,
+      failingInventoryRepository,
     );
 
     const failingOrdersService = new OrdersService(
       ordersRepository,
       prisma as never,
       promotionsService,
-      failingCatalogService,
+      catalogService,
       failingInventoryService,
       usersService,
     );

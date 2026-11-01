@@ -51,6 +51,7 @@ export class InventoryRepository {
         orderId,
         productVariantId: variantId,
         quantity,
+         status: 'ACTIVE',
         expiresAt,
       },
     });

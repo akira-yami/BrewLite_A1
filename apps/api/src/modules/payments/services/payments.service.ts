@@ -62,21 +62,30 @@ export class PaymentsService {
         }
 
         // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
-        const order = await this.ordersService.getOrderForPayment(orderId, userId);
+        // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
+const order = await this.ordersService.getOrderForPayment(orderId, userId);
 
-        if (order.status === OrderStatus.PAID) {
-            throw new ConflictException({
-                code: 'ORDER_ALREADY_PAID',
-                message: 'Đơn hàng này đã được thanh toán.',
-            });
-        }
+if (order.status === OrderStatus.PAID) {
+    throw new ConflictException({
+        code: 'ORDER_ALREADY_PAID',
+        message: 'Đơn hàng này đã được thanh toán.',
+    });
+}
 
-        if (order.status !== OrderStatus.PENDING) {
-            throw new ConflictException({
-                code: 'ORDER_INVALID_TRANSITION',
-                message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
-            });
-        }
+if (order.status !== OrderStatus.PENDING) {
+    throw new ConflictException({
+        code: 'ORDER_INVALID_TRANSITION',
+        message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
+    });
+}
+
+// THÊM MỚI: Chặn nếu thời gian hiện tại đã vượt mốc hết hạn giữ chỗ
+if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
+    throw new ConflictException({
+        code: 'ORDER_EXPIRED',
+        message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+    });
+}
 
         // 4. Khởi tạo trạng thái PROCESSING trong DB (Thực thi NGÀY LẬP TỨC ngoài transaction chính)
         const processingPayment = await this.paymentsRepository.createProcessingPayment({orderId, idempotencyKey, requestHash, method, amount,});

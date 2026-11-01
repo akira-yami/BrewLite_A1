@@ -16,13 +16,36 @@ after(() => { unlinkSync(emptyEnv); rmdirSync(testDir); });
 
 function config(secret, envFile = emptyEnv, json = false) {
   const env = { ...process.env };
+
   delete env.JWT_SECRET;
   delete env.COMPOSE_ENV_FILES;
-  if (secret !== undefined) env.JWT_SECRET = secret;
-  return spawnSync('docker', [
-    'compose', '--env-file', envFile, '--file', composeFile, 'config',
-    ...(json ? ['--format', 'json'] : ['--quiet']),
-  ], { env, encoding: 'utf8', timeout: 15000 });
+
+  // Giá trị giả lập chỉ dùng để kiểm tra cấu hình Compose.
+  // Không kết nối tới database thật.
+  env.DATABASE_URL_DOCKER =
+    'postgresql://brewlite:test@postgres:5432/brewlite';
+
+  if (secret !== undefined) {
+    env.JWT_SECRET = secret;
+  }
+
+  return spawnSync(
+    'docker',
+    [
+      'compose',
+      '--env-file',
+      envFile,
+      '--file',
+      composeFile,
+      'config',
+      ...(json ? ['--format', 'json'] : ['--quiet']),
+    ],
+    {
+      env,
+      encoding: 'utf8',
+      timeout: 15000,
+    },
+  );
 }
 
 test('Compose rejects an absent JWT secret before starting services', () => {

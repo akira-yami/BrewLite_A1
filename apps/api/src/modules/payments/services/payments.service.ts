@@ -72,7 +72,7 @@ if (order.status === OrderStatus.PAID) {
     });
 }
 
-if (order.status !== OrderStatus.PENDING) {
+if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
     throw new ConflictException({
         code: 'ORDER_INVALID_TRANSITION',
         message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
@@ -88,6 +88,12 @@ if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
 }
 
         // 4. Khởi tạo trạng thái PROCESSING trong DB (Thực thi NGÀY LẬP TỨC ngoài transaction chính)
+        // Key cũ luôn replay ở bước 2. Chỉ key mới mới mở một lần thử khác;
+        // kiểm tra TTL trước khi đổi PAYMENT_FAILED → PENDING để không hồi sinh đơn hết hạn.
+        // OrdersService dùng compare-and-set và ghi history, nên transition lỗi phải dừng trước gateway.
+        if (order.status === OrderStatus.PAYMENT_FAILED) {
+            await this.ordersService.transitionForPaymentRetry(orderId, userId, 'Customer retried payment');
+        }
         const processingPayment = await this.paymentsRepository.createProcessingPayment({orderId, idempotencyKey, requestHash, method, amount,});
 
         // 5. Gọi MockGatewayService (Call API I/O tốn thời gian, tuyệt đối KHÔNG đưa vào DB Lock)

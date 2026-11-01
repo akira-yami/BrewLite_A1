@@ -4,6 +4,7 @@ import {
     ToppingType,
     type PrismaClient,
 } from '../src/generated/prisma/client.js';
+const productImage = (sku: string) => `/products/${sku}.webp`;
 
 // Add missing sample catalog entries; never overwrite existing business data.
 export async function seedCatalog(prisma: PrismaClient) {
@@ -139,8 +140,7 @@ export async function seedCatalog(prisma: PrismaClient) {
       sku: 'COFFEE-CAU-DAT-01',
       name: 'Cà phê sữa Cầu Đất',
       description: 'Rang mộc · Đậm vị, thơm lâu',
-      imageUrl:
-        'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80',
+      imageUrl: productImage('COFFEE-CAU-DAT-01'),
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(30000) },
@@ -152,8 +152,7 @@ export async function seedCatalog(prisma: PrismaClient) {
       sku: 'COLD-BREW-ICE-02',
       name: 'Cold Brew Tuyết Trắng',
       description: 'Êm dịu · Hương cacao và cam',
-      imageUrl:
-        'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=800&auto=format&fit=crop&q=85',
+      imageUrl: productImage('COLD-BREW-ICE-02'),
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(38000) },
@@ -165,8 +164,7 @@ export async function seedCatalog(prisma: PrismaClient) {
       sku: 'CAPPUCCINO-HEARTH-03',
       name: 'Cappuccino Hoa Quế',
       description: 'Bọt sữa mịn · Hương quế ấm',
-      imageUrl:
-        'https://images.unsplash.com/photo-1534778101976-62847782c213?w=800&auto=format&fit=crop&q=85',
+      imageUrl: productImage('CAPPUCCINO-HEARTH-03'),
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(40000) },
@@ -178,8 +176,7 @@ export async function seedCatalog(prisma: PrismaClient) {
       sku: 'TEA-PEACH-ORANGE-04',
       name: 'Trà đào cam sả',
       description: 'Thanh mát · Cam vàng, sả thơm',
-      imageUrl:
-        'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&auto=format&fit=crop&q=85',
+      imageUrl: productImage('TEA-PEACH-ORANGE-04'),
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(35000) },
@@ -191,8 +188,7 @@ export async function seedCatalog(prisma: PrismaClient) {
       sku: 'TEA-OOLONG-EGG-05',
       name: 'Oolong kem trứng khò',
       description: 'Trà rang thơm · Kem trứng béo',
-      imageUrl:
-        'https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=800&q=80',
+     imageUrl: productImage('TEA-OOLONG-EGG-05'),
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(40000) },
@@ -204,8 +200,7 @@ export async function seedCatalog(prisma: PrismaClient) {
       sku: 'COFFEE-AMERICANO-06',
       name: 'Americano',
       description: 'Espresso nguyên chất · Đậm hương',
-      imageUrl:
-        'https://images.unsplash.com/photo-1509785307050-d4066910ec1e?w=800&auto=format&fit=crop&q=85',
+      imageUrl: productImage('COFFEE-AMERICANO-06'),
       isActive: true,
       variants: [
         { size: ProductSize.S, price: BigInt(35000) },

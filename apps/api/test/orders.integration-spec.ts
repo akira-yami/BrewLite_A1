@@ -29,8 +29,9 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
   const previousUrl = process.env.DATABASE_URL;
   const auth = (req: request.Test, bearer = token) =>
     req.set('Authorization', `Bearer ${bearer}`);
-  const post = (items: unknown[], couponCode?: string) =>
-    auth(request(app.getHttpServer()).post('/api/v1/orders')).send({
+  // Cho phép chỉ định người dùng khi kiểm thử giới hạn coupon giữa nhiều khách hàng.
+  const post = (items: unknown[], couponCode?: string, bearer = token) =>
+    auth(request(app.getHttpServer()).post('/api/v1/orders'), bearer).send({
       items,
       ...(couponCode ? { couponCode } : {}),
     });
@@ -87,7 +88,11 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     });
     return { productId: row.id, id: row.variants[0].id };
   }
-  async function coupon() {
+  // Cho phép cấu hình riêng hai loại quota để test không vô tình phụ thuộc lẫn nhau.
+  async function coupon(options: {
+    usageLimit?: number | null;
+    perUserLimit?: number;
+  } = {}) {
     return prisma.coupon.create({
       data: {
         code: `TEST-${randomUUID()}`,
@@ -95,7 +100,8 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
         discountValue: 5000n,
         startsAt: new Date(Date.now() - 60000),
         endsAt: new Date(Date.now() + 3600000),
-        usageLimit: 1,
+        usageLimit: options.usageLimit === undefined ? 1 : options.usageLimit,
+        perUserLimit: options.perUserLimit ?? 1,
       },
     });
   }
@@ -361,6 +367,59 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       where: { id: { in: [a.id, b.id] } },
     });
     expect(variants.reduce((sum, row) => sum + row.stock, 0)).toBe(39);
+  });
+
+  it('enforces per-user coupon limit independently under concurrent orders', async () => {
+    // Tắt quota toàn cục để chỉ perUserLimit có thể từ chối request thứ hai.
+    const firstVariant = await product();
+    const secondVariant = await product();
+    const promotion = await coupon({ usageLimit: null, perUserLimit: 1 });
+
+    const results = await Promise.all([
+      post([{ productVariantId: firstVariant.id, quantity: 1 }], promotion.code),
+      post([{ productVariantId: secondVariant.id, quantity: 1 }], promotion.code),
+    ]);
+
+    expect(
+      results.map((result) => result.status).sort((a, b) => a - b),
+    ).toEqual([201, 422]);
+    expect(
+      results.find((result) => result.status === 422)?.body.error.code,
+    ).toBe('COUPON_NOT_APPLICABLE');
+    expect(
+      await prisma.couponRedemption.count({
+        where: { couponId: promotion.id, userId },
+      }),
+    ).toBe(1);
+  });
+
+  it('enforces global coupon usage limit independently across different users', async () => {
+    // Cho phép mỗi user dùng nhiều lần để chỉ usageLimit toàn cục quyết định kết quả.
+    const firstVariant = await product();
+    const secondVariant = await product();
+    const promotion = await coupon({ usageLimit: 1, perUserLimit: 2 });
+
+    const results = await Promise.all([
+      post([{ productVariantId: firstVariant.id, quantity: 1 }], promotion.code, token),
+      post([{ productVariantId: secondVariant.id, quantity: 1 }], promotion.code, otherToken),
+    ]);
+
+    expect(
+      results.map((result) => result.status).sort((a, b) => a - b),
+    ).toEqual([201, 422]);
+    expect(
+      results.find((result) => result.status === 422)?.body.error.code,
+    ).toBe('COUPON_NOT_APPLICABLE');
+
+    const redemptions = await prisma.couponRedemption.findMany({
+      where: { couponId: promotion.id },
+      select: { userId: true },
+    });
+    expect(redemptions).toHaveLength(1);
+    expect([userId, (await prisma.user.findFirstOrThrow({
+      where: { username: { startsWith: 'orders-' }, id: { not: userId } },
+      select: { id: true },
+    })).id]).toContain(redemptions[0].userId);
   });
 
   it('fails before committing money outside the JSON integer range', async () => {

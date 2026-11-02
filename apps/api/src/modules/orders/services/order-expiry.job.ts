@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { OrdersRepository } from '../repositories/orders.repository.js';
 import { InventoryService } from '../../inventory/services/inventory.service.js';
+import { PromotionsService } from '../../promotions/services/promotions.service.js';
 import { OrderStatus } from '../../../generated/prisma/client.js';
 
 @Injectable()
@@ -22,6 +23,7 @@ export class OrderExpiryJob {
     private readonly prisma: PrismaService,
     private readonly ordersRepo: OrdersRepository,
     private readonly inventoryService: InventoryService,
+    private readonly promotionsService: PromotionsService,
   ) {}
 
   // Tự động kiểm tra đơn hàng hết hạn mỗi phút.
@@ -85,10 +87,17 @@ export class OrderExpiryJob {
                 true,
               );
             }
+
+            await this.promotionsService.releaseByOrderId(
+              order.id,
+              'EXPIRED',
+              now,
+              tx,
+            );
           });
 
           this.logger.log(
-            `Đã hủy đơn ${order.id}, hết hạn reservation và hoàn kho thành công.`,
+            `Đã hủy đơn ${order.id}, hết hạn reservation và hoàn kho/coupon thành công.`,
           );
         } catch (error) {
           if (error instanceof ConflictException) {

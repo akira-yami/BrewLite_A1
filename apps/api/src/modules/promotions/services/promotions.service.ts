@@ -194,4 +194,13 @@ export class PromotionsService {
         tx,
         );
     }
+
+    async releaseByOrderId(
+        orderId: string,
+        targetStatus: 'RELEASED' | 'EXPIRED',
+        releasedAt: Date,
+        tx: Prisma.TransactionClient,
+    ): Promise<number> {
+        return this.repository.releaseByOrderId(orderId, targetStatus, releasedAt, tx);
+    }
 }

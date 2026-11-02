@@ -145,4 +145,22 @@ describe('PromotionsService (Unit Test - TDD)', () => {
         }, txMock);
         });
     });
+
+    describe('releaseByOrderId (Order Expiry / Cancellation)', () => {
+        it('Nên gọi repository.releaseByOrderId để chuyển trạng thái CouponRedemption sang EXPIRED hoặc RELEASED', async () => {
+            const txMock = {} as any;
+            const releasedAt = new Date('2026-10-22T08:30:00.000Z');
+            repositoryMock.releaseByOrderId = vi.fn().mockResolvedValue(1);
+
+            const count = await service.releaseByOrderId('o-1', 'EXPIRED', releasedAt, txMock);
+
+            expect(count).toBe(1);
+            expect(repositoryMock.releaseByOrderId).toHaveBeenCalledWith(
+                'o-1',
+                'EXPIRED',
+                releasedAt,
+                txMock,
+            );
+        });
+    });
 });

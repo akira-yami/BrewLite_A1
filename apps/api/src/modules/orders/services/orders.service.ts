@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -33,6 +34,8 @@ import type {
 import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
 import { toOrderItemResponse } from '../mappers/order-item.mapper.js';
 import { OrdersRepository } from '../repositories/orders.repository.js';
+import { APP_CONFIG } from '../../../config/app-config.module.js';
+import { loadAppConfig, type AppConfig } from '../../../config/app-config.js';
 
 @Injectable()
 export class OrdersService {
@@ -43,6 +46,7 @@ export class OrdersService {
     private readonly catalog: CatalogService,
     private readonly inventory: InventoryService,
     private readonly users: UsersService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig = loadAppConfig(),
   ) {}
 
   // =====================================================================
@@ -60,7 +64,7 @@ export class OrdersService {
             await this.users.assertActiveCustomer(tx, userId);
             const now = new Date();
             const reservationExpiresAt = new Date(
-              now.getTime() + 15 * 60 * 1000,
+              now.getTime() + this.config.orderReservationTtlMinutes * 60 * 1000,
             );
             const orderNumber = `ORD-${randomUUID().replaceAll('-', '').slice(0, 24)}`;
             const {
@@ -606,4 +610,5 @@ export class OrdersService {
       tx,
     );
   }
+
 }

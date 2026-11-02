@@ -60,7 +60,7 @@ function OrderConfirmationContent() {
       try {
         let current = await loadOrder();
         if (paymentReturn === '1' && current?.status === 'PENDING') {
-          for (let attempt = 0; attempt < 15 && active && current.status === 'PENDING'; attempt += 1) {
+          for (let attempt = 0; attempt < 15 && active && current?.status === 'PENDING'; attempt += 1) {
             await new Promise((resolve) => setTimeout(resolve, 2000));
             current = await loadOrder();
           }

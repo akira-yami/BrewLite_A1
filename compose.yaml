@@ -70,13 +70,6 @@ services:
       JWT_AUDIENCE: ${JWT_AUDIENCE:-brewlite-web}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       MOCK_PAYMENT_MODE: ${MOCK_PAYMENT_MODE:-deterministic}
-      PAYMENT_GATEWAY: ${PAYMENT_GATEWAY:-mock}
-      VNP_TMN_CODE: ${VNP_TMN_CODE:-}
-      VNP_HASH_SECRET: ${VNP_HASH_SECRET:-}
-      VNP_PAYMENT_URL: ${VNP_PAYMENT_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-      VNP_RETURN_URL: ${VNP_RETURN_URL:-}
-      VNP_IPN_URL: ${VNP_IPN_URL:-}
-      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-}
       ORDER_RESERVATION_TTL_MINUTES: ${ORDER_RESERVATION_TTL_MINUTES:-15}
     ports:
       - "${API_PORT:-3001}:3001"
@@ -95,22 +88,6 @@ services:
       timeout: 5s
       retries: 10
       start_period: 15s
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    profiles: ["tunnel"]
-    restart: unless-stopped
-    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN:-}"]
-    depends_on:
-      backend:
-        condition: service_healthy
-    networks:
-      - brewlite-network
-    logging:
-      driver: json-file
-      options:
-        max-size: 10m
-        max-file: "3"
 
   frontend:
     <<: *service-defaults

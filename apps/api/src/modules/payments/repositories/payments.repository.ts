@@ -6,13 +6,7 @@ import { PaymentMethod, PaymentStatus, Prisma } from '../../../generated/prisma/
 export class PaymentsRepository {
     constructor(private readonly prisma: PrismaService) {}
 
-    async findByIdempotencyKey(
-        idempotencyKey: string,
-        tx?: Prisma.TransactionClient,
-    ) {
-        const client = tx ?? this.prisma;
-        return client.payment.findUnique({ where: { idempotencyKey } });
-    }
+    async findByIdempotencyKey(idempotencyKey: string) {return this.prisma.payment.findUnique({where: { idempotencyKey },});}
 
     async createProcessingPayment(
         data: {
@@ -21,9 +15,6 @@ export class PaymentsRepository {
             requestHash: string;
             method: PaymentMethod;
             amount: bigint;
-            gatewayProvider?: string;
-            gatewayReference?: string;
-            paymentUrl?: string;
         },
         tx?: Prisma.TransactionClient,
     ) {
@@ -36,19 +27,8 @@ export class PaymentsRepository {
                 requestHash: data.requestHash,
                 method: data.method,
                 amount: data.amount,
-                gatewayProvider: data.gatewayProvider ?? 'MOCK',
-                gatewayReference: data.gatewayReference,
-                paymentUrl: data.paymentUrl,
                 status: PaymentStatus.PROCESSING,
             },
-        });
-    }
-
-    async findByGatewayReference(gatewayReference: string, tx?: Prisma.TransactionClient) {
-        const client = tx ?? this.prisma;
-        return client.payment.findUnique({
-            where: { gatewayReference },
-            include: { order: { select: { userId: true } } },
         });
     }
 
@@ -73,14 +53,12 @@ export class PaymentsRepository {
         failureCode: string | undefined,
         processedAt: Date,
         tx: Prisma.TransactionClient,
-        gatewayTransactionId?: string,
     ) {
         return tx.payment.update({
             where: { id },
             data: {
                 status: PaymentStatus.FAILED,
                 failureCode,
-                ...(gatewayTransactionId ? { gatewayTransactionId } : {}),
                 processedAt,
             },
         });

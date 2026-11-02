@@ -183,11 +183,6 @@ export default function CheckoutPage() {
       const nextAttempt = transitionPaymentAttempt(attempt, resolution);
       persistPendingCheckout(nextAttempt);
 
-      if (payment.redirectUrl) {
-        window.location.assign(payment.redirectUrl);
-        return;
-      }
-
       if (resolution === 'SUCCEEDED') {
         cartStore.clearCart();
         writeCheckoutCoupon(window.sessionStorage, null);

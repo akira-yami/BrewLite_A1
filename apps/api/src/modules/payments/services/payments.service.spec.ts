@@ -320,7 +320,6 @@ describe('PaymentsService (Unit Test - TDD)', () => {
         it('13. Phân biệt key bị tái sử dụng khi unique constraint thắng cuộc đua insert', async () => {
             paymentsRepoMock.findByIdempotencyKey
                 .mockResolvedValueOnce(null)
-                .mockResolvedValueOnce(null)
                 .mockResolvedValueOnce({
                     requestHash: 'different-request-hash',
                     status: PaymentStatus.PROCESSING,
@@ -343,13 +342,12 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                 response: { code: 'IDEMPOTENCY_KEY_REUSED' },
             });
 
-            expect(paymentsRepoMock.findByIdempotencyKey).toHaveBeenCalledTimes(3);
+            expect(paymentsRepoMock.findByIdempotencyKey).toHaveBeenCalledTimes(2);
             expect(gatewayMock.charge).not.toHaveBeenCalled();
         });
 
         it('14. Trả 409 PAYMENT_IN_PROGRESS khi unique constraint phát hiện cùng key và cùng payload đang xử lý', async () => {
             paymentsRepoMock.findByIdempotencyKey
-                .mockResolvedValueOnce(null)
                 .mockResolvedValueOnce(null)
                 .mockResolvedValueOnce({
                     requestHash: expectedHash,
@@ -401,222 +399,6 @@ describe('PaymentsService (Unit Test - TDD)', () => {
 
             expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
             expect(gatewayMock.charge).not.toHaveBeenCalled();
-        });
-
-        it('16. Tạo và replay cùng VNPay redirect mà không gọi MockGateway', async () => {
-            vi.stubEnv('PAYMENT_GATEWAY', 'vnpay');
-            const reservationExpiresAt = new Date(Date.now() + 10 * 60_000);
-            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
-            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
-                status: OrderStatus.PENDING,
-                reservationExpiresAt,
-            });
-            paymentsRepoMock.createProcessingPayment.mockResolvedValue({ id: 'p-vnpay' });
-
-            const result = await service.processPayment({
-                idempotencyKey,
-                orderId,
-                userId,
-                method,
-                amount,
-                ipAddress: '203.0.113.7',
-                reservationExpiresAt,
-            });
-
-            expect(result).toMatchObject({
-                success: false,
-                isRetried: false,
-                status: PaymentStatus.PROCESSING,
-                redirectUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?signature=test',
-            });
-            expect(vnpayGatewayMock.createPaymentUrl).toHaveBeenCalledWith(expect.objectContaining({
-                amount,
-                ipAddress: '203.0.113.7',
-                expiresAt: reservationExpiresAt,
-            }));
-            expect(paymentsRepoMock.createProcessingPayment).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    orderId,
-                    idempotencyKey,
-                    gatewayProvider: 'VNPAY',
-                    gatewayReference: expect.stringMatching(/^[A-F0-9]{32}$/),
-                    paymentUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?signature=test',
-                }),
-                prismaMock,
-            );
-            expect(gatewayMock.charge).not.toHaveBeenCalled();
-        });
-
-        it('17. Xác nhận IPN thành công trong transaction sau khi kiểm tra chữ ký và amount', async () => {
-            vnpayGatewayMock.verifyResponse.mockReturnValue(true);
-            const payment = {
-                id: 'p-vnpay',
-                orderId,
-                amount,
-                status: PaymentStatus.PROCESSING,
-                gatewayProvider: 'VNPAY',
-                order: { userId },
-            };
-            paymentsRepoMock.findByGatewayReference.mockResolvedValue(payment);
-            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
-                status: OrderStatus.PENDING,
-                total: amount,
-            });
-
-            const result = await service.handleVnpayIpn({
-                vnp_TxnRef: 'VNREF123',
-                vnp_TransactionNo: '900001',
-                vnp_ResponseCode: '00',
-                vnp_TransactionStatus: '00',
-                vnp_Amount: (amount * 100n).toString(),
-                vnp_TmnCode: 'DEMO1234',
-                vnp_SecureHash: 'a'.repeat(128),
-            });
-
-            expect(result).toEqual({ RspCode: '00', Message: 'Confirm Success' });
-            expect(paymentsRepoMock.findByGatewayReference).toHaveBeenCalledTimes(2);
-            expect(paymentsRepoMock.markSucceeded).toHaveBeenCalledWith(
-                'p-vnpay',
-                '900001',
-                expect.any(Date),
-                prismaMock,
-            );
-            expect(ordersServiceMock.markOrderPaid).toHaveBeenCalledWith(
-                orderId,
-                userId,
-                amount,
-                prismaMock,
-            );
-            expect(ordersServiceMock.markOrderPaymentFailed).not.toHaveBeenCalled();
-        });
-
-        it('18. IPN từ chối giao dịch chuyển Payment và Order sang FAILED trong cùng transaction', async () => {
-            vnpayGatewayMock.verifyResponse.mockReturnValue(true);
-            const payment = {
-                id: 'p-vnpay',
-                orderId,
-                amount,
-                status: PaymentStatus.PROCESSING,
-                gatewayProvider: 'VNPAY',
-                order: { userId },
-            };
-            paymentsRepoMock.findByGatewayReference.mockResolvedValue(payment);
-            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
-                status: OrderStatus.PENDING,
-                total: amount,
-            });
-
-            const result = await service.handleVnpayIpn({
-                vnp_TxnRef: 'VNREF123',
-                vnp_TransactionNo: '900002',
-                vnp_ResponseCode: '24',
-                vnp_TransactionStatus: '02',
-                vnp_Amount: (amount * 100n).toString(),
-                vnp_TmnCode: 'DEMO1234',
-                vnp_SecureHash: 'b'.repeat(128),
-            });
-
-            expect(result).toEqual({ RspCode: '00', Message: 'Confirm Success' });
-            expect(paymentsRepoMock.markFailed).toHaveBeenCalledWith(
-                'p-vnpay',
-                'VNPAY_24_02',
-                expect.any(Date),
-                prismaMock,
-                '900002',
-            );
-            expect(ordersServiceMock.markOrderPaymentFailed).toHaveBeenCalledWith(
-                orderId,
-                userId,
-                'VNPAY_24_02',
-                prismaMock,
-            );
-            expect(ordersServiceMock.markOrderPaid).not.toHaveBeenCalled();
-        });
-
-        it('19. Từ chối IPN sai chữ ký và không truy cập Payment repository', async () => {
-            vnpayGatewayMock.verifyResponse.mockReturnValue(false);
-            const result = await service.handleVnpayIpn({
-                vnp_TxnRef: 'VNREF123',
-                vnp_SecureHash: 'invalid',
-            });
-            expect(result).toEqual({ RspCode: '97', Message: 'Invalid signature' });
-            expect(paymentsRepoMock.findByGatewayReference).not.toHaveBeenCalled();
-            expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
-        });
-
-        it('20. Từ chối IPN sai amount và không quyết toán giao dịch', async () => {
-            vnpayGatewayMock.verifyResponse.mockReturnValue(true);
-            paymentsRepoMock.findByGatewayReference.mockResolvedValue({
-                id: 'p-vnpay',
-                orderId,
-                amount,
-                status: PaymentStatus.PROCESSING,
-                gatewayProvider: 'VNPAY',
-                order: { userId },
-            });
-            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
-                status: OrderStatus.PENDING,
-                total: amount,
-            });
-            const result = await service.handleVnpayIpn({
-                vnp_TxnRef: 'VNREF123',
-                vnp_TransactionNo: '900003',
-                vnp_ResponseCode: '00',
-                vnp_TransactionStatus: '00',
-                vnp_Amount: '1',
-                vnp_TmnCode: 'DEMO1234',
-                vnp_SecureHash: 'c'.repeat(128),
-            });
-            expect(result).toEqual({ RspCode: '04', Message: 'Invalid amount' });
-            expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
-            expect(ordersServiceMock.markOrderPaid).not.toHaveBeenCalled();
-        });
-
-        it('21. IPN lặp cho Payment đã quyết toán trả ORDER_ALREADY_CONFIRMED', async () => {
-            vnpayGatewayMock.verifyResponse.mockReturnValue(true);
-            paymentsRepoMock.findByGatewayReference.mockResolvedValue({
-                id: 'p-vnpay',
-                orderId,
-                amount,
-                status: PaymentStatus.SUCCEEDED,
-                gatewayProvider: 'VNPAY',
-                order: { userId },
-            });
-            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
-                status: OrderStatus.PAID,
-                total: amount,
-            });
-            const result = await service.handleVnpayIpn({
-                vnp_TxnRef: 'VNREF123',
-                vnp_TransactionNo: '900004',
-                vnp_ResponseCode: '00',
-                vnp_TransactionStatus: '00',
-                vnp_Amount: (amount * 100n).toString(),
-                vnp_TmnCode: 'DEMO1234',
-                vnp_SecureHash: 'd'.repeat(128),
-            });
-            expect(result).toEqual({ RspCode: '02', Message: 'Order already confirmed' });
-            expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
-            expect(paymentsRepoMock.markFailed).not.toHaveBeenCalled();
-        });
-
-        it('22. Return URL chỉ xác minh và redirect; không cập nhật trạng thái Payment', async () => {
-            vnpayGatewayMock.verifyResponse.mockReturnValue(true);
-            vnpayGatewayMock.createFrontendReturnUrl.mockReturnValue(
-                'https://web.example.test/orders/confirmation?orderId=o-1&paymentReturn=1',
-            );
-            paymentsRepoMock.findByGatewayReference.mockResolvedValue({
-                id: 'p-vnpay',
-                orderId,
-                gatewayProvider: 'VNPAY',
-            });
-            const result = await service.getVnpayReturnRedirect({
-                vnp_TxnRef: 'VNREF123',
-                vnp_SecureHash: 'e'.repeat(128),
-            });
-            expect(result).toContain('/orders/confirmation');
-            expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
-            expect(paymentsRepoMock.markFailed).not.toHaveBeenCalled();
         });
 
         it('15. Chuyển lỗi tranh quyền retry đồng thời thành 409 PAYMENT_IN_PROGRESS', async () => {

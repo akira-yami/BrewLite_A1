@@ -18,6 +18,39 @@ export class PaymentsService {
         private readonly prisma: PrismaService,
     ) {}
 
+    private resolveExistingPayment(
+        existingPayment: {
+            requestHash: string;
+            status: PaymentStatus;
+            gatewayTransactionId?: string | null;
+            failureCode?: string | null;
+        },
+        requestHash: string,
+    ) {
+        if (existingPayment.requestHash !== requestHash) {
+            throw new ConflictException({
+                code: 'IDEMPOTENCY_KEY_REUSED',
+                message: 'Idempotency Key đã được sử dụng cho một payload khác.',
+            });
+        }
+
+        if (existingPayment.status === PaymentStatus.PROCESSING) {
+            throw new ConflictException({
+                code: 'PAYMENT_IN_PROGRESS',
+                message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
+            });
+        }
+
+        // Trả về kết quả cũ nếu đã hoàn tất (SUCCEEDED hoặc FAILED), tuyệt đối không gọi Gateway.
+        return {
+            success: existingPayment.status === PaymentStatus.SUCCEEDED,
+            isRetried: true,
+            status: existingPayment.status,
+            gatewayTransactionId: existingPayment.gatewayTransactionId ?? undefined,
+            errorCode: existingPayment.failureCode ?? undefined,
+        };
+    }
+
     async processPayment(params: {
         idempotencyKey: string;
         orderId: string;
@@ -37,41 +70,30 @@ export class PaymentsService {
         const existingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
 
         if (existingPayment) {
-            if (existingPayment.requestHash !== requestHash) {
-                throw new ConflictException({
-                    code: 'IDEMPOTENCY_KEY_REUSED',
-                    message: 'Idempotency Key đã được sử dụng cho một payload khác.',
-                });
-            }
-
-            if (existingPayment.status === PaymentStatus.PROCESSING) {
-                throw new ConflictException({
-                    code: 'PAYMENT_IN_PROGRESS',
-                    message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
-                });
-            }
-
-            // Trả về kết quả cũ nếu đã hoàn tất (SUCCEEDED hoặc FAILED)
-            return {
-                success: existingPayment.status === PaymentStatus.SUCCEEDED,
-                isRetried: true,
-                status: existingPayment.status,
-                gatewayTransactionId: existingPayment.gatewayTransactionId ?? undefined,
-                errorCode: existingPayment.failureCode ?? undefined,
-            };
+            return this.resolveExistingPayment(existingPayment, requestHash);
         }
 
         // 3. Khóa Order và kiểm tra trạng thái/hạn giữ chỗ ngay trước khi tạo Payment.
         const paymentData = { orderId, idempotencyKey, requestHash, method, amount };
-        const processingPayment = await (async () => {
+        const reservation = await (async () => {
             try {
-                return await this.prisma.$transaction(async (tx) => {
+                const transactionResult = await this.prisma.$transaction(async (tx) => {
                     // Cron expiry và Payment cùng khóa dòng Order để quyết định bên nào được thực thi trước.
                     const order = await this.ordersService.getOrderForPaymentForUpdate(
                         orderId,
                         userId,
                         tx,
                     );
+
+                    // Re-check after locking the Order. A concurrent request may have
+                    // inserted (and even completed) this key after the initial lookup.
+                    const paymentWithSameKey = await this.paymentsRepository.findByIdempotencyKey(
+                        idempotencyKey,
+                        tx,
+                    );
+                    if (paymentWithSameKey) {
+                        return { kind: 'existing' as const, payment: paymentWithSameKey };
+                    }
 
                     if (order.status === OrderStatus.PAID) {
                         throw new ConflictException({
@@ -119,11 +141,32 @@ export class PaymentsService {
                         }
                     }
 
-                    return this.paymentsRepository.createProcessingPayment(paymentData, tx);
+                    const payment = await this.paymentsRepository.createProcessingPayment(paymentData, tx);
+                    return { kind: 'created' as const, payment };
                 });
+
+                if (transactionResult.kind === 'existing') {
+                    return {
+                        kind: 'existing' as const,
+                        result: this.resolveExistingPayment(transactionResult.payment, requestHash),
+                    };
+                }
+                return transactionResult;
             } catch (error) {
-                // Unique index bảo vệ idempotency key và một Payment PROCESSING trên mỗi Order.
+                // Same-key requests can race across different Orders, where an Order row lock
+                // cannot serialize them. Re-read after the unique-key constraint rejects one.
                 if ((error as { code?: string })?.code === 'P2002') {
+                    const concurrentPayment = await this.paymentsRepository.findByIdempotencyKey(
+                        idempotencyKey,
+                    );
+
+                    if (concurrentPayment) {
+                        return {
+                            kind: 'existing' as const,
+                            result: this.resolveExistingPayment(concurrentPayment, requestHash),
+                        };
+                    }
+
                     throw new ConflictException({
                         code: 'PAYMENT_IN_PROGRESS',
                         message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
@@ -132,6 +175,11 @@ export class PaymentsService {
                 throw error;
             }
         })();
+
+        if (reservation.kind === 'existing') {
+            return reservation.result;
+        }
+        const processingPayment = reservation.payment;
 
         // 5. Gọi MockGatewayService (Call API I/O tốn thời gian, tuyệt đối KHÔNG đưa vào DB Lock)
         const gatewayResult = await this.mockGateway.charge(Number(amount), method as unknown as DtoPaymentMethod);

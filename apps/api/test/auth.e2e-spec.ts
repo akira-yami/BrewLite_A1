@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import bcrypt from 'bcryptjs';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { UserRepository } from '../src/modules/auth/repositories/user.repository.js';
@@ -10,6 +11,9 @@ describe('JWT guard and current user (HTTP)', () => {
   let app: INestApplication;
   let jwt: JwtService;
   const findById = vi.fn();
+  const findByUsername = vi.fn();
+  const loginPassword = 'AuthLoginE2E-Only-Password123!';
+  let loginUser: typeof user;
   const user = {
     id: '123e4567-e89b-42d3-a456-426614174000',
     username: 'huy',
@@ -22,11 +26,15 @@ describe('JWT guard and current user (HTTP)', () => {
   };
 
   beforeAll(async () => {
+    loginUser = {
+      ...user,
+      passwordHash: await bcrypt.hash(loginPassword, 10),
+    };
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService)
       .useValue({ $queryRaw: vi.fn() })
       .overrideProvider(UserRepository)
-      .useValue({ findById })
+      .useValue({ findById, findByUsername })
       .compile();
     app = module.createNestApplication();
     app.setGlobalPrefix('api/v1');
@@ -36,6 +44,8 @@ describe('JWT guard and current user (HTTP)', () => {
   beforeEach(() => {
     findById.mockReset();
     findById.mockResolvedValue(user);
+    findByUsername.mockReset();
+    findByUsername.mockResolvedValue(loginUser);
   });
   afterAll(async () => {
     await app?.close();
@@ -44,6 +54,28 @@ describe('JWT guard and current user (HTTP)', () => {
   it('rejects a missing token without looking up a user', async () => {
     await request(app.getHttpServer()).get('/api/v1/auth/me').expect(401);
     expect(findById).not.toHaveBeenCalled();
+  });
+
+  it('logs in with bcrypt credentials and returns a verifiable JWT in the data envelope', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ username: loginUser.username, password: loginPassword })
+      .expect(200);
+
+    expect(findByUsername).toHaveBeenCalledWith(loginUser.username);
+    expect(response.body.data.user).toMatchObject({
+      id: loginUser.id,
+      username: loginUser.username,
+      role: loginUser.role,
+      isActive: true,
+    });
+    expect(response.body.data.user).not.toHaveProperty('passwordHash');
+    expect(response.body.data.expiresIn).toBe(900);
+    expect(jwt.verify(response.body.data.accessToken)).toMatchObject({
+      sub: loginUser.id,
+      username: loginUser.username,
+      role: loginUser.role,
+    });
   });
 
   it('rejects malformed tokens', async () => {

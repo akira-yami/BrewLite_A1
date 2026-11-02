@@ -9,6 +9,8 @@ export interface PaymentResponse {
   gatewayTransactionId?: string | null;
   errorCode?: string | null;
   message?: string;
+  redirectUrl?: string;
+  gatewayReference?: string;
 }
 
 export class PaymentApiError extends Error {

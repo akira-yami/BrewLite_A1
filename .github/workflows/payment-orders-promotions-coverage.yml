@@ -14,6 +14,7 @@ on:
       - "apps/api/package-lock.json"
       - "apps/api/vitest.config.ts"
       - ".github/workflows/payment-orders-promotions-coverage.yml"
+      - "docs/handovers/**"
   pull_request:
     branches:
       - main
@@ -27,6 +28,7 @@ on:
       - "apps/api/package-lock.json"
       - "apps/api/vitest.config.ts"
       - ".github/workflows/payment-orders-promotions-coverage.yml"
+      - "docs/handovers/**"
 
 permissions:
   contents: read

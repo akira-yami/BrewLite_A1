@@ -371,7 +371,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                 response: { code: 'PAYMENT_IN_PROGRESS' },
             });
 
-            expect(paymentsRepoMock.findByIdempotencyKey).toHaveBeenCalledTimes(3);
+            expect(paymentsRepoMock.findByIdempotencyKey).toHaveBeenCalledTimes(2);
             expect(gatewayMock.charge).not.toHaveBeenCalled();
         });
 

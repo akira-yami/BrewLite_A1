@@ -267,7 +267,7 @@ export class PaymentsService {
         const responseCode = parameters.vnp_ResponseCode;
         const transactionStatus = parameters.vnp_TransactionStatus;
         const rawAmount = parameters.vnp_Amount;
-        if (!gatewayReference || !transactionNo || !responseCode || !transactionStatus || !rawAmount || !/^\\d+$/.test(rawAmount)) {
+        if (!gatewayReference || !transactionNo || !responseCode || !transactionStatus || !rawAmount || !/^\d+$/.test(rawAmount)) {
             return acknowledgement('99', 'Invalid input data');
         }
 

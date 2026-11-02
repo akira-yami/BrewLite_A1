@@ -80,7 +80,7 @@ export class PaymentsRepository {
             data: {
                 status: PaymentStatus.FAILED,
                 failureCode,
-                gatewayTransactionId,
+                ...(gatewayTransactionId ? { gatewayTransactionId } : {}),
                 processedAt,
             },
         });

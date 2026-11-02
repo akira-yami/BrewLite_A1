@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
 import { OrderDetailView } from '@/features/orders/components/OrderDetailView';
 import type { OrderDetail } from '@/features/orders/types';
+import { authSession } from '@/features/auth/session';
 
 export default function OrderConfirmationPage() {
   return (
@@ -23,7 +24,7 @@ function OrderConfirmationContent() {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    const token = localStorage.getItem('brewlite_token');
+    const token = authSession.getToken();
     const request = !orderId || !token
       ? Promise.reject(new Error(!token ? 'Vui lòng đăng nhập để xem xác nhận đơn hàng.' : 'Không tìm thấy mã đơn hàng.'))
       : getOrderDetailApi(token, orderId);

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { getMyOrdersApi, OrdersApiError } from '@/features/orders/api';
 import { OrderStatusBadge } from '@/features/orders/components/OrderStatusBadge';
 import type { OrderDetail, OrderListResponse, OrderSummary } from '@/features/orders/types';
+import { authSession } from '@/features/auth/session';
 
 function toItems(response: OrderListResponse | OrderDetail[]) {
   return Array.isArray(response) ? response : response.items;
@@ -16,7 +17,7 @@ export default function OrdersHistoryPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    const token = localStorage.getItem('brewlite_token');
+    const token = authSession.getToken();
     const request = token
       ? getMyOrdersApi(token)
       : Promise.reject(new Error('Vui lòng đăng nhập để xem lịch sử đơn hàng.'));

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
 import { OrderDetailView } from '@/features/orders/components/OrderDetailView';
 import type { OrderDetail } from '@/features/orders/types';
+import { authSession } from '@/features/auth/session';
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -15,7 +16,7 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     let active = true;
-    const token = localStorage.getItem('brewlite_token');
+    const token = authSession.getToken();
     const request = token
       ? getOrderDetailApi(token, params.id)
       : Promise.reject(new Error('Vui lòng đăng nhập để xem chi tiết đơn hàng.'));

@@ -18,21 +18,27 @@ Register the exact IPN URL in the VNPay merchant portal. IPN is public and must 
 
 ## Cloudflare Named Tunnel
 
-A team-managed domain is required. Create a Named Tunnel in the team's Cloudflare account. Add a Published Application route for the API hostname to `http://backend:3001` (cloudflared runs in the Compose network), and configure DNS for that hostname to the tunnel's `<UUID>.cfargotunnel.com` target in the same Cloudflare account.
+A team-managed domain on the same Cloudflare account is required. Create a remotely-managed Named Tunnel in **Networking > Tunnels > Create Tunnel**. Once created, use the dashboard to add two Published Application routes:
+- API hostname `api.<team-domain>` → `http://backend:3001`
+- Web hostname `app.<team-domain>` → `http://frontend:3000`
 
-Store the tunnel token locally as `CLOUDFLARE_TUNNEL_TOKEN`; do not commit it. Start the optional service:
+The tunnel and DNS record must belong to the same Cloudflare account. Cloudflare creates a CNAME target `<UUID>.cfargotunnel.com` for each published hostname.
+
+In the tunnel dashboard select **Add a replica**, copy the cloudflared install command and extract its tunnel token. Store it in the root `.env` as `CLOUDFLARE_TUNNEL_TOKEN`; never commit it. Copy root `.env.example` to `.env`, then fill both public hostnames and merchant settings. Start the optional service:
 
 ```bash
 docker compose --profile tunnel up -d --build
 ```
 
-The hostname and DNS route are configured in Cloudflare; this repository intentionally contains no token or fabricated domain.
+The hostname and DNS route are configured in Cloudflare; this repository intentionally contains no token or fabricated domain. Cloudflare requires a Cloudflare account, a domain on Cloudflare, and an origin machine/VM with outbound connectivity to Cloudflare (verify port 7844 if the network has egress restrictions). The tunnel token is sufficient to run a remotely-managed tunnel; treat anyone holding the token as able to run that tunnel.
 
 ## Required callback mapping
 
-- Return: `https://<api-host>/api/v1/payments/vnpay/return`
-- IPN: `https://<api-host>/api/v1/payments/vnpay/ipn`
-- Frontend: `WEB_PUBLIC_URL=https://<web-host>`
+- Return: `https://api.<team-domain>/api/v1/payments/vnpay/return`
+- IPN: `https://api.<team-domain>/api/v1/payments/vnpay/ipn`
+- Frontend: `WEB_PUBLIC_URL=https://app.<team-domain>`
+
+Register the exact IPN URL in the VNPay merchant dashboard after DNS/tunnel health is confirmed. Ensure the domain is hosted in the same Cloudflare account as the tunnel. The origin routes above are private Docker service DNS names and are not public callback URLs.
 
 Keep Docker backend and tunnel services online while VNPay can retry IPN.
 

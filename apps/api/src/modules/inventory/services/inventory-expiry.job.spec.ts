@@ -33,6 +33,11 @@ describe('InventoryExpiryJob', () => {
       where: {
         status: 'ACTIVE',
         expiresAt: { lte: expect.any(Date) },
+        order: {
+          payments: {
+            none: { status: 'PROCESSING' },
+          },
+        },
       },
       select: { id: true },
       orderBy: { expiresAt: 'asc' },
@@ -40,7 +45,26 @@ describe('InventoryExpiryJob', () => {
     });
   });
 
-  it('releases every expired reservation and restores inventory through InventoryService', async () => {
+  it('does not select an expired reservation while its Order has a PROCESSING payment', async () => {
+    const { job, prisma, inventoryService } = setup();
+
+    await job.handleExpiredReservations();
+
+    expect(prisma.inventoryReservation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          order: {
+            payments: {
+              none: { status: 'PROCESSING' },
+            },
+          },
+        }),
+      }),
+    );
+    expect(inventoryService.release).not.toHaveBeenCalled();
+  });
+
+  it('releases every eligible expired reservation and restores inventory through InventoryService', async () => {
     const { job, prisma, inventoryService } = setup();
     prisma.inventoryReservation.findMany.mockResolvedValue([
       { id: 'reservation-1' },

@@ -98,6 +98,16 @@ export class PaymentsService {
                         });
                     }
 
+                    // An external gateway attempt can remain payable while the Order is
+                    // still PENDING. Never create a second active payment for the Order.
+                    const activePayment = await this.paymentsRepository.findProcessingByOrderId(orderId, tx);
+                    if (activePayment) {
+                        throw new ConflictException({
+                            code: 'PAYMENT_IN_PROGRESS',
+                            message: 'Đơn hàng đã có một giao dịch thanh toán đang xử lý.',
+                        });
+                    }
+
                     if (order.status === OrderStatus.PAYMENT_FAILED) {
                         // Chuyển PAYMENT_FAILED về PENDING và tạo Payment cùng transaction.
                         try {
@@ -122,8 +132,17 @@ export class PaymentsService {
                     return this.paymentsRepository.createProcessingPayment(paymentData, tx);
                 });
             } catch (error) {
-                // Unique index bảo vệ idempotency key và một Payment PROCESSING trên mỗi Order.
+                // A P2002 may be the idempotency-key unique constraint or the
+                // partial unique index limiting one PROCESSING payment per Order.
+                // Re-read the key to preserve the distinct payload-mismatch contract.
                 if ((error as { code?: string })?.code === 'P2002') {
+                    const conflictingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
+                    if (conflictingPayment && conflictingPayment.requestHash !== requestHash) {
+                        throw new ConflictException({
+                            code: 'IDEMPOTENCY_KEY_REUSED',
+                            message: 'Idempotency Key đã được sử dụng cho một payload khác.',
+                        });
+                    }
                     throw new ConflictException({
                         code: 'PAYMENT_IN_PROGRESS',
                         message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',

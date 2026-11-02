@@ -16,6 +16,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
     beforeEach(() => {
         paymentsRepoMock = {
             findByIdempotencyKey: vi.fn(),
+            findProcessingByOrderId: vi.fn().mockResolvedValue(null),
             createProcessingPayment: vi.fn(),
             markSucceeded: vi.fn(),
             markFailed: vi.fn(),
@@ -316,7 +317,91 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             expect(gatewayMock.charge).not.toHaveBeenCalled();
         });
 
-        it('13. Chuyển lỗi tranh quyền retry đồng thời thành 409 PAYMENT_IN_PROGRESS', async () => {
+        it('13. Phân biệt key bị tái sử dụng khi unique constraint thắng cuộc đua insert', async () => {
+            paymentsRepoMock.findByIdempotencyKey
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({
+                    requestHash: 'different-request-hash',
+                    status: PaymentStatus.PROCESSING,
+                });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+            paymentsRepoMock.createProcessingPayment.mockRejectedValue({ code: 'P2002' });
+
+            await expect(
+                service.processPayment({
+                    idempotencyKey: 'idemp-raced-payload',
+                    orderId,
+                    userId,
+                    method,
+                    amount,
+                }),
+            ).rejects.toMatchObject({
+                response: { code: 'IDEMPOTENCY_KEY_REUSED' },
+            });
+
+            expect(paymentsRepoMock.findByIdempotencyKey).toHaveBeenCalledTimes(2);
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('14. Trả 409 PAYMENT_IN_PROGRESS khi unique constraint phát hiện cùng key và cùng payload đang xử lý', async () => {
+            paymentsRepoMock.findByIdempotencyKey
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce({
+                    requestHash: expectedHash,
+                    status: PaymentStatus.PROCESSING,
+                });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+            paymentsRepoMock.createProcessingPayment.mockRejectedValue({ code: 'P2002' });
+
+            await expect(
+                service.processPayment({
+                    idempotencyKey: 'idemp-raced-same-payload',
+                    orderId,
+                    userId,
+                    method,
+                    amount,
+                }),
+            ).rejects.toMatchObject({
+                response: { code: 'PAYMENT_IN_PROGRESS' },
+            });
+
+            expect(paymentsRepoMock.findByIdempotencyKey).toHaveBeenCalledTimes(2);
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('rejects a different idempotency key while another payment for the same order is PROCESSING', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            paymentsRepoMock.findProcessingByOrderId.mockResolvedValue({
+                id: 'p-existing',
+                idempotencyKey: 'different-key',
+                status: PaymentStatus.PROCESSING,
+            });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+
+            await expect(service.processPayment({
+                idempotencyKey: 'new-key',
+                orderId,
+                userId,
+                method,
+                amount,
+            })).rejects.toMatchObject({
+                response: { code: 'PAYMENT_IN_PROGRESS' },
+            });
+
+            expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('15. Chuyển lỗi tranh quyền retry đồng thời thành 409 PAYMENT_IN_PROGRESS', async () => {
             paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
             ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
                 status: OrderStatus.PAYMENT_FAILED,

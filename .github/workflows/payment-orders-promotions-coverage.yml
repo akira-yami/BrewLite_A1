@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - Kiet-Payment-Idempotency-PaymentUI
-      - feature/new-split-branch
     paths:
       - "apps/api/src/modules/orders/**"
       - "apps/api/src/modules/payments/**"
@@ -14,11 +13,9 @@ on:
       - "apps/api/package-lock.json"
       - "apps/api/vitest.config.ts"
       - ".github/workflows/payment-orders-promotions-coverage.yml"
-      - "docs/handovers/**"
   pull_request:
     branches:
       - main
-      - Kiet-Payment-Idempotency-PaymentUI
     paths:
       - "apps/api/src/modules/orders/**"
       - "apps/api/src/modules/payments/**"
@@ -28,7 +25,6 @@ on:
       - "apps/api/package-lock.json"
       - "apps/api/vitest.config.ts"
       - ".github/workflows/payment-orders-promotions-coverage.yml"
-      - "docs/handovers/**"
 
 permissions:
   contents: read

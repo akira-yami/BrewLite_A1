@@ -7,7 +7,7 @@ import {
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { InventoryService } from './inventory.service.js';
-import { PaymentStatus, ReservationStatus } from '../../../generated/prisma/enums.js';
+import { ReservationStatus } from '../../../generated/prisma/enums.js';
 
 @Injectable()
 export class InventoryExpiryJob {
@@ -31,17 +31,11 @@ export class InventoryExpiryJob {
     this.isRunning = true;
 
     try {
-      // Không giải phóng kho của Order còn Payment PROCESSING: kết quả gateway
-      // có thể chưa được ghi xuống DB sau khi tiến trình bị gián đoạn.
+      // Lấy tối đa 100 reservation ACTIVE đã đến hạn.
       const reservations = await this.prisma.inventoryReservation.findMany({
           where: {
             status: ReservationStatus.ACTIVE,
             expiresAt: { lte: new Date() },
-            order: {
-              payments: {
-                none: { status: PaymentStatus.PROCESSING },
-              },
-            },
           },
           select: { id: true },
           orderBy: { expiresAt: 'asc' },

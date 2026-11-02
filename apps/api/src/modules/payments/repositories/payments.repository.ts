@@ -6,18 +6,7 @@ import { PaymentMethod, PaymentStatus, Prisma } from '../../../generated/prisma/
 export class PaymentsRepository {
     constructor(private readonly prisma: PrismaService) {}
 
-    async findByIdempotencyKey(idempotencyKey: string, tx?: Prisma.TransactionClient) {
-        const client = tx ?? this.prisma;
-        return client.payment.findUnique({ where: { idempotencyKey } });
-    }
-
-    async findProcessingByOrderId(orderId: string, tx?: Prisma.TransactionClient) {
-        const client = tx ?? this.prisma;
-        return client.payment.findFirst({
-            where: { orderId, status: PaymentStatus.PROCESSING },
-            orderBy: { createdAt: 'asc' },
-        });
-    }
+    async findByIdempotencyKey(idempotencyKey: string) {return this.prisma.payment.findUnique({where: { idempotencyKey },});}
 
     async createProcessingPayment(
         data: {

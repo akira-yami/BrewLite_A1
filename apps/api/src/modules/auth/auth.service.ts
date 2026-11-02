@@ -1,6 +1,7 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -11,6 +12,8 @@ import { UserRole } from '../../generated/prisma/client.js';
 import { UserRepository } from './repositories/user.repository.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
+import { APP_CONFIG } from '../../config/app-config.module.js';
+import { loadAppConfig, type AppConfig } from '../../config/app-config.js';
 
 export interface SafeUser {
   id: string;
@@ -31,11 +34,11 @@ export interface AuthResult {
 @Injectable()
 export class AuthService {
   private readonly saltRounds = 10;
-  private readonly tokenExpiresInSeconds = 900; // 15 phút (SD-05, SD-06, api-spec.md)
 
   constructor(
     private readonly userRepository: UserRepository,
     private readonly jwtService: JwtService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig = loadAppConfig(),
   ) {}
 
   /**
@@ -68,7 +71,7 @@ export class AuthService {
     return {
       user: this.sanitizeUser(user),
       accessToken,
-      expiresIn: this.tokenExpiresInSeconds,
+      expiresIn: this.config.jwtExpiresInSeconds,
     };
   }
 
@@ -112,7 +115,7 @@ export class AuthService {
     return {
       user: this.sanitizeUser(user),
       accessToken,
-      expiresIn: this.tokenExpiresInSeconds,
+      expiresIn: this.config.jwtExpiresInSeconds,
     };
   }
 

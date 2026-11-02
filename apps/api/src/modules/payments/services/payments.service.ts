@@ -156,6 +156,17 @@ export class PaymentsService {
                         });
                     }
 
+                    // A VNPay redirect can remain payable while the Order is still PENDING.
+                    // Never issue a second gateway reference for the same Order until the
+                    // existing attempt has a definitive IPN result.
+                    const activePayment = await this.paymentsRepository.findProcessingByOrderId(orderId, tx);
+                    if (activePayment) {
+                        throw new ConflictException({
+                            code: 'PAYMENT_IN_PROGRESS',
+                            message: 'Đơn hàng đã có một giao dịch thanh toán đang xử lý.',
+                        });
+                    }
+
                     if (order.status === OrderStatus.PAYMENT_FAILED) {
                         // Chuyển PAYMENT_FAILED về PENDING và tạo Payment cùng transaction.
                         try {

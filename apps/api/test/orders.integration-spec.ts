@@ -1122,6 +1122,106 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
   });
 
+  it('rejects a cross-order concurrent reuse of one idempotency key at the PostgreSQL unique constraint', async () => {
+    const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');
+    const { PaymentsRepository } = await import('../src/modules/payments/repositories/payments.repository.js');
+    const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
+    const paymentsService = app.get(PaymentsService);
+    const paymentsRepository = app.get(PaymentsRepository);
+    const mockGateway = app.get(MockGatewayService);
+
+    const variant = await product();
+    const firstOrder = await post([
+      { productVariantId: variant.id, quantity: 1 },
+    ]).expect(201);
+    const secondOrder = await post([
+      { productVariantId: variant.id, quantity: 1 },
+    ]).expect(201);
+    const sharedKey = `cross-order-key-${randomUUID()}`;
+
+    // Force both preflight SELECTs and both transaction-scoped SELECTs to observe
+    // the key as absent before either INSERT is allowed to proceed. The two Orders
+    // have different row locks, so the global idempotency unique index arbitrates.
+    const originalLookup = paymentsRepository.findByIdempotencyKey.bind(paymentsRepository);
+    let preflightCount = 0;
+    let transactionLookupCount = 0;
+    let releasePreflight!: () => void;
+    let releaseTransactionLookups!: () => void;
+    const preflightGate = new Promise<void>((resolve) => {
+      releasePreflight = resolve;
+    });
+    const transactionGate = new Promise<void>((resolve) => {
+      releaseTransactionLookups = resolve;
+    });
+    vi.spyOn(paymentsRepository, 'findByIdempotencyKey').mockImplementation(async (key, tx) => {
+      const existing = await originalLookup(key, tx);
+      if (!tx) {
+        preflightCount += 1;
+        if (preflightCount === 2) releasePreflight();
+        await preflightGate;
+      } else {
+        transactionLookupCount += 1;
+        if (transactionLookupCount === 2) releaseTransactionLookups();
+        await transactionGate;
+      }
+      return existing;
+    });
+
+    let releaseGateway!: (result: {
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }) => void;
+    const blockedGatewayResponse = new Promise<{
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }>((resolve) => {
+      releaseGateway = resolve;
+    });
+    const gatewayCharge = vi.spyOn(mockGateway, 'charge').mockReturnValueOnce(blockedGatewayResponse);
+
+    const firstAttempt = paymentsService.processPayment({
+      idempotencyKey: sharedKey,
+      orderId: firstOrder.body.data.id,
+      userId,
+      method: 'E_WALLET',
+      amount: BigInt(firstOrder.body.data.total),
+    });
+    const secondAttempt = paymentsService.processPayment({
+      idempotencyKey: sharedKey,
+      orderId: secondOrder.body.data.id,
+      userId,
+      method: 'CARD',
+      amount: BigInt(secondOrder.body.data.total),
+    });
+    const settled = [firstAttempt, secondAttempt].map((promise) =>
+      promise.then(
+        () => ({ status: 'fulfilled' as const }),
+        (error: unknown) => ({ status: 'rejected' as const, error }),
+      ),
+    );
+
+    try {
+      const earlyResult = await Promise.race(settled);
+      expect(earlyResult.status).toBe('rejected');
+      if (earlyResult.status === 'rejected') {
+        expect(earlyResult.error).toMatchObject({
+          response: { code: 'IDEMPOTENCY_KEY_REUSED' },
+        });
+      }
+      expect(await prisma.payment.count({ where: { idempotencyKey: sharedKey } })).toBe(1);
+      expect(gatewayCharge).toHaveBeenCalledTimes(1);
+    } finally {
+      releaseGateway({ success: false, errorCode: 'TEST_DECLINED' });
+    }
+
+    const outcomes = await Promise.all(settled);
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    expect(await prisma.payment.count({ where: { idempotencyKey: sharedKey } })).toBe(1);
+  });
+
   it('blocks a second PROCESSING payment for the same order even when its idempotency key differs', async () => {
     // Giữ Gateway của request đầu ở trạng thái chờ để request thứ hai va vào ràng buộc DB.
     const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');

@@ -28,6 +28,20 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
         expect(result).toEqual(mockPayment);
     });
 
+    it('findByIdempotencyKey - dùng transaction client khi được truyền vào', async () => {
+        const txMock = {
+            payment: { findUnique: vi.fn().mockResolvedValue({ id: 'p-locked' }) },
+        };
+
+        const result = await repository.findByIdempotencyKey('key-locked', txMock as any);
+
+        expect(txMock.payment.findUnique).toHaveBeenCalledWith({
+            where: { idempotencyKey: 'key-locked' },
+        });
+        expect(result).toEqual({ id: 'p-locked' });
+        expect(prismaMock.payment.findUnique).not.toHaveBeenCalled();
+    });
+
     it('createProcessingPayment - tạo bản ghi trạng thái PROCESSING', async () => {
         prismaMock.payment.create.mockResolvedValue({ id: 'p-2' });
 

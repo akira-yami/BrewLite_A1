@@ -950,6 +950,178 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     })).toMatchObject({ status: 'RELEASED' });
   });
 
+  it('allows only one real PostgreSQL payment attempt for two concurrent requests with the same idempotency key', async () => {
+    const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');
+    const { PaymentsRepository } = await import('../src/modules/payments/repositories/payments.repository.js');
+    const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
+    const paymentsService = app.get(PaymentsService);
+    const paymentsRepository = app.get(PaymentsRepository);
+    const mockGateway = app.get(MockGatewayService);
+
+    const variant = await product();
+    const orderResponse = await post([
+      { productVariantId: variant.id, quantity: 1 },
+    ]).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const totalAmount = BigInt(orderResponse.body.data.total);
+    const idempotencyKey = `same-key-${randomUUID()}`;
+
+    // Hold both initial reads until PostgreSQL has confirmed that neither request
+    // observed an existing key. This deterministically exercises the insert race.
+    const originalLookup = paymentsRepository.findByIdempotencyKey.bind(paymentsRepository);
+    let initialLookups = 0;
+    let releaseLookups!: () => void;
+    const bothLookupsFinished = new Promise<void>((resolve) => {
+      releaseLookups = resolve;
+    });
+    vi.spyOn(paymentsRepository, 'findByIdempotencyKey').mockImplementation(async (key) => {
+      const existing = await originalLookup(key);
+      initialLookups += 1;
+      if (initialLookups === 2) releaseLookups();
+      await bothLookupsFinished;
+      return existing;
+    });
+
+    let releaseGateway!: (result: {
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }) => void;
+    const blockedGatewayResponse = new Promise<{
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }>((resolve) => {
+      releaseGateway = resolve;
+    });
+    const gatewayCharge = vi.spyOn(mockGateway, 'charge').mockReturnValueOnce(blockedGatewayResponse);
+
+    const payload = {
+      idempotencyKey,
+      orderId,
+      userId,
+      method: 'E_WALLET' as const,
+      amount: totalAmount,
+    };
+    const first = paymentsService.processPayment(payload);
+    const second = paymentsService.processPayment(payload);
+    const settled = [first, second].map((promise) =>
+      promise.then(
+        () => ({ status: 'fulfilled' as const }),
+        (error: unknown) => ({ status: 'rejected' as const, error }),
+      ),
+    );
+
+    try {
+      const earlyResult = await Promise.race(settled);
+      expect(earlyResult.status).toBe('rejected');
+      if (earlyResult.status === 'rejected') {
+        expect(earlyResult.error).toMatchObject({
+          response: { code: 'PAYMENT_IN_PROGRESS' },
+        });
+      }
+      expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
+      expect(gatewayCharge).toHaveBeenCalledTimes(1);
+      expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
+        .toMatchObject({ status: 'PENDING' });
+    } finally {
+      // Always unblock the winning request, even when an assertion fails.
+      releaseGateway({ success: false, errorCode: 'TEST_DECLINED' });
+    }
+
+    const outcomes = await Promise.all(settled);
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
+      .toMatchObject({ status: 'PAYMENT_FAILED' });
+  });
+
+  it('returns IDEMPOTENCY_KEY_REUSED when concurrent requests race with the same key but different payloads', async () => {
+    const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');
+    const { PaymentsRepository } = await import('../src/modules/payments/repositories/payments.repository.js');
+    const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
+    const paymentsService = app.get(PaymentsService);
+    const paymentsRepository = app.get(PaymentsRepository);
+    const mockGateway = app.get(MockGatewayService);
+
+    const variant = await product();
+    const orderResponse = await post([
+      { productVariantId: variant.id, quantity: 1 },
+    ]).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const totalAmount = BigInt(orderResponse.body.data.total);
+    const idempotencyKey = `payload-race-${randomUUID()}`;
+
+    const originalLookup = paymentsRepository.findByIdempotencyKey.bind(paymentsRepository);
+    let initialLookups = 0;
+    let releaseLookups!: () => void;
+    const bothLookupsFinished = new Promise<void>((resolve) => {
+      releaseLookups = resolve;
+    });
+    vi.spyOn(paymentsRepository, 'findByIdempotencyKey').mockImplementation(async (key) => {
+      const existing = await originalLookup(key);
+      initialLookups += 1;
+      if (initialLookups === 2) releaseLookups();
+      await bothLookupsFinished;
+      return existing;
+    });
+
+    let releaseGateway!: (result: {
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }) => void;
+    const blockedGatewayResponse = new Promise<{
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }>((resolve) => {
+      releaseGateway = resolve;
+    });
+    const gatewayCharge = vi.spyOn(mockGateway, 'charge').mockReturnValueOnce(blockedGatewayResponse);
+
+    const first = paymentsService.processPayment({
+      idempotencyKey,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: totalAmount,
+    });
+    const second = paymentsService.processPayment({
+      idempotencyKey,
+      orderId,
+      userId,
+      method: 'CARD',
+      amount: totalAmount,
+    });
+    const settled = [first, second].map((promise) =>
+      promise.then(
+        () => ({ status: 'fulfilled' as const }),
+        (error: unknown) => ({ status: 'rejected' as const, error }),
+      ),
+    );
+
+    try {
+      const earlyResult = await Promise.race(settled);
+      expect(earlyResult.status).toBe('rejected');
+      if (earlyResult.status === 'rejected') {
+        expect(earlyResult.error).toMatchObject({
+          response: { code: 'IDEMPOTENCY_KEY_REUSED' },
+        });
+      }
+      expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
+      expect(gatewayCharge).toHaveBeenCalledTimes(1);
+    } finally {
+      releaseGateway({ success: false, errorCode: 'TEST_DECLINED' });
+    }
+
+    const outcomes = await Promise.all(settled);
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
+  });
+
   it('blocks a second PROCESSING payment for the same order even when its idempotency key differs', async () => {
     // Giữ Gateway của request đầu ở trạng thái chờ để request thứ hai va vào ràng buộc DB.
     const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');

@@ -14,6 +14,14 @@ export class PaymentsRepository {
         return client.payment.findUnique({ where: { idempotencyKey } });
     }
 
+    async findProcessingByOrderId(orderId: string, tx?: Prisma.TransactionClient) {
+        const client = tx ?? this.prisma;
+        return client.payment.findFirst({
+            where: { orderId, status: PaymentStatus.PROCESSING },
+            orderBy: { createdAt: 'asc' },
+        });
+    }
+
     async createProcessingPayment(
         data: {
             orderId: string;

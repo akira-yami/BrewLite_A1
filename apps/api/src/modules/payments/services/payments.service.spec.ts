@@ -21,6 +21,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
     beforeEach(() => {
         paymentsRepoMock = {
             findByIdempotencyKey: vi.fn(),
+            findProcessingByOrderId: vi.fn().mockResolvedValue(null),
             createProcessingPayment: vi.fn(),
             markSucceeded: vi.fn(),
             markFailed: vi.fn(),
@@ -392,6 +393,32 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             });
 
             expect(paymentsRepoMock.findByIdempotencyKey).toHaveBeenCalledTimes(3);
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('rejects a different idempotency key while another payment for the same order is PROCESSING', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            paymentsRepoMock.findProcessingByOrderId.mockResolvedValue({
+                id: 'p-existing',
+                idempotencyKey: 'different-key',
+                status: PaymentStatus.PROCESSING,
+            });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+
+            await expect(service.processPayment({
+                idempotencyKey: 'new-key',
+                orderId,
+                userId,
+                method,
+                amount,
+            })).rejects.toMatchObject({
+                response: { code: 'PAYMENT_IN_PROGRESS' },
+            });
+
+            expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
             expect(gatewayMock.charge).not.toHaveBeenCalled();
         });
 

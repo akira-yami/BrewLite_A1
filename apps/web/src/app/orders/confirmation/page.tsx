@@ -7,6 +7,11 @@ import { getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
 import { OrderDetailView } from '@/features/orders/components/OrderDetailView';
 import type { OrderDetail } from '@/features/orders/types';
 import { cartStore } from '@/stores/cart-store';
+import {
+  readPendingCheckout,
+  writeCheckoutCoupon,
+  writePendingCheckout,
+} from '@/features/checkout/session';
 
 export default function OrderConfirmationPage() {
   return (
@@ -34,7 +39,21 @@ function OrderConfirmationContent() {
       const current = await getOrderDetailApi(token, orderId);
       if (!active) return;
       setOrder(current);
-      if (current.status === 'PAID') cartStore.clearCart();
+      if (current.status === 'PAID') {
+        cartStore.clearCart();
+        writePendingCheckout(window.sessionStorage, null);
+        writeCheckoutCoupon(window.sessionStorage, null);
+      } else if (current.status === 'PAYMENT_FAILED') {
+        // This attempt has a definitive result; reuse the same Order with a new key on retry.
+        const pending = readPendingCheckout(window.sessionStorage);
+        if (pending?.orderId === current.id) {
+          writePendingCheckout(window.sessionStorage, {
+            ...pending,
+            idempotencyKey: null,
+            method: null,
+          });
+        }
+      }
       return current;
     };
     const run = async () => {

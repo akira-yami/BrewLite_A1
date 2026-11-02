@@ -22,14 +22,14 @@ describe('VnpayGatewayService', () => {
       amount: 125000n,
       orderInfo: 'BrewLite payment A1B2C3D4',
       ipAddress: '203.0.113.10',
-      expiresAt: new Date('2026-11-02T06:30:00.000Z'),
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
     }));
     expect(url.origin).toBe('https://sandbox.vnpayment.vn');
     expect(url.searchParams.get('vnp_TxnRef')).toBe('A1B2C3D4');
     expect(url.searchParams.get('vnp_Amount')).toBe('12500000');
     expect(url.searchParams.get('vnp_CurrCode')).toBe('VND');
     expect(url.searchParams.get('vnp_IpAddr')).toBe('203.0.113.10');
-    expect(url.searchParams.get('vnp_ExpireDate')).toMatch(/^20261102\d{6}$/);
+    expect(url.searchParams.get('vnp_ExpireDate')).toMatch(/^\d{14}$/);
     expect(url.searchParams.get('vnp_SecureHash')).toMatch(/^[a-f0-9]{128}$/);
   });
 

@@ -60,6 +60,9 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
                 requestHash: 'hash-123',
                 method: PaymentMethod.E_WALLET,
                 amount: 100000n,
+                gatewayProvider: 'MOCK',
+                gatewayReference: undefined,
+                paymentUrl: undefined,
                 status: PaymentStatus.PROCESSING,
             },
         });

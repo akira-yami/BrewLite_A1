@@ -119,6 +119,9 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                 requestHash: expectedHash,
                 method,
                 amount,
+                gatewayProvider: 'MOCK',
+                gatewayReference: undefined,
+                paymentUrl: undefined,
             }, prismaMock);
             // Xác nhận Order được khóa trước khi tạo Payment PROCESSING.
             expect(ordersServiceMock.getOrderForPaymentForUpdate).toHaveBeenCalledWith(
@@ -255,6 +258,9 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                     requestHash: expectedHash,
                     method,
                     amount,
+                    gatewayProvider: 'MOCK',
+                    gatewayReference: undefined,
+                    paymentUrl: undefined,
                 },
                 prismaMock,
             );

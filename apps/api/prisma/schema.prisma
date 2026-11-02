@@ -280,9 +280,6 @@ model Payment {
   method               PaymentMethod
   status               PaymentStatus @default(PROCESSING)
   amount               BigInt
-  gatewayProvider      String        @default("MOCK") @map("gateway_provider") @db.VarChar(20)
-  gatewayReference     String?       @unique @map("gateway_reference") @db.VarChar(100)
-  paymentUrl           String?       @map("payment_url") @db.Text
   gatewayTransactionId String?       @unique @map("gateway_transaction_id") @db.VarChar(100)
   failureCode          String?       @map("failure_code") @db.VarChar(100)
   processedAt          DateTime?     @map("processed_at") @db.Timestamptz(6)

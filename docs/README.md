@@ -22,8 +22,6 @@ liệu A2 đã được loại khỏi checkout này không còn được liên k
 - [Handover Khang tuần 3](scrum/khang-week3-handoff.md)
 - [Handover Huy tuần 2](scrum/huy-week-02-handover.md)
 - [Handover Huy tuần 3](scrum/huy-week-03-handover.md)
-- [Handover A1-10.3 Payment Idempotency và VNPay](handovers/A1-10.3-payment-idempotency-vnpay-handover-2026-11-02.md)
-- [Thiết lập VNPay Sandbox và HTTPS shared tunnel](handovers/vnpay-sandbox-and-shared-tunnel-setup.md)
 - [Review coupon và SD-12](reviews/huy-review-coupon-sd12.md)
 
 ## Bằng chứng kiểm thử

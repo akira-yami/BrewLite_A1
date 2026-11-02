@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PaymentsService } from './payments.service.js';
 import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
 import * as crypto from 'crypto';
@@ -10,11 +10,6 @@ describe('PaymentsService (Unit Test - TDD)', () => {
     let ordersServiceMock: any;
     let gatewayMock: any;
     let prismaMock: any;
-    let vnpayGatewayMock: any;
-
-    afterEach(() => {
-        vi.unstubAllEnvs();
-    });
 
     const getExpectedHash = (orderId: string, method: PaymentMethod, amount: bigint) => {return crypto.createHash('sha256').update(JSON.stringify({ orderId, method, amount: amount.toString() })).digest('hex');};
 
@@ -34,13 +29,6 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             markOrderPaymentFailed: vi.fn(),
         };
         gatewayMock = {charge: vi.fn(),};
-        vnpayGatewayMock = {
-            createPaymentUrl: vi.fn().mockReturnValue('https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?signature=test'),
-            verifyResponse: vi.fn().mockReturnValue(false),
-            normalizeQuery: vi.fn((query) => query),
-            createFrontendReturnUrl: vi.fn().mockReturnValue('https://web.example.test/orders/confirmation'),
-        };
-        paymentsRepoMock.findByGatewayReference = vi.fn();
         prismaMock = {$transaction: vi.fn((callback) => callback(prismaMock)),};
 
         service = new PaymentsService(
@@ -48,7 +36,6 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             ordersServiceMock,
             gatewayMock,
             prismaMock,
-            vnpayGatewayMock,
         );
     });
 
@@ -133,9 +120,6 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                 requestHash: expectedHash,
                 method,
                 amount,
-                gatewayProvider: 'MOCK',
-                gatewayReference: undefined,
-                paymentUrl: undefined,
             }, prismaMock);
             // Xác nhận Order được khóa trước khi tạo Payment PROCESSING.
             expect(ordersServiceMock.getOrderForPaymentForUpdate).toHaveBeenCalledWith(
@@ -272,9 +256,6 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                     requestHash: expectedHash,
                     method,
                     amount,
-                    gatewayProvider: 'MOCK',
-                    gatewayReference: undefined,
-                    paymentUrl: undefined,
                 },
                 prismaMock,
             );

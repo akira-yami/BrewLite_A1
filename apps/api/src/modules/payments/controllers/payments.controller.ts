@@ -1,4 +1,5 @@
-import { BadRequestException, Controller, Body, Headers, HttpStatus, HttpCode, Post, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Controller, Body, Headers, HttpStatus, HttpCode, Post, Get, Query, Req, Res, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { PaymentsService } from '../services/payments.service.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { CreatePaymentDto } from '../dto/create-payment.dto.js';
@@ -25,6 +26,7 @@ export class PaymentsController {
         @Body() dto: CreatePaymentDto,
         @Headers('idempotency-key') idempotencyKey: string,
         @CurrentUser() user: { sub: string; username: string; role: string },
+        @Req() request: Request,
     ) {
         // Ép buộc kiểm tra Idempotency-Key từ Header theo đúng đặc tả TDD
         if (!idempotencyKey || idempotencyKey.trim() === '') {throw new BadRequestException('Header Idempotency-Key là bắt buộc để chống double-charge');}
@@ -38,8 +40,27 @@ export class PaymentsController {
             userId: user.sub,
             method: dto.method as unknown as PaymentMethod,
             amount: order.total,
+            reservationExpiresAt: order.reservationExpiresAt,
+            ipAddress: (request.ip ?? request.socket.remoteAddress ?? '127.0.0.1').replace(/^::ffff:/, '').slice(0, 45),
         });
 
         return { data: result };
+    }
+
+    @Get('vnpay/ipn')
+    @HttpCode(HttpStatus.OK)
+    async vnpayIpn(@Query() query: Record<string, unknown>) {
+        return this.paymentsService.handleVnpayIpn(this.paymentsService.normalizeVnpayQuery(query));
+    }
+
+    @Get('vnpay/return')
+    async vnpayReturn(
+        @Query() query: Record<string, unknown>,
+        @Res() response: Response,
+    ) {
+        const redirectUrl = await this.paymentsService.getVnpayReturnRedirect(
+            this.paymentsService.normalizeVnpayQuery(query),
+        );
+        return response.redirect(303, redirectUrl);
     }
 }

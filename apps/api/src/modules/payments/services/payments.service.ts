@@ -1,10 +1,12 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { PaymentsRepository } from '../repositories/payments.repository.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { MockGatewayService } from './mock-gateway.service.js';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
 import { PaymentMethod as DtoPaymentMethod } from '../dto/create-payment.dto.js';
+import { randomUUID } from 'node:crypto';
+import { VnpayGatewayService, type VnpayParameters } from './vnpay-gateway.service.js';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -16,6 +18,7 @@ export class PaymentsService {
         private readonly ordersService: OrdersService,
         private readonly mockGateway: MockGatewayService,
         private readonly prisma: PrismaService,
+        @Optional() private readonly vnpayGateway?: VnpayGatewayService,
     ) {}
 
     private resolveExistingPayment(
@@ -24,6 +27,9 @@ export class PaymentsService {
             status: PaymentStatus;
             gatewayTransactionId?: string | null;
             failureCode?: string | null;
+            gatewayProvider?: string;
+            gatewayReference?: string | null;
+            paymentUrl?: string | null;
         },
         requestHash: string,
     ) {
@@ -35,6 +41,15 @@ export class PaymentsService {
         }
 
         if (existingPayment.status === PaymentStatus.PROCESSING) {
+            if (existingPayment.gatewayProvider === 'VNPAY' && existingPayment.paymentUrl) {
+                return {
+                    success: false,
+                    isRetried: true,
+                    status: existingPayment.status,
+                    redirectUrl: existingPayment.paymentUrl,
+                    gatewayReference: existingPayment.gatewayReference ?? undefined,
+                };
+            }
             throw new ConflictException({
                 code: 'PAYMENT_IN_PROGRESS',
                 message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
@@ -57,6 +72,8 @@ export class PaymentsService {
         userId: string;
         method: PaymentMethod;
         amount: bigint;
+        ipAddress?: string;
+        reservationExpiresAt?: Date;
     }) {
         const { idempotencyKey, orderId, userId, method, amount } = params;
 
@@ -73,8 +90,27 @@ export class PaymentsService {
             return this.resolveExistingPayment(existingPayment, requestHash);
         }
 
-        // 3. Khóa Order và kiểm tra trạng thái/hạn giữ chỗ ngay trước khi tạo Payment.
-        const paymentData = { orderId, idempotencyKey, requestHash, method, amount };
+        // Build the signed VNPay URL before inserting PROCESSING, so missing
+        // credentials or invalid HTTPS callback URLs cannot leave an unusable Payment.
+        const useVnpay = (process.env.PAYMENT_GATEWAY ?? 'mock').trim().toLowerCase() === 'vnpay';
+        if (useVnpay && !this.vnpayGateway) {
+            throw new ServiceUnavailableException('VNPay gateway provider is not registered.');
+        }
+        const gatewayProvider = useVnpay ? 'VNPAY' : 'MOCK';
+        const gatewayReference = useVnpay ? randomUUID().replaceAll('-', '').toUpperCase() : undefined;
+        const paymentUrl = useVnpay
+            ? this.vnpayGateway!.createPaymentUrl({
+                txnRef: gatewayReference!,
+                amount,
+                orderInfo: `BrewLite payment ${gatewayReference}`,
+                ipAddress: params.ipAddress ?? '127.0.0.1',
+                expiresAt: params.reservationExpiresAt ?? new Date(Date.now() + 15 * 60 * 1000),
+            })
+            : undefined;
+        const paymentData = {
+            orderId, idempotencyKey, requestHash, method, amount,
+            gatewayProvider, gatewayReference, paymentUrl,
+        };
         const reservation = await (async () => {
             try {
                 const transactionResult = await this.prisma.$transaction(async (tx) => {
@@ -181,6 +217,16 @@ export class PaymentsService {
         }
         const processingPayment = reservation.payment;
 
+        if (gatewayProvider === 'VNPAY') {
+            return {
+                success: false,
+                isRetried: false,
+                status: PaymentStatus.PROCESSING,
+                redirectUrl: paymentUrl,
+                gatewayReference,
+            };
+        }
+
         // 5. Gọi MockGatewayService (Call API I/O tốn thời gian, tuyệt đối KHÔNG đưa vào DB Lock)
         const gatewayResult = await this.mockGateway.charge(Number(amount), method as unknown as DtoPaymentMethod);
         const processedAt = new Date();
@@ -204,5 +250,85 @@ export class PaymentsService {
             gatewayTransactionId: gatewayResult.gatewayTransactionId,
             errorCode: gatewayResult.errorCode,
         };
+    }
+
+    normalizeVnpayQuery(query: Record<string, unknown>): VnpayParameters {
+        return this.vnpayGateway?.normalizeQuery(query) ?? {};
+    }
+
+    async handleVnpayIpn(parameters: VnpayParameters) {
+        const acknowledgement = (RspCode: string, Message: string) => ({ RspCode, Message });
+        if (!this.vnpayGateway || !this.vnpayGateway.verifyResponse(parameters)) {
+            return acknowledgement('97', 'Invalid signature');
+        }
+
+        const gatewayReference = parameters.vnp_TxnRef;
+        const transactionNo = parameters.vnp_TransactionNo;
+        const responseCode = parameters.vnp_ResponseCode;
+        const transactionStatus = parameters.vnp_TransactionStatus;
+        const rawAmount = parameters.vnp_Amount;
+        if (!gatewayReference || !transactionNo || !responseCode || !transactionStatus || !rawAmount || !/^\\d+$/.test(rawAmount)) {
+            return acknowledgement('99', 'Invalid input data');
+        }
+
+        try {
+            const candidate = await this.paymentsRepository.findByGatewayReference(gatewayReference);
+            if (!candidate || candidate.gatewayProvider !== 'VNPAY') {
+                return acknowledgement('01', 'Order not found');
+            }
+
+            return await this.prisma.$transaction(async (tx) => {
+                // Lock Order before Payment, matching cancel/expiry lock ordering.
+                const order = await this.ordersService.getOrderForPaymentForUpdate(
+                    candidate.orderId,
+                    candidate.order.userId,
+                    tx,
+                );
+                const payment = await this.paymentsRepository.findByGatewayReference(gatewayReference, tx);
+                if (!payment || payment.gatewayProvider !== 'VNPAY') {
+                    return acknowledgement('01', 'Order not found');
+                }
+                if (BigInt(rawAmount) !== payment.amount * 100n || order.total !== payment.amount) {
+                    return acknowledgement('04', 'Invalid amount');
+                }
+                if (payment.status !== PaymentStatus.PROCESSING || order.status !== OrderStatus.PENDING) {
+                    return acknowledgement('02', 'Order already confirmed');
+                }
+
+                const processedAt = new Date();
+                const success = responseCode === '00' && transactionStatus === '00';
+                if (success) {
+                    await this.paymentsRepository.markSucceeded(payment.id, transactionNo, processedAt, tx);
+                    await this.ordersService.markOrderPaid(
+                        payment.orderId, candidate.order.userId, payment.amount, tx,
+                    );
+                } else {
+                    const failureCode = `VNPAY_${responseCode}_${transactionStatus}`;
+                    await this.paymentsRepository.markFailed(
+                        payment.id, failureCode, processedAt, tx, transactionNo,
+                    );
+                    await this.ordersService.markOrderPaymentFailed(
+                        payment.orderId, candidate.order.userId, failureCode, tx,
+                    );
+                }
+                return acknowledgement('00', 'Confirm Success');
+            });
+        } catch (error) {
+            this.logger.error('VNPay IPN processing failed', error instanceof Error ? error.stack : String(error));
+            return acknowledgement('99', 'Unknown error');
+        }
+    }
+
+    async getVnpayReturnRedirect(parameters: VnpayParameters): Promise<string> {
+        if (!this.vnpayGateway) {
+            throw new ServiceUnavailableException('VNPay gateway provider is not registered.');
+        }
+        const signatureValid = this.vnpayGateway.verifyResponse(parameters);
+        let orderId: string | null = null;
+        if (signatureValid && parameters.vnp_TxnRef) {
+            const payment = await this.paymentsRepository.findByGatewayReference(parameters.vnp_TxnRef);
+            if (payment?.gatewayProvider === 'VNPAY') orderId = payment.orderId;
+        }
+        return this.vnpayGateway.createFrontendReturnUrl(orderId, signatureValid);
     }
 }

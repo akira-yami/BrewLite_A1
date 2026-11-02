@@ -11,7 +11,7 @@
 3. Chỉ cho phép một Payment `PROCESSING` trên mỗi Order. Partial unique index `payments_one_processing_per_order_key` là hàng rào cuối ở database; không vô hiệu hóa index để xử lý incident.
 4. Không hủy Order hoặc giải phóng inventory/coupon khi chưa xác định được kết quả gateway. Order expiry và inventory expiry phải giữ nguyên tài nguyên trong lúc còn Payment `PROCESSING`.
 5. Mọi quyết định cập nhật Payment và Order phải được thực hiện nguyên tử, có khóa Order, lưu actor/ticket/evidence và đi qua nghiệp vụ cập nhật Order. `OrdersService.markOrderPaid()` còn quyết toán Loyalty/Inventory/Coupon; chỉ cập nhật `payments.status` hoặc `orders.status` riêng lẻ sẽ làm dữ liệu lệch.
-6. Với trạng thái chưa rõ, ưu tiên giữ `PROCESSING` và escalte cho người vận hành thanh toán thay vì đoán kết quả.
+6. Với trạng thái chưa rõ, ưu tiên giữ `PROCESSING` và escalate cho người vận hành thanh toán thay vì đoán kết quả.
 
 ## 2. Khi nào mở incident
 

@@ -77,7 +77,7 @@ describe('PromotionsRepository (Unit Test - TDD)', () => {
         expect(result).toBeNull();
     });
 
-    it('countRedemptions - chỉ đếm CONSUMED hoặc RESERVED còn hạn (expiresAt > now) theo userId', async () => {
+    it('countRedemptions - đếm CONSUMED và RESERVED còn hạn hoặc đang thanh toán theo userId', async () => {
         prismaMock.couponRedemption.count.mockResolvedValue(1);
 
         const result = await repository.countRedemptions(
@@ -93,14 +93,17 @@ describe('PromotionsRepository (Unit Test - TDD)', () => {
             userId: 'u-1',
             OR: [
             { status: 'CONSUMED' },
-            { status: 'RESERVED', expiresAt: { gt: fixedNow } },
+            { status: 'RESERVED', OR: [
+              { expiresAt: { gt: fixedNow } },
+              { order: { payments: { some: { status: 'PROCESSING' } } } },
+            ] },
             ],
         },
         });
         expect(result).toBe(1);
     });
 
-    it('countTotalRedemptions - chỉ đếm CONSUMED hoặc RESERVED còn hạn (expiresAt > now) toàn cục', async () => {
+    it('countTotalRedemptions - đếm CONSUMED và RESERVED còn hạn hoặc đang thanh toán toàn cục', async () => {
         prismaMock.couponRedemption.count.mockResolvedValue(5);
 
         const result = await repository.countTotalRedemptions(
@@ -114,7 +117,10 @@ describe('PromotionsRepository (Unit Test - TDD)', () => {
             couponId: 'c-1',
             OR: [
             { status: 'CONSUMED' },
-            { status: 'RESERVED', expiresAt: { gt: fixedNow } },
+            { status: 'RESERVED', OR: [
+              { expiresAt: { gt: fixedNow } },
+              { order: { payments: { some: { status: 'PROCESSING' } } } },
+            ] },
             ],
         },
         });

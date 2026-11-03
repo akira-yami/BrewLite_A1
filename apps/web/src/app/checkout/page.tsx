@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createOrderApi, getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
 import type { OrderDetail } from '@/features/orders/types';
 import {
@@ -29,6 +29,11 @@ const paymentOptions: Array<{ method: PaymentMethod; title: string; description:
     ? [{ method: 'VNPAY' as const, title: 'VNPay', description: 'Thanh toán qua cổng VNPay bảo mật', icon: 'V' }]
     : []),
 ];
+
+const subscribeVnpayReturn = () => () => {};
+const getVnpayReturnSnapshot = () =>
+  typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('paymentReturn') === '1';
+const getServerVnpayReturnSnapshot = () => false;
 
 function newIdempotencyKey() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -64,7 +69,11 @@ export default function CheckoutPage() {
   const [couponQuote, setCouponQuote] = useState<CheckoutCouponQuote | null>(null);
   const [orderSummary, setOrderSummary] = useState<OrderDetail | null>(null);
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState | null>(null);
-  const [isVnpayReturn, setIsVnpayReturn] = useState(false);
+  const isVnpayReturn = useSyncExternalStore(
+    subscribeVnpayReturn,
+    getVnpayReturnSnapshot,
+    getServerVnpayReturnSnapshot,
+  );
   const pendingCheckoutRef = useRef<PendingCheckoutState | null>(null);
   const submitLock = useRef(false);
 
@@ -80,7 +89,6 @@ export default function CheckoutPage() {
     if (typeof window === 'undefined') return;
 
     let active = true;
-    setIsVnpayReturn(new URLSearchParams(window.location.search).get('paymentReturn') === '1');
     queueMicrotask(() => {
       if (!active) return;
       const savedCoupon = readCheckoutCoupon(window.sessionStorage);

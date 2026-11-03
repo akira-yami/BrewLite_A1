@@ -17,8 +17,12 @@
         reuseExistingServer: false,
       },
       {
-        command: 'npm run start -- --port 3100',
+        command: 'node .next/standalone/server.js',
         url: 'http://localhost:3100/menu',
+        env: {
+          PORT: '3100',
+          HOSTNAME: '127.0.0.1',
+        },
         reuseExistingServer: false,
         timeout: 120000,
       },

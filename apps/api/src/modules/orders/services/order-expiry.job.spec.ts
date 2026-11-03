@@ -8,6 +8,7 @@ function setup() {
     payment: { findFirst: vi.fn().mockResolvedValue(null) },
     inventoryReservation: {
       findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn(),
     },
   };
   const prisma = {
@@ -95,13 +96,14 @@ describe('OrderExpiryJob', () => {
       userId: 'user-1',
       status: OrderStatus.PENDING,
     };
+    const orderDeadline = new Date(Date.now() - 60_000);
     ordersRepo.findByIdForUpdate.mockResolvedValue({
       ...order,
-      reservationExpiresAt: new Date(Date.now() - 60_000),
+      reservationExpiresAt: orderDeadline,
     });
     tx.inventoryReservation.findMany.mockResolvedValue([
-      { id: 'reservation-1' },
-      { id: 'reservation-2' },
+      { id: 'reservation-1', expiresAt: new Date(Date.now() + 60_000) },
+      { id: 'reservation-2', expiresAt: new Date(Date.now() - 120_000) },
     ]);
     prisma.order.findMany.mockResolvedValue([order]);
 
@@ -133,7 +135,12 @@ describe('OrderExpiryJob', () => {
     );
     expect(tx.inventoryReservation.findMany).toHaveBeenCalledWith({
       where: { orderId: order.id, status: 'ACTIVE' },
-      select: { id: true },
+      select: { id: true, expiresAt: true },
+    });
+    expect(tx.inventoryReservation.update).toHaveBeenCalledTimes(1);
+    expect(tx.inventoryReservation.update).toHaveBeenCalledWith({
+      where: { id: 'reservation-1' },
+      data: { expiresAt: orderDeadline },
     });
     expect(inventoryService.releaseInTransaction).toHaveBeenNthCalledWith(
       1,

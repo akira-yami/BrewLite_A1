@@ -111,11 +111,21 @@ export class OrderExpiryJob {
                 },
                 select: {
                   id: true,
+                  expiresAt: true,
                 },
               });
 
-            // Chuyển reservation sang EXPIRED và hoàn kho.
+            // Order TTL là mốc hết hạn có thẩm quyền. Nếu expiresAt của
+            // reservation bị lệch muộn hơn Order, đồng bộ về deadline Order
+            // trước khi release để InventoryService không từ chối hoàn kho.
             for (const reservation of reservations) {
+              if (reservation.expiresAt > lockedOrder.reservationExpiresAt) {
+                await tx.inventoryReservation.update({
+                  where: { id: reservation.id },
+                  data: { expiresAt: lockedOrder.reservationExpiresAt },
+                });
+              }
+
               await this.inventoryService.releaseInTransaction(
                 tx,
                 reservation.id,

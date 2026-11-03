@@ -90,7 +90,7 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
     const f = await fixture();
     await f.expire();
     const before = await f.state();
-    vi.spyOn(promotions, 'releaseByOrderId').mockRejectedValueOnce(new Error('coupon write failed'));
+    vi.spyOn(promotions, 'releaseRedemption').mockRejectedValueOnce(new Error('coupon write failed'));
     await job().handleExpiredOrders();
     expect(await f.state()).toEqual(before);
     await job().handleExpiredOrders();

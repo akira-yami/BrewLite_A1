@@ -6,6 +6,8 @@ import { InventoryRepository } from '../src/modules/inventory/repositories/inven
 import { OrdersRepository } from '../src/modules/orders/repositories/orders.repository.js';
 import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
 import { InventoryService } from '../src/modules/inventory/services/inventory.service.js';
+import { PromotionsRepository } from '../src/modules/promotions/repositories/promotions.repository.js';
+import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
 
@@ -32,11 +34,15 @@ describe('SD-13 inventory expiry job', () => {
     prisma as never,
     inventoryRepository,
   );
+  const promotionsService = new PromotionsService(
+    new PromotionsRepository(prisma as never),
+  );
 
   const expiryJob = new OrderExpiryJob(
     prisma as never,
     ordersRepository,
     inventoryService,
+    promotionsService,
   );
 
   beforeAll(async () => {

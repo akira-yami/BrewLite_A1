@@ -27,9 +27,12 @@ JWT_ISSUER=brewlite-api
 JWT_AUDIENCE=brewlite-web
 JWT_EXPIRES_IN=15m
 ORDER_RESERVATION_TTL_MINUTES=15
+TRUSTED_PROXY_CIDRS=
 ```
 
 `WEB_ORIGIN` chấp nhận nhiều origin phân tách bằng dấu phẩy.
+
+`TRUSTED_PROXY_CIDRS` là allowlist tùy chọn cho địa chỉ IP/CIDR của reverse-proxy/ingress trực tiếp kết nối tới API. Để trống khi client kết nối thẳng. Khi cấu hình, Express chỉ tin `X-Forwarded-For` từ các proxy nằm trong allowlist này; địa chỉ `@Ip()` dùng cho VNPay được suy ra theo proxy chain đã tin cậy. Dùng IP/CIDR nội bộ thực tế do người quản trị hạ tầng xác nhận, không sao chép giá trị ví dụ hoặc đoán dải IP. Không dùng `true`, `*`, `0.0.0.0/0` hay `::/0`; API phải được firewall để client Internet không thể giả làm ingress tin cậy.
 
 `JWT_SECRET` bắt buộc để ký và xác thực JWT. API dừng khi thiếu biến này. File `.env` dùng cho local được Git bỏ qua; không ghi secret thật vào `.env.example`.
 `JWT_EXPIRES_IN` nhận duration dương dạng `s`, `m`, `h` hoặc `d` (ví dụ `900s`, `15m`, `1h`) và tối đa 7 ngày; `ORDER_RESERVATION_TTL_MINUTES` phải là số nguyên từ 1 đến 10080 (7 ngày). API dừng lúc khởi động nếu một trong hai giá trị không hợp lệ.
@@ -123,4 +126,5 @@ Environment variables:
 - GET /api/v1/payments/vnpay/ipn is the only settlement path. It validates HMAC-SHA512, merchant code, exact amount and processes Payment/Order transition in one transaction.
 - GET /api/v1/payments/vnpay/return redirects to Checkout only. Browser Return parameters never settle Payment.
 - Enable the frontend option at build time with NEXT_PUBLIC_VNPAY_ENABLED=true.
+- When API is behind a reverse proxy, configure `TRUSTED_PROXY_CIDRS` with only the exact ingress proxy IP/CIDRs so VNPay receives the client IP rather than the proxy address; never enable blanket proxy trust.
 - A real Sandbox merchant transaction, registered HTTPS IPN URL and gateway inquiry/reconciliation process still require separate acceptance. Code tests do not prove a live merchant transaction.

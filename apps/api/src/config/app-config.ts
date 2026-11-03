@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 export interface VnpayConfig {
   enabled: boolean;
   tmnCode: string | null;
@@ -9,6 +11,7 @@ export interface VnpayConfig {
 }
 
 export interface AppConfig {
+  trustedProxyCidrs: string[];
   jwtSecret: string;
   jwtIssuer: string;
   jwtAudience: string;
@@ -73,6 +76,41 @@ function requireHttpsUrl(name: string, value: string): URL {
     throw new Error(name + ' must be a valid HTTPS URL without credentials or fragments');
   }
   return url;
+}
+
+function parseTrustedProxyCidrs(value: string | undefined): string[] {
+  const normalized = value?.trim();
+  if (!normalized) return [];
+
+  const entries = normalized.split(',');
+  const cidrs = entries.map((rawEntry) => {
+    const entry = rawEntry.trim();
+    const parts = entry.split('/');
+    if (!entry || parts.length > 2) {
+      throw new Error('TRUSTED_PROXY_CIDRS must be a comma-separated list of literal IP addresses or CIDRs');
+    }
+
+    const address = parts[0];
+    const family = isIP(address);
+    if (family === 0) {
+      throw new Error('TRUSTED_PROXY_CIDRS entries must use valid IPv4 or IPv6 addresses');
+    }
+
+    const maxPrefix = family === 4 ? 32 : 128;
+    const prefix = parts.length === 1 ? maxPrefix : Number(parts[1]);
+    if (
+      (parts.length === 2 && !/^\\d+$/.test(parts[1])) ||
+      !Number.isInteger(prefix) ||
+      prefix <= 0 ||
+      prefix > maxPrefix
+    ) {
+      throw new Error('TRUSTED_PROXY_CIDRS prefix must be between 1 and ' + maxPrefix + '; /0 is not allowed');
+    }
+
+    return address + '/' + prefix;
+  });
+
+  return [...new Set(cidrs)];
 }
 
 function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
@@ -155,6 +193,7 @@ export function loadAppConfig(env: Environment = process.env): AppConfig {
       15,
     ),
     webOrigin,
+    trustedProxyCidrs: parseTrustedProxyCidrs(env.TRUSTED_PROXY_CIDRS),
     vnpay: loadVnpayConfig(env, webOrigin),
   };
 }

@@ -126,6 +126,39 @@ describe('app-config and AuthModule dynamic configuration (TDD)', () => {
     expect(testCfg.jwtSecret).toBe('test-jwt-secret-for-isolated-tests-only-32bytes-long');
   });
 
+  it('does not trust forwarded IP headers unless trusted proxy CIDRs are explicitly configured', () => {
+    expect(loadAppConfig({ NODE_ENV: 'test' }).trustedProxyCidrs).toEqual([]);
+
+    expect(loadAppConfig({
+      NODE_ENV: 'test',
+      TRUSTED_PROXY_CIDRS: '10.20.30.40, 2001:db8:abcd::/64, 10.20.30.40/32',
+    }).trustedProxyCidrs).toEqual([
+      '10.20.30.40/32',
+      '2001:db8:abcd::/64',
+    ]);
+  });
+
+  it('rejects wildcard, invalid IPs, malformed CIDRs and world-wide /0 trusted proxy ranges', () => {
+    const invalidValues = [
+      '*',
+      'unknown-proxy',
+      '192.0.2.10/33',
+      '2001:db8::1/129',
+      '192.0.2.10/0',
+      '::/0',
+      '192.0.2.10/not-a-prefix',
+      '192.0.2.10//32',
+      '192.0.2.10,,192.0.2.11',
+    ];
+
+    for (const value of invalidValues) {
+      expect(() => loadAppConfig({
+        NODE_ENV: 'test',
+        TRUSTED_PROXY_CIDRS: value,
+      })).toThrow(/TRUSTED_PROXY_CIDRS/);
+    }
+  });
+
   it('keeps VNPay disabled by default and fails closed for incomplete or insecure settings', () => {
     expect(loadAppConfig({ NODE_ENV: 'test' }).vnpay.enabled).toBe(false);
 

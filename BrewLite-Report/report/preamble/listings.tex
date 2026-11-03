@@ -1,0 +1,44 @@
+%==============================================================%
+%  ĐỊNH DẠNG HIỂN THỊ MÃ NGUỒN (listings)                      %
+%==============================================================%
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+\definecolor{bgcode}{rgb}{0.97,0.97,0.97}
+
+\lstset{
+    frame=tb,
+    backgroundcolor=\color{bgcode},
+    aboveskip=3mm,
+    belowskip=3mm,
+    showstringspaces=false,
+    columns=flexible,
+    basicstyle={\small\ttfamily},
+    numberstyle=\tiny\color{codegray},
+    keywordstyle=\color{blue},
+    commentstyle=\color{dkgreen},
+    stringstyle=\color{mauve},
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=2,
+    numbers=left,
+    stepnumber=1,
+    numbersep=6pt,
+    firstnumber=1,
+    captionpos=b
+}
+
+% Định nghĩa ngôn ngữ TypeScript (dùng cho NestJS / Next.js)
+\lstdefinelanguage{TypeScript}{
+    keywords={typeof, new, true, false, catch, function, return, null, switch, var, if, in, while, do, else, case, break, const, let, async, await, class, extends, export, import, from, interface, implements, public, private, readonly, type, enum},
+    keywordstyle=\color{blue}\bfseries,
+    ndkeywords={boolean, string, number, any, void, Promise},
+    ndkeywordstyle=\color{dkgreen}\bfseries,
+    sensitive=true,
+    comment=[l]{//},
+    morecomment=[s]{/*}{*/},
+    stringstyle=\color{mauve}\ttfamily,
+    morestring=[b]',
+    morestring=[b]"
+}

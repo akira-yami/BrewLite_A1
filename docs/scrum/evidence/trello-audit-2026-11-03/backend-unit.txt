@@ -1,0 +1,16 @@
+
+> brewlite-api@0.0.1 test
+> vitest run
+
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+[Nest] 30180  - 11/03/2026, 6:57:40 PM     LOG [OrderExpiryJob] Đã hủy đơn ord-expired-1, hết hạn reservation và hoàn kho/coupon thành công.
+[Nest] 30180  - 11/03/2026, 6:57:40 PM    WARN [OrderExpiryJob] Bỏ qua đơn ord-expired-1: Already updated
+[Nest] 30180  - 11/03/2026, 6:57:40 PM     LOG [OrderExpiryJob] Đã hủy đơn ord-expired-1, hết hạn reservation và hoàn kho/coupon thành công.
+
+ Test Files  29 passed (29)
+      Tests  213 passed (213)
+   Start at  18:57:34
+   Duration  12.10s (transform 23.45s, setup 0ms, import 112.95s, tests 7.54s, environment 4ms)
+

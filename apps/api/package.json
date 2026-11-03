@@ -28,7 +28,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts",
+    "start:e2e": "node --import=tsx prisma/seed-e2e.ts && npm run start:prod"
   },
   "engines": {
     "node": ">=24 <25"

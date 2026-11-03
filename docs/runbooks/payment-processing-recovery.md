@@ -127,3 +127,8 @@ Endpoint chỉ trả trạng thái Payment có cùng Idempotency-Key và thuộc
 4. Browser Return (GET /api/v1/payments/vnpay/return) is display-only. Never mark a Payment as paid from Return query parameters.
 5. If Checkout returns while Payment remains PROCESSING, keep the existing Idempotency-Key and wait for IPN or escalate for gateway inquiry/reconciliation. Do not create another payment attempt.
 6. Automated inquiry, late-success recovery, refund and operator-approved reconciliation are not included in the current implementation; they remain required production operations work.
+
+
+### 8.1. Tracked implementation work item
+
+The missing gateway inquiry/reconciliation and authorized recovery operation is tracked as [Issue #41](https://github.com/akira-yami/BrewLite_A1/issues/41), assigned to `htk2k6-hash`. This remains a production-readiness blocker for asynchronous gateway deployments; do not treat the signed IPN implementation or this manual runbook as a substitute for inquiry, audit and late-success compensation.

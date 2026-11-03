@@ -51,7 +51,7 @@ describe('VnpayGatewayService', () => {
   it('verifies callbacks that omit vnp_Version and rejects tampering', () => {
     const gateway = configuredGateway();
     const callback: Record<string, string> = {
-      vnp_TxnRef: 'ref-123',
+      vnp_TxnRef: 'ref123',
       vnp_Amount: '10000000',
       vnp_TmnCode: 'DEMO1234',
       vnp_CurrCode: 'VND',
@@ -82,7 +82,7 @@ describe('VnpayGatewayService', () => {
       ipAddress: 'not-an-ip',
     })).toThrow(/IP address is invalid/);
     expect(() => gateway.createPaymentUrl({
-      amount: 9999999999n,
+      amount: 10000000000n,
       orderNumber: 'BL-1',
       expiresAt: new Date(Date.now() + 60_000),
       ipAddress: '127.0.0.1',

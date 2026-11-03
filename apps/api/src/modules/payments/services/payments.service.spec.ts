@@ -85,6 +85,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
         const method = PaymentMethod.E_WALLET;
         const amount = 100000n;
         const expectedHash = getExpectedHash(orderId, method, amount);
+        const vnpayExpectedHash = getExpectedHash(orderId, PaymentMethod.VNPAY, amount);
 
         it('1. Nên ném 409 IDEMPOTENCY_KEY_REUSED nếu trùng key nhưng khác requestHash', async () => {
             paymentsRepoMock.findByIdempotencyKey.mockResolvedValue({
@@ -510,7 +511,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
 
         it('replays the same persisted VNPay URL for the same idempotency key', async () => {
             paymentsRepoMock.findByIdempotencyKey.mockResolvedValue({
-                requestHash: expectedHash,
+                requestHash: vnpayExpectedHash,
                 method: PaymentMethod.VNPAY,
                 status: PaymentStatus.PROCESSING,
                 paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1',

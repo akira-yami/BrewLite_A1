@@ -19,9 +19,9 @@ describe('PaymentsController (Unit Test - TDD)', () => {
         const mockUser = { sub: 'u-1', username: 'testuser', role: 'CUSTOMER' };
         const mockDto = { orderId: 'o-1', method: 'E_WALLET' as any};
 
-        await expect(controller.create(mockDto, undefined as any, mockUser)).rejects.toThrow(BadRequestException);
+        await expect(controller.create(mockDto, undefined as any, '127.0.0.1', mockUser)).rejects.toThrow(BadRequestException);
 
-        await expect(controller.create(mockDto, '', mockUser)).rejects.toThrow(BadRequestException);
+        await expect(controller.create(mockDto, '', '127.0.0.1', mockUser)).rejects.toThrow(BadRequestException);
     });
 
     it('gọi PaymentsService.processPayment với đúng tham số khi header hợp lệ', async () => {
@@ -31,7 +31,7 @@ describe('PaymentsController (Unit Test - TDD)', () => {
         ordersServiceMock.getOrderForPayment.mockResolvedValue({ total: 100000n });
         paymentsServiceMock.processPayment.mockResolvedValue({ success: true, isRetried: false });
 
-        const result = await controller.create(mockDto, 'idemp-123', mockUser);
+        const result = await controller.create(mockDto, 'idemp-123', '127.0.0.1', mockUser);
 
         expect(ordersServiceMock.getOrderForPayment).toHaveBeenCalledWith('o-1', 'u-1');
         expect(paymentsServiceMock.processPayment).toHaveBeenCalledWith({

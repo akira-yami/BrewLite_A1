@@ -2,6 +2,8 @@
 
 Báo cáo được đối chiếu với mã nguồn và hồ sơ nhóm ngày **03/11/2026**. Nội dung gồm 12 User Story kèm Acceptance Criteria, 14 yêu cầu chức năng, 10 yêu cầu phi chức năng, kiến trúc và schema hiện hành, hiện trạng triển khai, kiểm thử, bảng phân công năm thành viên và danh mục 40 thẻ/reviewer.
 
+Xem [bản PDF đã biên dịch](build/main.pdf) hoặc chỉnh sửa [nguồn chính](main.tex). Thư mục `BrewLite-Report/tham_khao/` chỉ lưu tài liệu tham khảo cục bộ và được Git bỏ qua; không cần thư mục này để biên dịch.
+
 ## Biên dịch
 
 Chọn **XeLaTeX** trên Overleaf/TeXstudio/VS Code. Cần TeX Live hoặc MiKTeX có các package trong `preamble/packages.tex`. Times New Roman được dùng nếu máy có font; nếu không sẽ dùng TeX Gyre Termes. Không biên dịch bằng pdfLaTeX và không cần `shell-escape`.
@@ -38,4 +40,4 @@ xelatex -no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-erro
 
 Các yêu cầu mô tả hành vi cần đạt, không tự xác nhận tất cả đã hoàn thành. Số liệu 369 test là kết quả **audit đã lưu**, không phải lần chạy lại khi soạn báo cáo. Chỉ tiêu hiệu năng là mục tiêu đề xuất chưa được đo. Bảng phân công ghi trách nhiệm, không suy tỷ lệ đóng góp theo số thẻ/commit. PDF tham khảo chỉ được dùng về cách trình bày; công nghệ, tồn nguyên liệu và trạng thái chức năng được đối chiếu với code.
 
-Các tệp sinh ra và ảnh kiểm tra nằm trong `build/` (được `.gitignore` gốc bỏ qua).
+Các tệp sinh ra và ảnh kiểm tra nằm trong `build/` và được `.gitignore` gốc bỏ qua. Riêng `build/main.pdf` đã được thêm vào repository; sau khi biên dịch lại, Git sẽ tiếp tục theo dõi thay đổi của PDF này.

@@ -56,6 +56,23 @@ HAVING COUNT(*) > 1;
 
 Kết quả mong đợi của query thứ hai là 0 rows. Nếu có dòng, giữ nguyên tất cả bản ghi, dừng mọi thao tác retry/cancel liên quan và escalate DBA/on-call; không tự chọn một Payment để xóa.
 
+## 3.1. Tra cứu trạng thái ứng dụng (read-only)
+
+Với customer đã đăng nhập, API cung cấp endpoint chỉ đọc:
+
+```http
+GET /api/v1/payments/status
+Authorization: Bearer <customer-access-token>
+Idempotency-Key: <original-payment-key>
+```
+
+Endpoint chỉ trả trạng thái Payment có cùng Idempotency-Key và thuộc Order của customer hiện tại; key không tồn tại hoặc thuộc customer khác trả `404 PAYMENT_NOT_FOUND`. Endpoint không gọi gateway, không tạo attempt mới và không tự sửa `PROCESSING`.
+
+- `SUCCEEDED`: kiểm tra Order tương ứng đã `PAID`; không gửi Payment mới.
+- `FAILED`: đây là kết quả đã ghi nhận; retry nghiệp vụ phải dùng key mới trên cùng Order nếu Order còn hạn.
+- `PROCESSING`: tiếp tục giữ nguyên Order, inventory và coupon; tra cứu lại sau hoặc thực hiện quy trình incident.
+- `PAYMENT_NOT_FOUND`: nếu client đã lưu attempt trước khi gửi POST, chỉ replay POST bằng chính Idempotency-Key cũ; tuyệt đối không tạo key mới chỉ vì chưa thấy bản ghi.
+
 ## 4. Thu thập bằng chứng
 
 1. Tìm log theo Payment ID, Order ID và khoảng thời gian; đối chiếu thời điểm tạo Payment, bắt đầu gọi gateway và thời điểm process restart/timeout.
@@ -78,10 +95,11 @@ Kết quả mong đợi của query thứ hai là 0 rows. Nếu có dòng, giữ
 
 ## 6. Ảnh hưởng của expiry jobs
 
-- `OrderExpiryJob` chỉ xử lý Order `PENDING`/`PAYMENT_FAILED` đã hết hạn và không có Payment `PROCESSING`; transaction cũng kiểm tra lại trạng thái dưới Order row lock.
+- Chỉ có `OrderExpiryJob` là cron có thẩm quyền xử lý hết hạn; provider này được đăng ký trong `OrdersModule` và scheduler được bật tại `AppModule`.
+- Job chỉ chọn Order `PENDING`/`PAYMENT_FAILED` đã hết hạn và không có Payment `PROCESSING`; bên trong transaction nó khóa lại Order, kiểm tra Payment lần nữa, cập nhật trạng thái/lịch sử, release coupon và release reservation.
+- `InventoryExpiryJob` độc lập đã bị loại bỏ vì chưa được đăng ký và việc scan reservation rồi release ngoài Order row lock tạo cửa sổ race với Payment; không đăng ký lại job này.
 - `OrdersService.cancelOrder()` từ chối hủy nếu Order còn Payment `PROCESSING`.
-- `InventoryExpiryJob` phải loại trừ reservation thuộc Order có Payment `PROCESSING`. Regression guard cho quan hệ này nằm trong `inventory-expiry.job.spec.ts`; không deploy bản chưa có guard cùng Payment processing protection.
-- Sau khi Payment được đối soát và hoàn tất bằng recovery operation được phê duyệt, expiry/cancel/reservation lifecycle có thể tiếp tục theo trạng thái Order và chính sách nghiệp vụ. Không chạy cron thủ công để “dọn” dữ liệu.
+- Sau khi Payment được đối soát và hoàn tất bằng recovery operation được phê duyệt, Order expiry có thể tiếp tục theo trạng thái và deadline. Không chạy cron thủ công để “dọn” dữ liệu.
 
 ## 7. Ranh giới MockGateway và VNPay
 

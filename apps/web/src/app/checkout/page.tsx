@@ -7,6 +7,7 @@ import { createOrderApi, getOrderDetailApi, OrdersApiError } from '@/features/or
 import type { OrderDetail } from '@/features/orders/types';
 import {
   createPaymentApi,
+  getPaymentStatusApi,
   PaymentApiError,
   type PaymentMethod,
 } from '@/features/payments/api';
@@ -169,11 +170,33 @@ export default function CheckoutPage() {
 
       // Persist before POST so reload/network loss replays the same order and key.
       persistPendingCheckout(attempt);
-      const payment = await createPaymentApi(
-        token,
-        { orderId: attempt.orderId, method: attempt.method as PaymentMethod },
-        idempotencyKey,
-      );
+      let payment: Awaited<ReturnType<typeof createPaymentApi>>;
+      if (checkout.idempotencyKey) {
+        // An unresolved attempt is queried first; never infer failure from a timeout.
+        try {
+          payment = await getPaymentStatusApi(token, idempotencyKey);
+        } catch (statusError) {
+          if (
+            !(statusError instanceof PaymentApiError) ||
+            statusError.code !== 'PAYMENT_NOT_FOUND'
+          ) {
+            throw statusError;
+          }
+          // The original request may have failed before its row was committed.
+          // Replaying the exact same key is safe; rotating it here would not be.
+          payment = await createPaymentApi(
+            token,
+            { orderId: attempt.orderId, method: attempt.method as PaymentMethod },
+            idempotencyKey,
+          );
+        }
+      } else {
+        payment = await createPaymentApi(
+          token,
+          { orderId: attempt.orderId, method: attempt.method as PaymentMethod },
+          idempotencyKey,
+        );
+      }
 
       const resolution = payment.status === 'SUCCEEDED' && payment.success === true
         ? 'SUCCEEDED'
@@ -318,7 +341,7 @@ export default function CheckoutPage() {
           </button>
           <p className="mt-3 text-center text-xs leading-5 text-[#756A63]">
             {hasUnresolvedPayment
-              ? 'Mọi lần kiểm tra đều dùng lại Idempotency-Key cũ để tránh tạo giao dịch trùng.'
+              ? 'Ưu tiên GET trạng thái đã lưu; chỉ replay POST bằng cùng Idempotency-Key nếu server chưa có bản ghi.'
               : 'Tổng tiền cuối cùng do máy chủ xác nhận theo giá, coupon và tồn kho hiện tại.'}
           </p>
         </div>

@@ -65,3 +65,36 @@ export async function createPaymentApi(
 
   return unwrap<PaymentResponse>(json);
 }
+ 
+/**
+ * Reads the persisted attempt owned by the authenticated customer.
+ * This request is read-only; it never starts or retries a gateway charge.
+ */
+export async function getPaymentStatusApi(
+  token: string,
+  idempotencyKey: string,
+): Promise<PaymentResponse> {
+  const response = await fetch(`${API_BASE_URL}/payments/status`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Idempotency-Key': idempotencyKey,
+    },
+    cache: 'no-store',
+    signal: AbortSignal.timeout(10000),
+  });
+  const json = await readJson(response);
+  if (!response.ok) {
+    const payload = json as {
+      error?: { message?: string; code?: string };
+      message?: string;
+      code?: string;
+    } | null;
+    throw new PaymentApiError(
+      payload?.error?.message ?? payload?.message ?? 'Không thể tra cứu trạng thái thanh toán.',
+      response.status,
+      payload?.error?.code ?? payload?.code,
+    );
+  }
+  return unwrap<PaymentResponse>(json);
+}

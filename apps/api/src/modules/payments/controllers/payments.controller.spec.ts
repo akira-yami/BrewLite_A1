@@ -10,7 +10,7 @@ describe('PaymentsController (Unit Test - TDD)', () => {
     let ordersServiceMock: any;
 
     beforeEach(() => {
-        paymentsServiceMock = {processPayment: vi.fn(),};
+        paymentsServiceMock = { processPayment: vi.fn(), getPaymentStatus: vi.fn() };
         ordersServiceMock = { getOrderForPayment: vi.fn() };
         controller = new PaymentsController(paymentsServiceMock as unknown as PaymentsService, ordersServiceMock as unknown as OrdersService);
     });
@@ -43,4 +43,19 @@ describe('PaymentsController (Unit Test - TDD)', () => {
         });
         expect(result).toEqual({ data: { success: true, isRetried: false } });
     });
+    it('từ chối tra cứu trạng thái nếu thiếu Idempotency-Key', async () => {
+        const mockUser = { sub: 'u-1', username: 'testuser', role: 'CUSTOMER' };
+        await expect(controller.getStatus('', mockUser)).rejects.toThrow(BadRequestException);
+    });
+
+    it('tra cứu Payment status theo key và user đã xác thực, không gọi OrdersService', async () => {
+        const mockUser = { sub: 'u-1', username: 'testuser', role: 'CUSTOMER' };
+        const paymentStatus = { success: false, isRetried: true, status: 'PROCESSING' };
+        paymentsServiceMock.getPaymentStatus.mockResolvedValue(paymentStatus);
+        const result = await controller.getStatus('key-status', mockUser);
+        expect(paymentsServiceMock.getPaymentStatus).toHaveBeenCalledWith('key-status', 'u-1');
+        expect(result).toEqual({ data: paymentStatus });
+        expect(ordersServiceMock.getOrderForPayment).not.toHaveBeenCalled();
+    });
+
 });

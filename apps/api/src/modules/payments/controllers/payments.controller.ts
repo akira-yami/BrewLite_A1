@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Body, Headers, HttpStatus, HttpCode, Post, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, Controller, Body, Headers, HttpStatus, HttpCode, Get, Post, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { PaymentsService } from '../services/payments.service.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { CreatePaymentDto } from '../dto/create-payment.dto.js';
@@ -11,6 +11,20 @@ import { UserRole, PaymentMethod } from '../../../generated/prisma/client.js';
 @Controller('payments')
 export class PaymentsController {
     constructor(private readonly paymentsService: PaymentsService, private readonly ordersService: OrdersService) {}
+
+    @Get('status')
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(UserRole.CUSTOMER)
+    async getStatus(
+        @Headers('idempotency-key') idempotencyKey: string,
+        @CurrentUser() user: { sub: string; username: string; role: string },
+    ) {
+        if (!idempotencyKey || idempotencyKey.trim() === '') {
+            throw new BadRequestException('Header Idempotency-Key là bắt buộc để tra cứu trạng thái thanh toán');
+        }
+        const result = await this.paymentsService.getPaymentStatus(idempotencyKey, user.sub);
+        return { data: result };
+    }
 
     @Post()
     @HttpCode(HttpStatus.OK)

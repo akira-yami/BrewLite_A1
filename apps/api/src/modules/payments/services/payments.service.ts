@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PaymentsRepository } from '../repositories/payments.repository.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { MockGatewayService } from './mock-gateway.service.js';
@@ -17,6 +17,27 @@ export class PaymentsService {
         private readonly mockGateway: MockGatewayService,
         private readonly prisma: PrismaService,
     ) {}
+
+    async getPaymentStatus(idempotencyKey: string, userId: string) {
+        const payment = await this.paymentsRepository.findStatusByIdempotencyKeyForUser(
+            idempotencyKey,
+            userId,
+        );
+        if (!payment) {
+            throw new NotFoundException({
+                code: 'PAYMENT_NOT_FOUND',
+                message: 'Không tìm thấy giao dịch thanh toán cho khóa này.',
+            });
+        }
+        // Read-only snapshot: this endpoint never contacts the gateway or creates an attempt.
+        return {
+            success: payment.status === PaymentStatus.SUCCEEDED,
+            isRetried: true,
+            status: payment.status,
+            gatewayTransactionId: payment.gatewayTransactionId ?? undefined,
+            errorCode: payment.failureCode ?? undefined,
+        };
+    }
 
     async processPayment(params: {
         idempotencyKey: string;

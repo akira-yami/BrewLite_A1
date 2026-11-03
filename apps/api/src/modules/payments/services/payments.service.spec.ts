@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PaymentsService } from './payments.service.js';
 import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
@@ -16,6 +16,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
     beforeEach(() => {
         paymentsRepoMock = {
             findByIdempotencyKey: vi.fn(),
+            findStatusByIdempotencyKeyForUser: vi.fn(),
             findProcessingByOrderId: vi.fn().mockResolvedValue(null),
             createProcessingPayment: vi.fn(),
             markSucceeded: vi.fn(),
@@ -37,6 +38,35 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             gatewayMock,
             prismaMock,
         );
+    });
+
+    describe('getPaymentStatus', () => {
+        it('trả trạng thái PROCESSING hiện tại, không gọi gateway hoặc tạo attempt mới', async () => {
+            paymentsRepoMock.findStatusByIdempotencyKeyForUser.mockResolvedValue({
+                orderId: 'order-1',
+                status: PaymentStatus.PROCESSING,
+                gatewayTransactionId: null,
+                failureCode: null,
+            });
+            const result = await service.getPaymentStatus('key-1', 'user-1');
+            expect(paymentsRepoMock.findStatusByIdempotencyKeyForUser).toHaveBeenCalledWith('key-1', 'user-1');
+            expect(result).toEqual({
+                success: false,
+                isRetried: true,
+                status: PaymentStatus.PROCESSING,
+                gatewayTransactionId: undefined,
+                errorCode: undefined,
+            });
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+            expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
+        });
+
+        it('trả PAYMENT_NOT_FOUND nếu key không thuộc Order của customer hoặc không tồn tại', async () => {
+            paymentsRepoMock.findStatusByIdempotencyKeyForUser.mockResolvedValue(null);
+            await expect(service.getPaymentStatus('foreign-or-missing-key', 'user-1'))
+                .rejects.toThrow(NotFoundException);
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
     });
 
     describe('processPayment', () => {

@@ -57,6 +57,27 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
         expect(prismaMock.payment.findFirst).not.toHaveBeenCalled();
     });
 
+    it('findStatusByIdempotencyKeyForUser - chỉ đọc giao dịch thuộc Order của customer hiện tại', async () => {
+        const payment = {
+            orderId: 'order-status',
+            status: PaymentStatus.PROCESSING,
+            gatewayTransactionId: null,
+            failureCode: null,
+        };
+        prismaMock.payment.findFirst.mockResolvedValue(payment);
+        const result = await repository.findStatusByIdempotencyKeyForUser('key-status', 'user-1');
+        expect(prismaMock.payment.findFirst).toHaveBeenCalledWith({
+            where: { idempotencyKey: 'key-status', order: { userId: 'user-1' } },
+            select: {
+                orderId: true,
+                status: true,
+                gatewayTransactionId: true,
+                failureCode: true,
+            },
+        });
+        expect(result).toEqual(payment);
+    });
+
     it('createProcessingPayment - tạo bản ghi trạng thái PROCESSING', async () => {
         prismaMock.payment.create.mockResolvedValue({ id: 'p-2' });
 

@@ -24,7 +24,7 @@ if (
   );
 }
 
-describe('SD-13 inventory expiry job', () => {
+describe('SD-13 order-owned expiry lifecycle', () => {
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
   });

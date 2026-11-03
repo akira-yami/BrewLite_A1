@@ -19,6 +19,18 @@ export class PaymentsRepository {
         });
     }
 
+    async findStatusByIdempotencyKeyForUser(idempotencyKey: string, userId: string) {
+        return this.prisma.payment.findFirst({
+            where: { idempotencyKey, order: { userId } },
+            select: {
+                orderId: true,
+                status: true,
+                gatewayTransactionId: true,
+                failureCode: true,
+            },
+        });
+    }
+
     async createProcessingPayment(
         data: {
             orderId: string;

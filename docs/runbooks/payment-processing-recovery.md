@@ -8,7 +8,7 @@
 
 1. `PROCESSING` có nghĩa là kết quả cuối chưa được ghi nhận trong database. Không suy luận rằng gateway thất bại chỉ vì request timeout, process restart hoặc `updated_at` đã cũ.
 2. Không xóa Payment, không đổi `PROCESSING` thành `FAILED` bằng SQL thủ công và không tạo Payment mới với Idempotency-Key khác để “thử lại”.
-3. Chỉ cho phép một Payment `PROCESSING` trên mỗi Order. Partial unique index `payments_one_processing_per_order_key` là hàng rào cuối ở database; không vô hiệu hóa index để xử lý incident.
+3. Chỉ cho phép một Payment `PROCESSING` trên mỗi Order. Partial unique index `uq_one_processing_payment_per_order` là hàng rào cuối ở database; không vô hiệu hóa index để xử lý incident.
 4. Không hủy Order hoặc giải phóng inventory/coupon khi chưa xác định được kết quả gateway. Order expiry và inventory expiry phải giữ nguyên tài nguyên trong lúc còn Payment `PROCESSING`.
 5. Mọi quyết định cập nhật Payment và Order phải được thực hiện nguyên tử, có khóa Order, lưu actor/ticket/evidence và đi qua nghiệp vụ cập nhật Order. `OrdersService.markOrderPaid()` còn quyết toán Loyalty/Inventory/Coupon; chỉ cập nhật `payments.status` hoặc `orders.status` riêng lẻ sẽ làm dữ liệu lệch.
 6. Với trạng thái chưa rõ, ưu tiên giữ `PROCESSING` và escalate cho người vận hành thanh toán thay vì đoán kết quả.
@@ -95,7 +95,7 @@ Endpoint chỉ trả trạng thái Payment có cùng Idempotency-Key và thuộc
 
 ## 6. Ảnh hưởng của expiry jobs
 
-- Chỉ có `OrderExpiryJob` là cron có thẩm quyền xử lý hết hạn; provider này được đăng ký trong `OrdersModule` và scheduler được bật tại `AppModule`.
+- Chỉ có `OrderExpiryJob` là cron có thẩm quyền xử lý hết hạn; provider này được đăng ký trong `OrdersModule` và scheduler được bật tại `AppModule`. `InventoryExpiryJob` độc lập đã bị loại bỏ.
 - Job chỉ chọn Order `PENDING`/`PAYMENT_FAILED` đã hết hạn và không có Payment `PROCESSING`; bên trong transaction nó khóa lại Order, kiểm tra Payment lần nữa, cập nhật trạng thái/lịch sử, release coupon và release reservation.
 - `InventoryExpiryJob` độc lập đã bị loại bỏ vì chưa được đăng ký và việc scan reservation rồi release ngoài Order row lock tạo cửa sổ race với Payment; không đăng ký lại job này.
 - `OrdersService.cancelOrder()` từ chối hủy nếu Order còn Payment `PROCESSING`.

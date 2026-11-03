@@ -6,7 +6,16 @@ import {
 } from '../src/generated/prisma/client.js';
 const productImage = (sku: string) => `/products/${sku}.webp`;
 
-// Add missing sample catalog entries; never overwrite existing business data.
+const LEGACY_IMAGES: Record<string, string> = {
+  'COFFEE-CAU-DAT-01': 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80',
+  'COLD-BREW-ICE-02': 'https://images.unsplash.com/photo-1517701604599-bb29b565090c?w=800&auto=format&fit=crop&q=85',
+  'CAPPUCCINO-HEARTH-03': 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=800&auto=format&fit=crop&q=85',
+  'TEA-PEACH-ORANGE-04': 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&auto=format&fit=crop&q=85',
+  'TEA-OOLONG-EGG-05': 'https://images.unsplash.com/photo-1558857563-b371033873b8?auto=format&fit=crop&w=800&q=80',
+  'COFFEE-AMERICANO-06': 'https://images.unsplash.com/photo-1509785307050-d4066910ec1e?w=800&auto=format&fit=crop&q=85',
+};
+
+// Preserve business edits; migrate only exact image URLs from the previous seed.
 export async function seedCatalog(prisma: PrismaClient) {
   const toppingsData = [
     // Topping nhập sẵn: 1 phần = 1 định lượng nguyên liệu thô.
@@ -246,6 +255,11 @@ export async function seedCatalog(prisma: PrismaClient) {
         where: { sku: productData.sku },
         update: {},
         create: productData,
+      });
+
+      await tx.product.updateMany({
+        where: { id: product.id, imageUrl: LEGACY_IMAGES[product.sku] },
+        data: { imageUrl: productImage(product.sku) },
       });
 
       for (const variant of variants) {

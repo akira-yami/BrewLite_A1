@@ -6,7 +6,11 @@ import { PaymentMethod, PaymentStatus, Prisma } from '../../../generated/prisma/
 export class PaymentsRepository {
     constructor(private readonly prisma: PrismaService) {}
 
-    async findByIdempotencyKey(idempotencyKey: string) {return this.prisma.payment.findUnique({where: { idempotencyKey },});}
+    async findByIdempotencyKey(idempotencyKey: string, tx?: Prisma.TransactionClient) {return (tx ?? this.prisma).payment.findUnique({where: { idempotencyKey },});}
+
+    async findProcessingByOrderId(orderId: string, tx: Prisma.TransactionClient) {
+        return tx.payment.findFirst({ where: { orderId, status: PaymentStatus.PROCESSING } });
+    }
 
     async createProcessingPayment(data: {
         orderId: string;
@@ -14,8 +18,8 @@ export class PaymentsRepository {
         requestHash: string;
         method: PaymentMethod;
         amount: bigint;
-    }) {
-        return this.prisma.payment.create({
+    }, tx?: Prisma.TransactionClient) {
+        return (tx ?? this.prisma).payment.create({
             data: {
                 orderId: data.orderId,
                 idempotencyKey: data.idempotencyKey,

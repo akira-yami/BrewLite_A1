@@ -9,7 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { OrdersRepository } from '../repositories/orders.repository.js';
 import { InventoryService } from '../../inventory/services/inventory.service.js';
-import { PromotionsRepository } from '../../promotions/repositories/promotions.repository.js';
+import { PromotionsService } from '../../promotions/services/promotions.service.js';
 import { OrderStatus } from '../../../generated/prisma/client.js';
 
 @Injectable()
@@ -23,7 +23,7 @@ export class OrderExpiryJob {
     private readonly prisma: PrismaService,
     private readonly ordersRepo: OrdersRepository,
     private readonly inventoryService: InventoryService,
-    private readonly promotionsRepo: PromotionsRepository,
+    private readonly promotionsService: PromotionsService,
   ) {}
 
   // Tự động kiểm tra đơn hàng hết hạn mỗi phút.
@@ -38,15 +38,10 @@ export class OrderExpiryJob {
     try {
       const now = new Date();
 
-      // Tìm cả đơn PENDING và PAYMENT_FAILED đã hết hạn.
+      // Both unpaid states must release their reservations after the TTL.
       const expiredOrders = await this.prisma.order.findMany({
         where: {
-          status: {
-            in: [
-              OrderStatus.PENDING,
-              OrderStatus.PAYMENT_FAILED,
-            ],
-          },
+          status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] },
           reservationExpiresAt: {
             lte: now,
           },
@@ -54,23 +49,40 @@ export class OrderExpiryJob {
         select: {
           id: true,
           userId: true,
-          status: true,
         },
       });
 
       for (const order of expiredOrders) {
         try {
-          await this.prisma.$transaction(async (tx) => {
-            // Chỉ hủy nếu đơn vẫn giữ trạng thái đã đọc được.
-            // Nếu tiến trình khác đã xử lý đơn, transaction rollback.
+          const cancelled = await this.prisma.$transaction(async (tx) => {
+            // Payment admission uses the same row lock. Recheck after waiting:
+            // a payment admitted before TTL owns the reservation until it settles.
+            const current = await this.ordersRepo.lockById(order.id, tx);
+            if (!current ||
+                (current.status !== OrderStatus.PENDING && current.status !== OrderStatus.PAYMENT_FAILED) ||
+                current.reservationExpiresAt > now) return false;
+            const processing = await tx.payment.findFirst({
+              where: { orderId: order.id, status: 'PROCESSING' },
+              select: { id: true },
+            });
+            if (processing) return false;
+            // Chuyển trạng thái đơn và ghi lịch sử trong transaction.
+            // Nếu đơn đã bị tiến trình khác xử lý, thao tác sẽ thất bại.
             await this.ordersRepo.updateStatusWithHistory(
               order.id,
-              order.status,
+              current.status,
               OrderStatus.CANCELLED,
               order.userId,
               `Hủy tự động do đơn hàng hết thời hạn thanh toán: ${order.id}`,
               tx,
             );
+
+            // Order TTL is authoritative. Repair a later reservation deadline
+            // inside the same transaction so legacy drift cannot block cleanup.
+            await tx.inventoryReservation.updateMany({
+              where: { orderId: order.id, status: 'ACTIVE', expiresAt: { gt: current.reservationExpiresAt } },
+              data: { expiresAt: current.reservationExpiresAt },
+            });
 
             // Lấy các reservation còn ACTIVE của đơn hàng.
             const reservations =
@@ -85,6 +97,7 @@ export class OrderExpiryJob {
               });
 
             // Chuyển reservation sang EXPIRED và hoàn kho.
+            // Thao tác dùng chung transaction với việc hủy đơn.
             for (const reservation of reservations) {
               await this.inventoryService.releaseInTransaction(
                 tx,
@@ -93,18 +106,17 @@ export class OrderExpiryJob {
               );
             }
 
-            // Giải phóng coupon còn RESERVED.
-            // Chỉ cập nhật một lần nhờ điều kiện status.
-            await this.promotionsRepo.releaseByOrderId(
+            await this.promotionsService.releaseByOrderId(
               order.id,
               'EXPIRED',
               now,
               tx,
             );
+            return true;
           });
 
-          this.logger.log(
-            `Đã hủy đơn ${order.id}, hết hạn reservation, hoàn kho và giải phóng coupon thành công.`,
+          if (cancelled) this.logger.log(
+            `Đã hủy đơn ${order.id}, hết hạn reservation và hoàn kho/coupon thành công.`,
           );
         } catch (error) {
           if (error instanceof ConflictException) {

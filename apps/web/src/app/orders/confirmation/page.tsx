@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
 import { OrderDetailView } from '@/features/orders/components/OrderDetailView';
-import type { OrderDetail } from '@/features/orders/types';
+import { useAuthSession } from '@/features/auth/use-auth-session';
 
 export default function OrderConfirmationPage() {
   return (
@@ -18,32 +19,27 @@ export default function OrderConfirmationPage() {
 function OrderConfirmationContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId');
-  const [order, setOrder] = useState<OrderDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-
-  useEffect(() => {
-    const token = localStorage.getItem('brewlite_token');
-    const request = !orderId || !token
-      ? Promise.reject(new Error(!token ? 'Vui lòng đăng nhập để xem xác nhận đơn hàng.' : 'Không tìm thấy mã đơn hàng.'))
-      : getOrderDetailApi(token, orderId);
-
-    request
-      .then(setOrder)
-      .catch((reason: unknown) => {
-        if (reason instanceof OrdersApiError && [403, 404].includes(reason.status)) {
-          setError('Không tìm thấy đơn hàng hoặc bạn không có quyền xem đơn này.');
-          return;
-        }
-        setError(reason instanceof Error ? reason.message : 'Không thể tải đơn hàng.');
-      });
-  }, [orderId, reloadKey]);
+  const { status, token } = useAuthSession();
+  const query = useQuery({
+    queryKey: ['order-detail', token, orderId],
+    enabled: status === 'authenticated' && !!token && !!orderId,
+    queryFn: () => getOrderDetailApi(token!, orderId!),
+    retry: false,
+  });
+  const order = status === 'authenticated' ? query.data : undefined;
+  const error = status === 'anonymous'
+    ? 'Vui lòng đăng nhập để xem đơn hàng.'
+    : !orderId
+      ? 'Không tìm thấy mã đơn hàng.'
+      : query.error instanceof OrdersApiError && [403, 404].includes(query.error.status)
+        ? 'Không tìm thấy đơn hàng hoặc bạn không có quyền xem đơn này.'
+        : query.error?.message;
 
   return (
     <main className="min-h-screen bg-[#FBF8F3] px-4 py-10 sm:px-6">
       <div className="mx-auto max-w-2xl">
         {!order && !error && <LoadingCard message="Đang xác nhận đơn hàng..." />}
-        {error && <ErrorCard message={error} onRetry={() => { setError(null); setReloadKey((key) => key + 1); }} />}
+        {error && <ErrorCard message={error} onRetry={() => { if (status === 'authenticated') void query.refetch(); }} />}
         {order && (
           <>
             <div className="mb-6 text-center">

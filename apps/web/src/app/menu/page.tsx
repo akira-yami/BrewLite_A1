@@ -16,12 +16,29 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState } from 'react';
 
+const PAGE_SIZE = 9;
+
+// Danh sách số trang, rút gọn bằng "…" khi có quá nhiều trang
+function getPageItems(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+
+  const items: (number | 'ellipsis')[] = [1];
+  if (current > 3) items.push('ellipsis');
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) {
+    items.push(p);
+  }
+  if (current < total - 2) items.push('ellipsis');
+  items.push(total);
+  return items;
+}
+
 export default function MenuPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewingProduct, setPreviewingProduct] = useState<Product | null>(null);
   const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const router = useRouter();
   const cart = useCartStore();
   const menuSectionRef = useRef<HTMLDivElement>(null);
@@ -59,6 +76,15 @@ export default function MenuPage() {
     });
   }, [products, selectedCategory, searchQuery]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedProducts = filteredProducts.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    menuSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const handleQuickAdd = (product: Product) => {
     const variant = product.variants.find((item) => item.size === 'M' && item.availableServings > 0)
       ?? product.variants.find((item) => item.availableServings > 0);
@@ -86,7 +112,7 @@ export default function MenuPage() {
 
   return (
     <div className="relative min-h-screen bg-[#FBF8F3] text-[#1A1612] antialiased overflow-x-hidden selection:bg-[#153D2C] selection:text-white">
-      
+
       {/* ==================== ẢNH NỀN TOÀN TRANG ==================== */}
       <div className="pointer-events-none fixed inset-0 z-0 select-none">
         <Image
@@ -124,83 +150,75 @@ export default function MenuPage() {
                 sizes="360px"
               />
             </Link>
+
             {/* Menu chính ở giữa */}
-          <nav className="hidden md:flex items-center gap-4 lg:gap-8 text-base font-semibold text-[#2C2117]">
-            <button
-              type="button"
-              onClick={scrollToMenu}
-              className="transition hover:text-[#153D2C]"
-            >
-              Thực đơn
-            </button>
-            <Link
-              href="#about"
-              className="transition hover:text-[#153D2C]"
-            >
-              Về BrewLite
-            </Link>
-            <Link
-              href="#contact"
-              className="transition hover:text-[#153D2C]"
-            >
-              Liên hệ
-            </Link>
-            <Link
-              href="/orders"
-              className="transition hover:text-[#153D2C]"
-            >
-              Đơn hàng
-            </Link>
-          </nav>
-
-          {/* Cụm bên phải: SGU Campus + Nút Giỏ hàng chuẩn vừa mắt */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <AuthControls />
-            {/* Địa điểm SGU Campus: Chữ 13px, icon h-4.5 w-4.5 */}
-            <div className="hidden lg:flex items-center gap-1.5 text-[13px] font-semibold text-[#3D2E24]">
-              <svg
-                className="h-4.5 w-4.5 text-[#8B4513]"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
+            <nav className="hidden md:flex items-center gap-4 lg:gap-8 text-base font-semibold text-[#2C2117]">
+              <button
+                type="button"
+                onClick={scrollToMenu}
+                className="transition hover:text-[#153D2C]"
               >
-                <path
-                  fillRule="evenodd"
-                  d="m11.54 22.351.07.04.028.016a.76.76 0 0 0 .723 0l.028-.015.071-.041a16.975 16.975 0 0 0 1.144-.742 19.58 19.58 0 0 0 2.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 0 0-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 0 0 2.682 2.282 16.975 16.975 0 0 0 1.145.742ZM12 13.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <span>SGU Campus</span>
+                Thực đơn
+              </button>
+              <Link href="#about" className="transition hover:text-[#153D2C]">
+                Về BrewLite
+              </Link>
+              <Link href="#contact" className="transition hover:text-[#153D2C]">
+                Liên hệ
+              </Link>
+              <Link href="/orders" className="transition hover:text-[#153D2C]">
+                Đơn hàng
+              </Link>
+            </nav>
+
+            {/* Cụm bên phải: SGU Campus + Nút Giỏ hàng chuẩn vừa mắt */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <AuthControls />
+              {/* Địa điểm SGU Campus: Chữ 13px, icon h-4.5 w-4.5 */}
+              <div className="hidden lg:flex items-center gap-1.5 text-[13px] font-semibold text-[#3D2E24]">
+                <svg
+                  className="h-4.5 w-4.5 text-[#8B4513]"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="m11.54 22.351.07.04.028.016a.76.76 0 0 0 .723 0l.028-.015.071-.041a16.975 16.975 0 0 0 1.144-.742 19.58 19.58 0 0 0 2.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 0 0-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 0 0 2.682 2.282 16.975 16.975 0 0 0 1.145.742ZM12 13.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                <span>SGU Campus</span>
+              </div>
+
+              {/* Nút Giỏ hàng: px-4 py-2, chữ 13px, icon h-4 w-4 */}
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(true)}
+                className="flex items-center gap-2 rounded-full bg-[#153D2C] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#1b4b36] active:scale-95"
+              >
+                <svg
+                  className="h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="1.8"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25c-.669 0-1.189-.578-1.119-1.243l1.263-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
+                  />
+                </svg>
+                <span>Giỏ hàng</span>
+
+                {/* Badge số lượng nhỏ gọn h-4.5 min-w-[18px] */}
+                <span className="flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-[#153D2C]">
+                  {cart.totalQuantity}
+                </span>
+              </button>
             </div>
-
-            {/* Nút Giỏ hàng: px-4 py-2, chữ 13px, icon h-4 w-4 */}
-            <button
-              type="button"
-              onClick={() => setIsCartOpen(true)}
-              className="flex items-center gap-2 rounded-full bg-[#153D2C] px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:bg-[#1b4b36] active:scale-95"
-            >
-              <svg
-                className="h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth="1.8"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25c-.669 0-1.189-.578-1.119-1.243l1.263-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.059.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
-                />
-              </svg>
-              <span>Giỏ hàng</span>
-
-              {/* Badge số lượng nhỏ gọn h-4.5 min-w-[18px] */}
-              <span className="flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-[#153D2C]">
-                {cart.totalQuantity}
-              </span>
-            </button>
-          </div>
           </div>
         </div>
       </header>
@@ -234,7 +252,10 @@ export default function MenuPage() {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Tìm món yêu thích..."
                 className="w-full rounded-full border border-[#DED4C0] bg-white/90 py-2 pl-9 pr-7 text-xs text-[#1A1612] placeholder-[#A39282] outline-none backdrop-blur-sm transition focus:border-[#153D2C] focus:bg-white"
               />
@@ -256,7 +277,10 @@ export default function MenuPage() {
 
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('');
+                    setCurrentPage(1);
+                  }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#7A6C60] hover:text-black"
                 >
                   ✕
@@ -272,7 +296,10 @@ export default function MenuPage() {
                 <button
                   key={cat.key}
                   type="button"
-                  onClick={() => setSelectedCategory(cat.key)}
+                  onClick={() => {
+                    setSelectedCategory(cat.key);
+                    setCurrentPage(1);
+                  }}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 font-medium transition ${
                     selectedCategory === cat.key
                       ? 'bg-[#153D2C] text-white shadow-sm'
@@ -323,6 +350,7 @@ export default function MenuPage() {
                 onClick={() => {
                   setSelectedCategory('all');
                   setSearchQuery('');
+                  setCurrentPage(1);
                 }}
                 className="mt-2 text-xs font-bold text-[#153D2C] hover:underline"
               >
@@ -331,10 +359,10 @@ export default function MenuPage() {
             </div>
           )}
 
-          {/* LƯỚI DANH SÁCH MÓN ĂN */}
+          {/* LƯỚI DANH SÁCH MÓN ĂN (theo trang) */}
           {!isLoading && !isError && filteredProducts.length > 0 && (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredProducts.map((p) => (
+              {pagedProducts.map((p) => (
                 <ProductCard
                   key={p.id}
                   product={p}
@@ -350,6 +378,54 @@ export default function MenuPage() {
                 />
               ))}
             </div>
+          )}
+
+          {/* PHÂN TRANG */}
+          {!isLoading && !isError && totalPages > 1 && (
+            <nav
+              aria-label="Phân trang thực đơn"
+              className="flex flex-wrap items-center justify-center gap-2 pt-6"
+            >
+              <button
+                type="button"
+                onClick={() => goToPage(safePage - 1)}
+                disabled={safePage === 1}
+                className="rounded-full border border-[#DED4C0] bg-white/80 px-3.5 py-1.5 text-xs font-bold text-[#163D2C] transition hover:border-[#163D2C] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ← Trước
+              </button>
+
+              {getPageItems(safePage, totalPages).map((item, index) =>
+                item === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} className="px-1 text-xs text-[#8A7968]">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => goToPage(item)}
+                    aria-current={item === safePage ? 'page' : undefined}
+                    className={`h-8 min-w-[32px] rounded-full px-2.5 text-xs font-bold transition ${
+                      item === safePage
+                        ? 'bg-[#153D2C] text-white shadow-sm'
+                        : 'border border-[#DED4C0] bg-white/80 text-[#5A4D43] hover:border-[#153D2C]'
+                    }`}
+                  >
+                    {item}
+                  </button>
+                ),
+              )}
+
+              <button
+                type="button"
+                onClick={() => goToPage(safePage + 1)}
+                disabled={safePage === totalPages}
+                className="rounded-full border border-[#DED4C0] bg-white/80 px-3.5 py-1.5 text-xs font-bold text-[#163D2C] transition hover:border-[#163D2C] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Sau →
+              </button>
+            </nav>
           )}
         </section>
 
@@ -384,7 +460,6 @@ export default function MenuPage() {
             </Link>
           </div>
         </footer>
-
       </div>
 
       <ProductDetailModal

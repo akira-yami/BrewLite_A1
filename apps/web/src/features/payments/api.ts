@@ -1,3 +1,5 @@
+import { authSession } from '../auth/session';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 export type PaymentMethod = 'E_WALLET' | 'CARD';
@@ -49,6 +51,7 @@ export async function createPaymentApi(
     body: JSON.stringify(input),
   });
   const json = await readJson(response);
+  if (response.status === 401) authSession.invalidate(token);
 
   if (!response.ok) {
     const payload = json as {

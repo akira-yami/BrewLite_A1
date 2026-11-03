@@ -13,8 +13,13 @@ import {
 export class OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByIdAndUserId(id: string, userId: string) {
-    return this.prisma.order.findUnique({ where: { id, userId } });
+  async lockById(id: string, tx: Prisma.TransactionClient) {
+    await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${id}::uuid FOR UPDATE`;
+    return tx.order.findUnique({ where: { id } });
+  }
+
+  async findByIdAndUserId(id: string, userId: string, tx?: Prisma.TransactionClient) {
+    return (tx ?? this.prisma).order.findUnique({ where: { id, userId } });
   }
 
   async findByIdAndUserIdForUpdate(

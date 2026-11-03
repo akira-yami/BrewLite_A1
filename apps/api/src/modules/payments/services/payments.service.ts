@@ -57,15 +57,34 @@ export class PaymentsService {
         // 2. Tra cứu Idempotency-Key
         const existingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
 
-        if (existingPayment) {
-            if (existingPayment.requestHash !== requestHash) {
+        if (existingPayment) return this.replayPayment(existingPayment, requestHash);
+
+        // Serialize payment admission with expiry, then commit PROCESSING before
+        // calling the gateway. No database lock is held across external I/O.
+        const claim = await this.prisma.$transaction(async (tx) => {
+            const order = await this.ordersService.getOrderForPayment(orderId, userId, tx);
+            const concurrent = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey, tx);
+            if (concurrent) return { kind: 'replay' as const, result: this.replayPayment(concurrent, requestHash) };
+
+            if (order.status === OrderStatus.PAID) {
                 throw new ConflictException({
-                    code: 'IDEMPOTENCY_KEY_REUSED',
-                    message: 'Idempotency Key đã được sử dụng cho một payload khác.',
+                    code: 'ORDER_ALREADY_PAID',
+                    message: 'Đơn hàng này đã được thanh toán.',
                 });
             }
-
-            if (existingPayment.status === PaymentStatus.PROCESSING) {
+            if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
+                throw new ConflictException({
+                    code: 'ORDER_INVALID_TRANSITION',
+                    message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
+                });
+            }
+            if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
+                throw new ConflictException({
+                    code: 'ORDER_EXPIRED',
+                    message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+                });
+            }
+            if (await this.paymentsRepository.findProcessingByOrderId(orderId, tx)) {
                 throw new ConflictException({
                     code: 'PAYMENT_IN_PROGRESS',
                     message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
@@ -197,4 +216,31 @@ export class PaymentsService {
             errorCode: gatewayResult.errorCode,
         };
     }
+    private replayPayment(payment: {
+        requestHash: string;
+        status: PaymentStatus;
+        gatewayTransactionId: string | null;
+        failureCode: string | null;
+    }, requestHash: string) {
+        if (payment.requestHash !== requestHash) {
+            throw new ConflictException({
+                code: 'IDEMPOTENCY_KEY_REUSED',
+                message: 'Idempotency Key đã được sử dụng cho một payload khác.',
+            });
+        }
+        if (payment.status === PaymentStatus.PROCESSING) {
+            throw new ConflictException({
+                code: 'PAYMENT_IN_PROGRESS',
+                message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
+            });
+        }
+        return {
+            success: payment.status === PaymentStatus.SUCCEEDED,
+            isRetried: true,
+            status: payment.status,
+            gatewayTransactionId: payment.gatewayTransactionId ?? undefined,
+            errorCode: payment.failureCode ?? undefined,
+        };
+    }
+
 }

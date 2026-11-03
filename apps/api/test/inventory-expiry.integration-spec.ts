@@ -1,7 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '../src/generated/prisma/client.js';
-
+import { PromotionsRepository } from '../src/modules/promotions/repositories/promotions.repository.js';
 import { InventoryRepository } from '../src/modules/inventory/repositories/inventory.repository.js';
 import { InventoryService } from '../src/modules/inventory/services/inventory.service.js';
 
@@ -31,6 +31,7 @@ describe('SD-13 order-owned expiry lifecycle', () => {
 
   const inventoryRepository = new InventoryRepository();
   const ordersRepository = new OrdersRepository(prisma as never);
+  const promotionsRepository = new PromotionsService(new PromotionsRepository(prisma as never));
 
   const inventoryService = new InventoryService(
     prisma as never,
@@ -124,6 +125,28 @@ describe('SD-13 order-owned expiry lifecycle', () => {
         },
       },
     });
+    // Tạo coupon thật trong database để kiểm tra job giải phóng coupon.
+const coupon = await prisma.coupon.create({
+  data: {
+    code: `EXPJOB-${randomUUID()}`,
+    discountType: 'FIXED_AMOUNT',
+    discountValue: 5000n,
+    startsAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+    endsAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  },
+});
+
+// Gắn coupon với đơn hàng bằng trạng thái RESERVED.
+const couponRedemption = await prisma.couponRedemption.create({
+  data: {
+    couponId: coupon.id,
+    userId: user.id,
+    orderId: order.id,
+    discountAmount: 5000n,
+    status: 'RESERVED',
+    expiresAt: futureExpiry,
+  },
+});
 
     const reservations = await prisma.$transaction((tx) =>
       inventoryService.reserve(
@@ -172,6 +195,16 @@ describe('SD-13 order-owned expiry lifecycle', () => {
 
     // Chạy job lần thứ nhất.
     await expiryJob.handleExpiredOrders();
+    // Kiểm tra coupon đã được giải phóng trong database.
+    const expiredCouponRedemption =
+  await prisma.couponRedemption.findUniqueOrThrow({
+    where: {
+      id: couponRedemption.id,
+    },
+  });
+
+expect(expiredCouponRedemption.status).toBe('EXPIRED');
+expect(expiredCouponRedemption.releasedAt).not.toBeNull();
 
     const expiredReservation =
       await prisma.inventoryReservation.findUniqueOrThrow({
@@ -190,6 +223,8 @@ describe('SD-13 order-owned expiry lifecycle', () => {
 
     // Chạy lại job: reservation đã EXPIRED nên không được hoàn nguyên liệu lần nữa.
     await expiryJob.handleExpiredOrders();
+    
+
 
     const stockAfterSecondRun = await prisma.ingredient.findUniqueOrThrow({
       where: { id: ingredient.id },
@@ -197,6 +232,18 @@ describe('SD-13 order-owned expiry lifecycle', () => {
 
     expect(stockAfterSecondRun.stockQuantity).toBe(20);
     expect(stockAfterSecondRun.version).toBe(2);
+    // Chạy job lần hai không được xử lý lại coupon.
+const couponAfterSecondRun =
+  await prisma.couponRedemption.findUniqueOrThrow({
+    where: {
+      id: couponRedemption.id,
+    },
+  });
+
+expect(couponAfterSecondRun.status).toBe('EXPIRED');
+expect(couponAfterSecondRun.releasedAt).toEqual(
+  expiredCouponRedemption.releasedAt,
+);
   });
 
   it('keeps an in-flight payment alive, then expires PAYMENT_FAILED order coupon and inventory together', async () => {

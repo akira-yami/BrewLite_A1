@@ -465,6 +465,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         OrderStatus.PENDING,
         'u-1',
         'Thử lại thanh toán',
+        undefined,
       );
     });
 
@@ -837,6 +838,74 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       // 3. Kiểm chứng DTO trả về phản ánh đúng số tiền giảm và tổng thanh toán cuối cùng
       expect(result.discountAmount).toBe(10000);
       expect(result.total).toBe(76000);
+    });
+
+    it('sử dụng đúng ORDER_RESERVATION_TTL_MINUTES cấu hình và đồng bộ cùng một thời điểm hết hạn cho order, inventory và coupon', async () => {
+      const prevTtl = process.env.ORDER_RESERVATION_TTL_MINUTES;
+      try {
+        process.env.ORDER_RESERVATION_TTL_MINUTES = '25';
+        const dtoWithCoupon = {
+          ...mockDto,
+          couponCode: 'SALE10',
+        };
+        let capturedOrderExpiresAt: Date | null = null;
+        txMock.order.create.mockImplementation(async ({ data }: any) => {
+          capturedOrderExpiresAt = data.reservationExpiresAt;
+          return {
+            ...mockOrderDb,
+            discountAmount: 10000n,
+            total: 76000n,
+            couponCodeSnapshot: 'SALE10',
+            reservationExpiresAt: data.reservationExpiresAt,
+          };
+        });
+        txMock.ingredient.updateMany.mockResolvedValue({ count: 1 });
+        let capturedQuoteNow: Date | null = null;
+        promotionsServiceMock.quoteAndLock.mockImplementation(
+          async (_tx: any, _userId: string, _code: string, _subtotal: bigint, now: Date) => {
+            capturedQuoteNow = now;
+            return {
+              couponId: 'c-1',
+              discountAmount: 10000n,
+            };
+          },
+        );
+
+        const configuredService = new OrdersService(
+          repository as unknown as OrdersRepository,
+          prismaMock as unknown as PrismaService,
+          promotionsServiceMock as unknown as PromotionsService,
+          new CatalogService({} as any),
+          new InventoryService(
+            prismaMock as PrismaService,
+            new InventoryRepository(),
+          ),
+          new UsersService(),
+        );
+        await configuredService.createOrder('u-1', dtoWithCoupon as any);
+
+        expect(capturedOrderExpiresAt).toBeInstanceOf(Date);
+        expect(capturedQuoteNow).toBeInstanceOf(Date);
+        expect(capturedOrderExpiresAt!.getTime() - capturedQuoteNow!.getTime()).toBe(
+          25 * 60 * 1000,
+        );
+        expect(txMock.inventoryReservation.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              expiresAt: capturedOrderExpiresAt,
+            }),
+          }),
+        );
+        expect(promotionsServiceMock.reserve).toHaveBeenCalledWith(
+          txMock,
+          expect.objectContaining({ couponId: 'c-1' }),
+          'order-uuid-1',
+          capturedOrderExpiresAt,
+        );
+      } finally {
+        if (prevTtl === undefined) delete process.env.ORDER_RESERVATION_TTL_MINUTES;
+        else process.env.ORDER_RESERVATION_TTL_MINUTES = prevTtl;
+      }
     });
 
     it('ném ConflictException nếu updateMany nguyên liệu trả về count = 0 (hết nguyên liệu trong transaction)', async () => {

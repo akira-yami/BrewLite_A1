@@ -256,5 +256,4 @@ describe('PromotionsService (Unit Test - TDD)', () => {
             );
         });
     });
-
 });

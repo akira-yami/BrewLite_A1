@@ -105,7 +105,10 @@ export class PromotionsRepository {
         userId,
         OR: [
           { status: 'CONSUMED' },
-          { status: 'RESERVED', expiresAt: { gt: now } },
+          { status: 'RESERVED', OR: [
+            { expiresAt: { gt: now } },
+            { order: { payments: { some: { status: 'PROCESSING' } } } },
+          ] },
         ],
       },
     });
@@ -122,7 +125,10 @@ export class PromotionsRepository {
         couponId,
         OR: [
           { status: 'CONSUMED' },
-          { status: 'RESERVED', expiresAt: { gt: now } },
+          { status: 'RESERVED', OR: [
+            { expiresAt: { gt: now } },
+            { order: { payments: { some: { status: 'PROCESSING' } } } },
+          ] },
         ],
       },
     });

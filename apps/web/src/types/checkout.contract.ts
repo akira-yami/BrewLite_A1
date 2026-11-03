@@ -7,10 +7,8 @@ export interface ValidateCouponPayload {
 }
 
 export interface ValidateCouponResponse {
-    data: {
-        code: string;
-        discountAmount: number;
-    };
+    code: string;
+    discountAmount: number;
 }
 
 // ==========================================
@@ -26,11 +24,9 @@ export interface CreatePaymentPayload {
 }
 
 export interface PaymentResponse {
-    data: {
-        success: boolean;
-        isRetried: boolean;
-        status: PaymentStatus;
-        gatewayTransactionId?: string;
-        errorCode?: string;
-    };
+    success: boolean;
+    isRetried: boolean;
+    status: PaymentStatus;
+    gatewayTransactionId?: string;
+    errorCode?: string;
 }

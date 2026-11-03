@@ -30,6 +30,7 @@ function setupModule(relPath, { token = 'current-token', response = { ok: true, 
       (name) => {
         if (name.includes('session')) return { authSession };
         if (name.includes('auth/api')) return compile('../src/features/auth/api.ts');
+        if (name === '@/lib/api-client') return compile('../src/lib/api-client.ts');
         throw new Error(`Unexpected require: ${name}`);
       },
       compiledModule,
@@ -126,3 +127,20 @@ test('payments/api invalidates session on 401 but preserves session on 403', asy
   );
   assert.deepEqual(forbidden.invalidated, []);
 });
+
+
+for (const [method, payload, expected] of [
+  ['validateCoupon', { code: 'SALE10', subtotal: 50000 }, { code: 'SALE10', discountAmount: 5000 }],
+  ['processPayment', { orderId: 'order-1', method: 'E_WALLET' }, { success: true, isRetried: false, status: 'SUCCEEDED', gatewayTransactionId: 'GW-1' }],
+]) {
+  test(`CheckoutAPI.${method} returns the unwrapped checkout contract`, async () => {
+    const { mod, requests } = setupModule('../src/services/checkout.api.ts', {
+      response: { ok: true, status: 200, body: { data: expected } },
+    });
+    const result = await mod.CheckoutAPI[method](payload, 'idempotency-1');
+    assert.deepEqual(result, expected);
+    assert.equal(result.data, undefined);
+    assert.deepEqual(JSON.parse(requests[0].init.body), payload);
+    if (method === 'processPayment') assert.equal(new Headers(requests[0].init.headers).get('Idempotency-Key'), 'idempotency-1');
+  });
+}

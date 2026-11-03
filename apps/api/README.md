@@ -25,11 +25,14 @@ DATABASE_URL=postgresql://brewlite:change_me_local_only@localhost:5432/brewlite?
 JWT_SECRET=<secret ngẫu nhiên vừa tạo>
 JWT_ISSUER=brewlite-api
 JWT_AUDIENCE=brewlite-web
+JWT_EXPIRES_IN=15m
+ORDER_RESERVATION_TTL_MINUTES=15
 ```
 
 `WEB_ORIGIN` chấp nhận nhiều origin phân tách bằng dấu phẩy.
 
 `JWT_SECRET` bắt buộc để ký và xác thực JWT. API dừng khi thiếu biến này. File `.env` dùng cho local được Git bỏ qua; không ghi secret thật vào `.env.example`.
+`JWT_EXPIRES_IN` nhận duration dương dạng `s`, `m`, `h` hoặc `d` (ví dụ `900s`, `15m`, `1h`) và tối đa 7 ngày; `ORDER_RESERVATION_TTL_MINUTES` phải là số nguyên từ 1 đến 10080 (7 ngày). API dừng lúc khởi động nếu một trong hai giá trị không hợp lệ.
 
 ## Seed Catalog
 

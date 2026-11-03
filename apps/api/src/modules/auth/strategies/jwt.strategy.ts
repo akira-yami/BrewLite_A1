@@ -1,23 +1,18 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { APP_CONFIG } from '../../../config/app-config.module.js';
+import { loadAppConfig, type AppConfig } from '../../../config/app-config.js';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor() {
-    const jwtSecret =
-      process.env.JWT_SECRET ||
-      (process.env.NODE_ENV === 'test' ? 'test-jwt-secret-for-isolated-tests-only-32bytes-long' : undefined);
-    if (!jwtSecret) {
-      throw new Error('JWT_SECRET environment variable is required and has no default fallback');
-    }
-
+  constructor(@Inject(APP_CONFIG) config: AppConfig = loadAppConfig()) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: jwtSecret,
-      issuer: process.env.JWT_ISSUER || 'brewlite-api',
-      audience: process.env.JWT_AUDIENCE || 'brewlite-web',
+      secretOrKey: config.jwtSecret,
+      issuer: config.jwtIssuer,
+      audience: config.jwtAudience,
     });
   }
 

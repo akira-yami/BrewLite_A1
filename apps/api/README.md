@@ -116,6 +116,7 @@ Environment variables:
 - VNPAY_TMN_CODE=8-character-merchant-code
 - VNPAY_HASH_SECRET=merchant-hash-secret
 - VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+- VNPAY_QUERY_URL=https://sandbox.vnpayment.vn/merchant_webapi/api/transaction (QueryDr; official sandbox endpoint by default)
 - VNPAY_RETURN_URL=https://api.example.com/api/v1/payments/vnpay/return
 - VNPAY_IPN_URL=https://api.example.com/api/v1/payments/vnpay/ipn
 - WEB_ORIGIN=https://brew.example

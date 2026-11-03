@@ -1,5 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { randomUUID } from 'node:crypto';
+import { seedMock } from '../prisma/seed-mock.js';
 import { seedCatalog } from '../prisma/seed-catalog.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 
@@ -237,6 +238,23 @@ const product = await prisma.product.create({
     }
   });
 
+
+  it('migrates the exact old sample image while preserving custom image edits', async () => {
+    const sku = 'COFFEE-CAU-DAT-01';
+    const legacy = 'https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80';
+    await prisma.product.update({ where: { sku }, data: { imageUrl: legacy } });
+    const before = await prisma.product.findUniqueOrThrow({ where: { sku }, include: { variants: true } });
+    await seedCatalog(prisma);
+    const after = await prisma.product.findUniqueOrThrow({ where: { sku }, include: { variants: true } });
+    expect(after.imageUrl).toBe(`/products/${sku}.webp`);
+    expect(after.id).toBe(before.id);
+    expect(after.name).toBe(before.name);
+    expect(after.variants).toEqual(before.variants);
+    await prisma.product.update({ where: { sku }, data: { imageUrl: '/operator-custom.webp' } });
+    await seedCatalog(prisma);
+    expect((await prisma.product.findUniqueOrThrow({ where: { sku } })).imageUrl).toBe('/operator-custom.webp');
+  });
+
   it('repeated runs preserve IDs, timestamps and ingredient stock without creating duplicates', async () => {
     // Tồn kho nguyên liệu do vận hành chỉnh sửa không được seed đặt lại.
     await prisma.ingredient.update({
@@ -256,4 +274,24 @@ const product = await prisma.product.create({
       ).stockQuantity,
     ).toBe(1234);
   });
+  it('retires legacy mock SKUs without deleting referenced history or touching other products', async () => {
+    const old = await prisma.product.upsert({ where: { sku: 'MOCK-PROD-001' }, update: { isActive: true }, create: {
+      sku: 'MOCK-PROD-001', name: 'Legacy demo', imageUrl: '/old.png', variants: { create: { size: 'M', price: 123n } },
+    }, include: { variants: true } });
+    const variant = old.variants[0];
+    const protectedProduct = await prisma.product.upsert({ where: { sku: 'MOCK-PROD-031' }, update: {}, create: { sku: 'MOCK-PROD-031', name: 'Not legacy', imageUrl: '/custom.png' } });
+    const item = await prisma.orderItem.create({ data: {
+      orderId, productVariantId: variant.id, productNameSnapshot: old.name, variantNameSnapshot: 'M', unitPrice: 123n, quantity: 1,
+    } });
+    await seedMock(prisma);
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: old.id } })).isActive).toBe(false);
+    expect((await prisma.productVariant.findUniqueOrThrow({ where: { id: variant.id } })).isActive).toBe(false);
+    expect(await prisma.orderItem.findUniqueOrThrow({ where: { id: item.id } })).toEqual(item);
+    expect(await prisma.product.findUniqueOrThrow({ where: { id: protectedProduct.id } })).toEqual(protectedProduct);
+    const count = await prisma.product.count();
+    await seedMock(prisma);
+    expect(await prisma.product.count()).toBe(count);
+    expect(await prisma.orderItem.findUniqueOrThrow({ where: { id: item.id } })).toEqual(item);
+  });
+
 });

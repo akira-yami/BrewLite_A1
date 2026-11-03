@@ -152,4 +152,32 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
     await expect(promotions.validateCoupon(f.coupon.code, 40000, f.user.id, f.coupon.endsAt)).rejects.toMatchObject({ status: 422 });
     await expect(prisma.$transaction(tx => promotions.quoteAndLock(tx, f.user.id, f.coupon.code, 40000n, f.coupon.endsAt))).rejects.toMatchObject({ status: 422 });
   });
+  it('repairs a reservation later than the expired order TTL and cleans up once', async () => {
+    const f = await fixture();
+    await prisma.order.update({ where: { id: f.order.id }, data: { reservationExpiresAt: new Date(Date.now() - 1000) } });
+    await job().handleExpiredOrders();
+    const first = await f.state();
+    expect(first.order.status).toBe('CANCELLED');
+    expect(first.reservation.status).toBe('EXPIRED');
+    expect(first.stock.stockQuantity).toBe(20);
+    expect(first.coupon.status).toBe('EXPIRED');
+    await job().handleExpiredOrders();
+    expect(await f.state()).toEqual(first);
+  });
+
+  it('keeps the order TTL authoritative when the reservation expires earlier', async () => {
+    const f = await fixture();
+    await prisma.inventoryReservation.updateMany({ where: { orderId: f.order.id }, data: { expiresAt: new Date(0) } });
+    await job().handleExpiredOrders();
+    expect((await f.state()).order.status).toBe('PENDING');
+    expect((await f.state()).stock.stockQuantity).toBe(10);
+    await f.expire();
+    await job().handleExpiredOrders();
+    const first = await f.state();
+    expect(first.order.status).toBe('CANCELLED');
+    expect(first.reservation.status).toBe('EXPIRED');
+    expect(first.stock.stockQuantity).toBe(20);
+    expect(first.coupon.status).toBe('EXPIRED');
+  });
+
 });

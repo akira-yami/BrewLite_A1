@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useState } from 'react';
 import { Product } from '../types';
 
 interface ProductCardProps {
@@ -17,6 +18,8 @@ export const ProductCard = ({
   onQuickAdd,
 }: ProductCardProps) => {
   const canQuickAdd = product.variants.some((variant) => variant.availableServings > 0);
+  // Ảnh không tải được (chưa có file, sai tên): hiện chữ cái đầu thay vì ảnh vỡ.
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-[#E8DFC8] bg-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md">
@@ -24,13 +27,20 @@ export const ProductCard = ({
         onClick={() => onPreview(product)}
         className="relative h-44 sm:h-48 w-full cursor-pointer overflow-hidden bg-[#F7F3ED]"
       >
-        <Image
-          src={product.imageUrl}
-          alt={product.name}
-          fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="object-cover transition duration-500 group-hover:scale-105"
-        />
+        {imageFailed ? (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#F3EDE3] to-[#E8DFC8] text-5xl font-black text-[#163D2C]/40">
+            {product.name.charAt(0).toUpperCase()}
+          </div>
+        ) : (
+          <Image
+            src={product.imageUrl}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover transition duration-500 group-hover:scale-105"
+            onError={() => setImageFailed(true)}
+          />
+        )}
       </div>
 
       <div className="flex flex-1 flex-col justify-between p-4 space-y-3">

@@ -77,6 +77,13 @@ export class OrderExpiryJob {
               tx,
             );
 
+            // Order TTL is authoritative. Repair a later reservation deadline
+            // inside the same transaction so legacy drift cannot block cleanup.
+            await tx.inventoryReservation.updateMany({
+              where: { orderId: order.id, status: 'ACTIVE', expiresAt: { gt: current.reservationExpiresAt } },
+              data: { expiresAt: current.reservationExpiresAt },
+            });
+
             // Lấy các reservation còn ACTIVE của đơn hàng.
             const reservations =
               await tx.inventoryReservation.findMany({

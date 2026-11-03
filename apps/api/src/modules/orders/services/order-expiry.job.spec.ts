@@ -22,6 +22,7 @@ describe('OrderExpiryJob (Unit Test - TDD)', () => {
     txMock = {
       payment: { findFirst: vi.fn().mockResolvedValue(null) },
       inventoryReservation: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
         findMany: vi.fn().mockResolvedValue([{ id: 'res-1' }, { id: 'res-2' }]),
       },
     };

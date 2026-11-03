@@ -99,7 +99,7 @@ function parseTrustedProxyCidrs(value: string | undefined): string[] {
     const maxPrefix = family === 4 ? 32 : 128;
     const prefix = parts.length === 1 ? maxPrefix : Number(parts[1]);
     if (
-      (parts.length === 2 && !/^\\d+$/.test(parts[1])) ||
+      (parts.length === 2 && !/^[0-9]+$/.test(parts[1])) ||
       !Number.isInteger(prefix) ||
       prefix <= 0 ||
       prefix > maxPrefix

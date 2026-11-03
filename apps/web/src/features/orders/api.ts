@@ -1,9 +1,10 @@
 import type { CreateOrderInput, OrderDetail, OrderListResponse } from './types';
+import { authSession } from '../auth/session';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
 export class OrdersApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly code?: string) {
     super(message);
     this.name = 'OrdersApiError';
   }
@@ -34,12 +35,14 @@ async function request<T>(path: string, token: string, init?: RequestInit): Prom
     },
   });
   const json = await readJson(response);
+  if (response.status === 401) authSession.invalidate(token);
 
   if (!response.ok) {
-    const message = (json as { error?: { message?: string }; message?: string } | null)?.error?.message
+    const payload = json as { error?: { message?: string; code?: string }; message?: string } | null;
+    const message = payload?.error?.message
       ?? (json as { message?: string } | null)?.message
       ?? 'Không thể tải dữ liệu đơn hàng.';
-    throw new OrdersApiError(message, response.status);
+    throw new OrdersApiError(message, response.status, payload?.error?.code);
   }
 
   return unwrap<T>(json);

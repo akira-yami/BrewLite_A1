@@ -10,6 +10,7 @@ import {
   type PaymentMethod,
 } from '@/features/payments/api';
 import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import { authSession } from '@/features/auth/session';
 
 const paymentOptions: Array<{ method: PaymentMethod; title: string; description: string; icon: string }> = [
   { method: 'E_WALLET', title: 'Ví điện tử', description: 'Thanh toán nhanh qua ví BrewLite', icon: '◉' },
@@ -44,7 +45,7 @@ export default function CheckoutPage() {
   const handlePayment = async () => {
     if (cart.items.length === 0) return;
 
-    const token = localStorage.getItem('brewlite_token');
+    const token = authSession.getToken();
     if (!token) {
       setError('Vui lòng đăng nhập trước khi đặt hàng.');
       return;

@@ -40,7 +40,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('VnpayInquiryService', () => {
   it('signs QueryDr request with the documented pipe-delimited HMAC payload', async () => {
     const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      const request = JSON.parse(String(init?.body));
+      const request = JSON.parse(init?.body as string || '{}');
       expect(request.vnp_Command).toBe('querydr');
       expect(request.vnp_TmnCode).toBe('DEMO1234');
       expect(request.vnp_TxnRef).toBe(input.gatewayReference);

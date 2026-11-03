@@ -165,7 +165,7 @@ export class PaymentsService {
               requestHash,
               method,
               amount,
-              ...(vnpayIntent ?? {}),
+              ...(vnpayIntent),
             },
             tx,
           );

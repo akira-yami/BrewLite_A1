@@ -8,7 +8,6 @@ import { InventoryService } from '../src/modules/inventory/services/inventory.se
 import { OrdersRepository } from '../src/modules/orders/repositories/orders.repository.js';
 import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
 
-import { PromotionsRepository } from '../src/modules/promotions/repositories/promotions.repository.js';
 import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
@@ -31,7 +30,6 @@ describe('SD-13 order-owned expiry lifecycle', () => {
 
   const inventoryRepository = new InventoryRepository();
   const ordersRepository = new OrdersRepository(prisma as never);
-  const promotionsRepository = new PromotionsService(new PromotionsRepository(prisma as never));
 
   const inventoryService = new InventoryService(
     prisma as never,

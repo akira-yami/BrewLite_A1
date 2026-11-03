@@ -36,65 +36,49 @@ export class PaymentsService {
         // 2. Tra cứu Idempotency-Key
         const existingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
 
-        if (existingPayment) {
-            if (existingPayment.requestHash !== requestHash) {
+        if (existingPayment) return this.replayPayment(existingPayment, requestHash);
+
+        // Serialize payment admission with expiry, then commit PROCESSING before
+        // calling the gateway. No database lock is held across external I/O.
+        const claim = await this.prisma.$transaction(async (tx) => {
+            const order = await this.ordersService.getOrderForPayment(orderId, userId, tx);
+            const concurrent = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey, tx);
+            if (concurrent) return { kind: 'replay' as const, result: this.replayPayment(concurrent, requestHash) };
+
+            if (order.status === OrderStatus.PAID) {
                 throw new ConflictException({
-                    code: 'IDEMPOTENCY_KEY_REUSED',
-                    message: 'Idempotency Key đã được sử dụng cho một payload khác.',
+                    code: 'ORDER_ALREADY_PAID',
+                    message: 'Đơn hàng này đã được thanh toán.',
                 });
             }
-
-            if (existingPayment.status === PaymentStatus.PROCESSING) {
+            if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
+                throw new ConflictException({
+                    code: 'ORDER_INVALID_TRANSITION',
+                    message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
+                });
+            }
+            if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
+                throw new ConflictException({
+                    code: 'ORDER_EXPIRED',
+                    message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+                });
+            }
+            if (await this.paymentsRepository.findProcessingByOrderId(orderId, tx)) {
                 throw new ConflictException({
                     code: 'PAYMENT_IN_PROGRESS',
                     message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
                 });
             }
-
-            // Trả về kết quả cũ nếu đã hoàn tất (SUCCEEDED hoặc FAILED)
-            return {
-                success: existingPayment.status === PaymentStatus.SUCCEEDED,
-                isRetried: true,
-                status: existingPayment.status,
-                gatewayTransactionId: existingPayment.gatewayTransactionId ?? undefined,
-                errorCode: existingPayment.failureCode ?? undefined,
-            };
-        }
-
-        // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
-        // 3. Kiểm tra tính hợp lệ của Đơn hàng (Cổng tích hợp OrdersService)
-const order = await this.ordersService.getOrderForPayment(orderId, userId);
-
-if (order.status === OrderStatus.PAID) {
-    throw new ConflictException({
-        code: 'ORDER_ALREADY_PAID',
-        message: 'Đơn hàng này đã được thanh toán.',
-    });
-}
-
-if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
-    throw new ConflictException({
-        code: 'ORDER_INVALID_TRANSITION',
-        message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
-    });
-}
-
-// THÊM MỚI: Chặn nếu thời gian hiện tại đã vượt mốc hết hạn giữ chỗ
-if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
-    throw new ConflictException({
-        code: 'ORDER_EXPIRED',
-        message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
-    });
-}
-
-        // 4. Khởi tạo trạng thái PROCESSING trong DB (Thực thi NGÀY LẬP TỨC ngoài transaction chính)
-        // Key cũ luôn replay ở bước 2. Chỉ key mới mới mở một lần thử khác;
-        // kiểm tra TTL trước khi đổi PAYMENT_FAILED → PENDING để không hồi sinh đơn hết hạn.
-        // OrdersService dùng compare-and-set và ghi history, nên transition lỗi phải dừng trước gateway.
-        if (order.status === OrderStatus.PAYMENT_FAILED) {
-            await this.ordersService.transitionForPaymentRetry(orderId, userId, 'Customer retried payment');
-        }
-        const processingPayment = await this.paymentsRepository.createProcessingPayment({orderId, idempotencyKey, requestHash, method, amount,});
+            if (order.status === OrderStatus.PAYMENT_FAILED) {
+                await this.ordersService.transitionForPaymentRetry(orderId, userId, 'Customer retried payment', tx);
+            }
+            const payment = await this.paymentsRepository.createProcessingPayment({
+                orderId, idempotencyKey, requestHash, method, amount,
+            }, tx);
+            return { kind: 'created' as const, payment };
+        });
+        if (claim.kind === 'replay') return claim.result;
+        const processingPayment = claim.payment;
 
         // 5. Gọi MockGatewayService (Call API I/O tốn thời gian, tuyệt đối KHÔNG đưa vào DB Lock)
         const gatewayResult = await this.mockGateway.charge(Number(amount), method as unknown as DtoPaymentMethod);
@@ -120,4 +104,31 @@ if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
             errorCode: gatewayResult.errorCode,
         };
     }
+    private replayPayment(payment: {
+        requestHash: string;
+        status: PaymentStatus;
+        gatewayTransactionId: string | null;
+        failureCode: string | null;
+    }, requestHash: string) {
+        if (payment.requestHash !== requestHash) {
+            throw new ConflictException({
+                code: 'IDEMPOTENCY_KEY_REUSED',
+                message: 'Idempotency Key đã được sử dụng cho một payload khác.',
+            });
+        }
+        if (payment.status === PaymentStatus.PROCESSING) {
+            throw new ConflictException({
+                code: 'PAYMENT_IN_PROGRESS',
+                message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
+            });
+        }
+        return {
+            success: payment.status === PaymentStatus.SUCCEEDED,
+            isRetried: true,
+            status: payment.status,
+            gatewayTransactionId: payment.gatewayTransactionId ?? undefined,
+            errorCode: payment.failureCode ?? undefined,
+        };
+    }
+
 }

@@ -38,10 +38,10 @@ export class OrderExpiryJob {
     try {
       const now = new Date();
 
-      // Tìm các đơn PENDING đã hết thời gian giữ hàng.
+      // Both unpaid states must release their reservations after the TTL.
       const expiredOrders = await this.prisma.order.findMany({
         where: {
-          status: OrderStatus.PENDING,
+          status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] },
           reservationExpiresAt: {
             lte: now,
           },
@@ -54,12 +54,23 @@ export class OrderExpiryJob {
 
       for (const order of expiredOrders) {
         try {
-          await this.prisma.$transaction(async (tx) => {
+          const cancelled = await this.prisma.$transaction(async (tx) => {
+            // Payment admission uses the same row lock. Recheck after waiting:
+            // a payment admitted before TTL owns the reservation until it settles.
+            const current = await this.ordersRepo.lockById(order.id, tx);
+            if (!current ||
+                (current.status !== OrderStatus.PENDING && current.status !== OrderStatus.PAYMENT_FAILED) ||
+                current.reservationExpiresAt > now) return false;
+            const processing = await tx.payment.findFirst({
+              where: { orderId: order.id, status: 'PROCESSING' },
+              select: { id: true },
+            });
+            if (processing) return false;
             // Chuyển trạng thái đơn và ghi lịch sử trong transaction.
             // Nếu đơn đã bị tiến trình khác xử lý, thao tác sẽ thất bại.
             await this.ordersRepo.updateStatusWithHistory(
               order.id,
-              OrderStatus.PENDING,
+              current.status,
               OrderStatus.CANCELLED,
               order.userId,
               `Hủy tự động do đơn hàng hết thời hạn thanh toán: ${order.id}`,
@@ -94,9 +105,10 @@ export class OrderExpiryJob {
               now,
               tx,
             );
+            return true;
           });
 
-          this.logger.log(
+          if (cancelled) this.logger.log(
             `Đã hủy đơn ${order.id}, hết hạn reservation và hoàn kho/coupon thành công.`,
           );
         } catch (error) {

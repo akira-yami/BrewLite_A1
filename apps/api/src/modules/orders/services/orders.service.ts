@@ -556,8 +556,9 @@ export class OrdersService {
   // 2. CỔNG GIAO TIẾP CHO MODULE THANH TOÁN (PAYMENT TRANSITIONS)
   // =====================================================================
 
-  async getOrderForPayment(orderId: string, userId: string) {
-    const order = await this.repository.findByIdAndUserId(orderId, userId);
+  async getOrderForPayment(orderId: string, userId: string, tx?: Prisma.TransactionClient) {
+    if (tx) await this.repository.lockById(orderId, tx);
+    const order = await this.repository.findByIdAndUserId(orderId, userId, tx);
     if (!order) {
       throw new NotFoundException(
         'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập',
@@ -570,6 +571,7 @@ export class OrdersService {
     orderId: string,
     userId: string,
     reason: string,
+    tx?: Prisma.TransactionClient,
   ) {
     await this.repository.updateStatusWithHistory(
       orderId,
@@ -577,6 +579,7 @@ export class OrdersService {
       OrderStatus.PENDING,
       userId,
       reason,
+      tx,
     );
   }
 

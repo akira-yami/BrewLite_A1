@@ -423,6 +423,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         OrderStatus.PENDING,
         'u-1',
         'Thử lại thanh toán',
+        undefined,
       );
     });
 

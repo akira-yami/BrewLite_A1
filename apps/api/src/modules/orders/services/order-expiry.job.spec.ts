@@ -20,6 +20,7 @@ describe('OrderExpiryJob (Unit Test - TDD)', () => {
 
   beforeEach(() => {
     txMock = {
+      payment: { findFirst: vi.fn().mockResolvedValue(null) },
       inventoryReservation: {
         findMany: vi.fn().mockResolvedValue([{ id: 'res-1' }, { id: 'res-2' }]),
       },
@@ -35,6 +36,7 @@ describe('OrderExpiryJob (Unit Test - TDD)', () => {
     };
 
     ordersRepoMock = {
+      lockById: vi.fn().mockResolvedValue({ status: OrderStatus.PENDING, reservationExpiresAt: new Date(0) }),
       updateStatusWithHistory: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -93,4 +95,23 @@ describe('OrderExpiryJob (Unit Test - TDD)', () => {
     expect(inventoryServiceMock.releaseInTransaction).not.toHaveBeenCalled();
     expect(promotionsServiceMock.releaseByOrderId).not.toHaveBeenCalled();
   });
+  it('scans PAYMENT_FAILED as well as PENDING and uses the locked status', async () => {
+    ordersRepoMock.lockById.mockResolvedValue({ status: OrderStatus.PAYMENT_FAILED, reservationExpiresAt: new Date(0) });
+    await job.handleExpiredOrders();
+    expect(prismaMock.order.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] }, reservationExpiresAt: { lte: expect.any(Date) } },
+    }));
+    expect(ordersRepoMock.updateStatusWithHistory).toHaveBeenCalledWith(
+      'ord-expired-1', OrderStatus.PAYMENT_FAILED, OrderStatus.CANCELLED, 'user-1', expect.any(String), txMock,
+    );
+  });
+
+  it('keeps inventory and coupon reserved while an admitted payment is PROCESSING', async () => {
+    txMock.payment.findFirst.mockResolvedValue({ id: 'in-flight' });
+    await job.handleExpiredOrders();
+    expect(ordersRepoMock.updateStatusWithHistory).not.toHaveBeenCalled();
+    expect(inventoryServiceMock.releaseInTransaction).not.toHaveBeenCalled();
+    expect(promotionsServiceMock.releaseByOrderId).not.toHaveBeenCalled();
+  });
+
 });

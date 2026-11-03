@@ -25,6 +25,9 @@ import {
 const paymentOptions: Array<{ method: PaymentMethod; title: string; description: string; icon: string }> = [
   { method: 'E_WALLET', title: 'Ví điện tử', description: 'Thanh toán nhanh qua ví BrewLite', icon: '◉' },
   { method: 'CARD', title: 'Thẻ ngân hàng', description: 'Thẻ nội địa hoặc quốc tế', icon: '▣' },
+  ...(process.env.NEXT_PUBLIC_VNPAY_ENABLED === 'true'
+    ? [{ method: 'VNPAY' as const, title: 'VNPay', description: 'Thanh toán qua cổng VNPay bảo mật', icon: 'V' }]
+    : []),
 ];
 
 function newIdempotencyKey() {
@@ -61,6 +64,7 @@ export default function CheckoutPage() {
   const [couponQuote, setCouponQuote] = useState<CheckoutCouponQuote | null>(null);
   const [orderSummary, setOrderSummary] = useState<OrderDetail | null>(null);
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState | null>(null);
+  const [isVnpayReturn, setIsVnpayReturn] = useState(false);
   const pendingCheckoutRef = useRef<PendingCheckoutState | null>(null);
   const submitLock = useRef(false);
 
@@ -76,6 +80,7 @@ export default function CheckoutPage() {
     if (typeof window === 'undefined') return;
 
     let active = true;
+    setIsVnpayReturn(new URLSearchParams(window.location.search).get('paymentReturn') === '1');
     queueMicrotask(() => {
       if (!active) return;
       const savedCoupon = readCheckoutCoupon(window.sessionStorage);
@@ -198,6 +203,22 @@ export default function CheckoutPage() {
         );
       }
 
+      const returnedFromVnpay = Boolean(
+        checkout.idempotencyKey &&
+        attempt.method === 'VNPAY' &&
+        isVnpayReturn,
+      );
+      if (
+        attempt.method === 'VNPAY' &&
+        payment.status === 'PROCESSING' &&
+        payment.paymentUrl &&
+        !returnedFromVnpay
+      ) {
+        // Payment URL was persisted with the same key before redirect.
+        window.location.assign(payment.paymentUrl);
+        return;
+      }
+
       const resolution = payment.status === 'SUCCEEDED' && payment.success === true
         ? 'SUCCEEDED'
         : payment.status === 'FAILED'
@@ -221,7 +242,9 @@ export default function CheckoutPage() {
 
       // PROCESSING or an inconsistent response is not a confirmed failure.
       // The state transition deliberately retains the same order and key for replay.
-      setError('Giao dịch đang được xử lý hoặc chưa có kết quả xác nhận. Hãy kiểm tra lại bằng cùng khóa thanh toán; không tạo đơn mới.');
+      setError(returnedFromVnpay
+        ? 'Đã quay lại từ VNPay. BrewLite đang chờ IPN xác nhận; hãy kiểm tra lại bằng cùng khóa thanh toán.'
+        : 'Giao dịch đang được xử lý hoặc chưa có kết quả xác nhận. Hãy kiểm tra lại bằng cùng khóa thanh toán; không tạo đơn mới.');
     } catch (reason) {
       if (reason instanceof OrdersApiError) {
         if (reason.status === 401) {
@@ -311,6 +334,11 @@ export default function CheckoutPage() {
             })}
           </div>
 
+          {isVnpayReturn && (
+            <div role="status" className="mt-5 rounded-2xl border border-[#D8CCBA] bg-[#FCFAF7] px-4 py-3 text-sm leading-6 text-[#163E2B]">
+              Bạn đã quay lại từ VNPay. Trạng thái chỉ được xác nhận khi IPN của VNPay cập nhật trên máy chủ BrewLite.
+            </div>
+          )}
           {error && (
             <div role="alert" className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-800">
               {error}

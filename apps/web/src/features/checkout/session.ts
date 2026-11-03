@@ -1,4 +1,4 @@
-export type CheckoutPaymentMethod = 'E_WALLET' | 'CARD';
+export type CheckoutPaymentMethod = 'E_WALLET' | 'CARD' | 'VNPAY';
 
 export interface CheckoutCouponQuote {
   code: string;
@@ -73,7 +73,7 @@ export function readPendingCheckout(storage: StorageReader): PendingCheckoutStat
     const raw = storage.getItem(PENDING_CHECKOUT_STORAGE_KEY);
     if (!raw) return null;
     const value: unknown = JSON.parse(raw);
-    const validMethod = (method: unknown) => method === 'E_WALLET' || method === 'CARD';
+    const validMethod = (method: unknown) => method === 'E_WALLET' || method === 'CARD' || method === 'VNPAY';
 
     if (
       !isRecord(value)

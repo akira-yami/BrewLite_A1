@@ -124,3 +124,17 @@ test('processing and unknown payment outcomes preserve the exact attempt for saf
   assert.deepEqual(transitionPaymentAttempt(attempt, 'PROCESSING'), attempt);
   assert.deepEqual(transitionPaymentAttempt(attempt, 'UNKNOWN'), attempt);
 });
+
+
+test('pending VNPay payment method and key survive reload', () => {
+  const session = loadSession();
+  const storage = makeStorage();
+  const pending = {
+    orderId: 'order-vnpay',
+    idempotencyKey: 'vnpay-idempotency-key',
+    method: 'VNPAY',
+    cartFingerprint: 'cart-fingerprint',
+  };
+  session.writePendingCheckout(storage, pending);
+  assert.deepEqual(session.readPendingCheckout(storage), pending);
+});

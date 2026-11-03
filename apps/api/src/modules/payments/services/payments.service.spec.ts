@@ -10,6 +10,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
     let ordersServiceMock: any;
     let gatewayMock: any;
     let prismaMock: any;
+    let vnpayGatewayMock: any;
 
     const getExpectedHash = (orderId: string, method: PaymentMethod, amount: bigint) => {return crypto.createHash('sha256').update(JSON.stringify({ orderId, method, amount: amount.toString() })).digest('hex');};
 
@@ -17,6 +18,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
         paymentsRepoMock = {
             findByIdempotencyKey: vi.fn(),
             findStatusByIdempotencyKeyForUser: vi.fn(),
+            findByGatewayReference: vi.fn(),
             findProcessingByOrderId: vi.fn().mockResolvedValue(null),
             createProcessingPayment: vi.fn(),
             markSucceeded: vi.fn(),
@@ -31,12 +33,19 @@ describe('PaymentsService (Unit Test - TDD)', () => {
         };
         gatewayMock = {charge: vi.fn(),};
         prismaMock = {$transaction: vi.fn((callback) => callback(prismaMock)),};
+        vnpayGatewayMock = {
+            isEnabled: vi.fn().mockReturnValue(true),
+            createPaymentUrl: vi.fn().mockReturnValue({ gatewayReference: 'vnp-ref-1', paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1' }),
+            verifyCallback: vi.fn(),
+            frontendReturnUrl: vi.fn().mockReturnValue('https://brew.example/checkout?paymentReturn=1'),
+        };
 
         service = new PaymentsService(
             paymentsRepoMock,
             ordersServiceMock,
             gatewayMock,
             prismaMock,
+            vnpayGatewayMock,
         );
     });
 
@@ -456,6 +465,152 @@ describe('PaymentsService (Unit Test - TDD)', () => {
 
             expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
             expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('creates a persisted VNPay intent and never calls MockGateway', async () => {
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                orderNumber: 'BL-2026-001',
+                reservationExpiresAt: new Date(Date.now() + 10 * 60_000),
+            });
+            paymentsRepoMock.createProcessingPayment.mockResolvedValue({
+                id: 'p-vnpay',
+                paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1',
+            });
+            const result = await service.processPayment({
+                idempotencyKey: 'vnpay-key',
+                orderId,
+                userId,
+                method: PaymentMethod.VNPAY,
+                amount,
+                clientIp: '203.0.113.10',
+            });
+            expect(vnpayGatewayMock.createPaymentUrl).toHaveBeenCalledWith({
+                amount,
+                orderNumber: 'BL-2026-001',
+                expiresAt: expect.any(Date),
+                ipAddress: '203.0.113.10',
+            });
+            expect(paymentsRepoMock.createProcessingPayment).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    method: PaymentMethod.VNPAY,
+                    gatewayReference: 'vnp-ref-1',
+                    paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1',
+                }),
+                prismaMock,
+            );
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+            expect(ordersServiceMock.markOrderPaid).not.toHaveBeenCalled();
+            expect(result).toMatchObject({
+                success: false,
+                status: PaymentStatus.PROCESSING,
+                paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1',
+            });
+        });
+
+        it('replays the same persisted VNPay URL for the same idempotency key', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue({
+                requestHash: expectedHash,
+                method: PaymentMethod.VNPAY,
+                status: PaymentStatus.PROCESSING,
+                paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1',
+            });
+            const result = await service.processPayment({
+                idempotencyKey, orderId, userId, method: PaymentMethod.VNPAY, amount,
+            });
+            expect(result).toMatchObject({
+                status: PaymentStatus.PROCESSING,
+                isRetried: true,
+                paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1',
+            });
+            expect(vnpayGatewayMock.createPaymentUrl).not.toHaveBeenCalled();
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('rejects a new VNPay attempt while the gateway is disabled', async () => {
+            vnpayGatewayMock.isEnabled.mockReturnValue(false);
+            await expect(service.processPayment({
+                idempotencyKey, orderId, userId, method: PaymentMethod.VNPAY, amount,
+            })).rejects.toMatchObject({
+                response: { code: 'VNPAY_NOT_CONFIGURED' },
+            });
+            expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
+            expect(gatewayMock.charge).not.toHaveBeenCalled();
+        });
+
+        it('settles a valid VNPay IPN once and rejects a duplicate callback', async () => {
+            const callback = {
+                vnp_TxnRef: 'vnp-ref-1',
+                vnp_Amount: (amount * 100n).toString(),
+                vnp_TmnCode: 'DEMO1234',
+                vnp_ResponseCode: '00',
+                vnp_TransactionStatus: '00',
+                vnp_TransactionNo: 'vnp-transaction-1',
+            };
+            vnpayGatewayMock.verifyCallback.mockReturnValue(callback);
+            paymentsRepoMock.findByGatewayReference.mockResolvedValue({
+                id: 'p-vnpay',
+                orderId,
+                amount,
+                method: PaymentMethod.VNPAY,
+                status: PaymentStatus.PROCESSING,
+                order: { userId },
+            });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({ status: OrderStatus.PENDING });
+            const first = await service.handleVnpayIpn(callback);
+            expect(first).toEqual({ RspCode: '00', Message: 'Confirm Success' });
+            expect(paymentsRepoMock.markSucceeded).toHaveBeenCalledWith(
+                'p-vnpay', 'vnp-transaction-1', expect.any(Date), prismaMock,
+            );
+            expect(ordersServiceMock.markOrderPaid).toHaveBeenCalledWith(orderId, userId, amount, prismaMock);
+
+            paymentsRepoMock.findByGatewayReference.mockResolvedValue({
+                id: 'p-vnpay',
+                orderId,
+                amount,
+                method: PaymentMethod.VNPAY,
+                status: PaymentStatus.SUCCEEDED,
+                order: { userId },
+            });
+            const duplicate = await service.handleVnpayIpn(callback);
+            expect(duplicate.RspCode).toBe('02');
+            expect(paymentsRepoMock.markSucceeded).toHaveBeenCalledTimes(1);
+        });
+
+        it('rejects invalid VNPay signatures and amount mismatches without settlement', async () => {
+            vnpayGatewayMock.verifyCallback.mockReturnValueOnce(null);
+            expect(await service.handleVnpayIpn({})).toEqual({
+                RspCode: '97', Message: 'Invalid signature',
+            });
+            vnpayGatewayMock.verifyCallback.mockReturnValueOnce({
+                vnp_TxnRef: 'vnp-ref-1',
+                vnp_Amount: '1',
+                vnp_TmnCode: 'DEMO1234',
+                vnp_ResponseCode: '00',
+                vnp_TransactionStatus: '00',
+            });
+            paymentsRepoMock.findByGatewayReference.mockResolvedValue({
+                id: 'p-vnpay',
+                orderId,
+                amount,
+                method: PaymentMethod.VNPAY,
+                status: PaymentStatus.PROCESSING,
+                order: { userId },
+            });
+            expect(await service.handleVnpayIpn({})).toEqual({
+                RspCode: '04', Message: 'Invalid amount',
+            });
+            expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
+            expect(paymentsRepoMock.markFailed).not.toHaveBeenCalled();
+        });
+
+        it('Return redirect never settles a Payment', async () => {
+            vnpayGatewayMock.verifyCallback.mockReturnValue(null);
+            await expect(service.getVnpayReturnRedirect({})).resolves.toBe(
+                'https://brew.example/checkout?paymentReturn=1',
+            );
+            expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
+            expect(paymentsRepoMock.markFailed).not.toHaveBeenCalled();
         });
     });
 });

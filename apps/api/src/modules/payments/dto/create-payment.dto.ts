@@ -8,6 +8,7 @@ import {
 export enum PaymentMethod {
   E_WALLET = 'E_WALLET',
   CARD = 'CARD',
+  VNPAY = 'VNPAY',
 }
 
 export class CreatePaymentDto {

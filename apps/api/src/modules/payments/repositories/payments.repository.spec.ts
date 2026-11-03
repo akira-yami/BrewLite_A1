@@ -63,6 +63,7 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
             status: PaymentStatus.PROCESSING,
             gatewayTransactionId: null,
             failureCode: null,
+            paymentUrl: null,
         };
         prismaMock.payment.findFirst.mockResolvedValue(payment);
         const result = await repository.findStatusByIdempotencyKeyForUser('key-status', 'user-1');
@@ -73,9 +74,22 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
                 status: true,
                 gatewayTransactionId: true,
                 failureCode: true,
+                paymentUrl: true,
             },
         });
         expect(result).toEqual(payment);
+    });
+
+    it('findByGatewayReference scopes the callback lookup and loads only Order ownership', async () => {
+        const txMock = {
+            payment: { findUnique: vi.fn().mockResolvedValue({ id: 'p-vnpay' }) },
+        };
+        const result = await repository.findByGatewayReference('gateway-ref', txMock as any);
+        expect(txMock.payment.findUnique).toHaveBeenCalledWith({
+            where: { gatewayReference: 'gateway-ref' },
+            include: { order: { select: { userId: true } } },
+        });
+        expect(result).toEqual({ id: 'p-vnpay' });
     });
 
     it('createProcessingPayment - tạo bản ghi trạng thái PROCESSING', async () => {

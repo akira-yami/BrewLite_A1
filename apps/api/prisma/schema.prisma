@@ -31,6 +31,7 @@ enum OrderStatus {
 enum PaymentMethod {
   E_WALLET
   CARD
+  VNPAY
 }
 
 enum PaymentStatus {
@@ -281,6 +282,8 @@ model Payment {
   status               PaymentStatus @default(PROCESSING)
   amount               BigInt
   gatewayTransactionId String?       @unique @map("gateway_transaction_id") @db.VarChar(100)
+  gatewayReference     String?       @unique @map("gateway_reference") @db.VarChar(100)
+  paymentUrl           String?       @map("payment_url") @db.VarChar(2048)
   failureCode          String?       @map("failure_code") @db.VarChar(100)
   processedAt          DateTime?     @map("processed_at") @db.Timestamptz(6)
   createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -102,3 +102,25 @@ Integration kiểm tra CHECK, FK, partial unique payment/loyalty và rollback; c
 
 S1-10/SD-10 được bàn giao tại [Orders contract](../../Khang-A2/docs/architecture/orders-contract.md), [UC-06](../../Khang-A2/docs/use-cases/UC-06-tao-don-hang.md), [OpenAPI](../../docs/api/orders.openapi.yaml) và [mã PlantUML riêng](../../Khang-A2/docs/architecture/diagrams/SD-10-create-order.puml). DTO request/response chuẩn bị cho S2-W3; `POST /orders` chưa được đăng ký. `couponCode` được trim, giữ nguyên hoa/thường và từ chối chuỗi trắng.
 
+
+
+## VNPay gateway (opt-in)
+
+MockGateway remains the default local/CI provider. VNPay is disabled unless a merchant explicitly enables it with real credentials and public HTTPS endpoints. Do not commit merchant secrets.
+
+Environment variables:
+- VNPAY_ENABLED=true
+- VNPAY_TMN_CODE=8-character-merchant-code
+- VNPAY_HASH_SECRET=merchant-hash-secret
+- VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+- VNPAY_RETURN_URL=https://api.example.com/api/v1/payments/vnpay/return
+- VNPAY_IPN_URL=https://api.example.com/api/v1/payments/vnpay/ipn
+- WEB_ORIGIN=https://brew.example
+
+- POST /api/v1/payments with method VNPAY stores a PROCESSING Payment, a unique merchant reference and signed payment URL before returning the redirect URL.
+- Replaying the same Idempotency-Key returns the persisted URL; it does not create a second merchant transaction.
+- GET /api/v1/payments/status includes the saved payment URL for the authenticated Order owner.
+- GET /api/v1/payments/vnpay/ipn is the only settlement path. It validates HMAC-SHA512, merchant code, exact amount and processes Payment/Order transition in one transaction.
+- GET /api/v1/payments/vnpay/return redirects to Checkout only. Browser Return parameters never settle Payment.
+- Enable the frontend option at build time with NEXT_PUBLIC_VNPAY_ENABLED=true.
+- A real Sandbox merchant transaction, registered HTTPS IPN URL and gateway inquiry/reconciliation process still require separate acceptance. Code tests do not prove a live merchant transaction.

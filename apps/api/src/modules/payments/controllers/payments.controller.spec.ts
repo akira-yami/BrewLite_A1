@@ -40,6 +40,7 @@ describe('PaymentsController (Unit Test - TDD)', () => {
             userId: 'u-1',
             method: 'E_WALLET',
             amount: 100000n,// Số tiền lấy từ DB thông qua OrdersService
+            clientIp: '127.0.0.1',
         });
         expect(result).toEqual({ data: { success: true, isRetried: false } });
     });

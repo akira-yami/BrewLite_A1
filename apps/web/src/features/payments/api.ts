@@ -2,13 +2,14 @@ import { authSession } from '../auth/session';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-export type PaymentMethod = 'E_WALLET' | 'CARD';
+export type PaymentMethod = 'E_WALLET' | 'CARD' | 'VNPAY';
 
 export interface PaymentResponse {
   success: boolean;
   isRetried: boolean;
   status: 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
   gatewayTransactionId?: string | null;
+  paymentUrl?: string | null;
   errorCode?: string | null;
   message?: string;
 }

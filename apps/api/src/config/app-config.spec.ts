@@ -126,6 +126,46 @@ describe('app-config and AuthModule dynamic configuration (TDD)', () => {
     expect(testCfg.jwtSecret).toBe('test-jwt-secret-for-isolated-tests-only-32bytes-long');
   });
 
+  it('keeps VNPay disabled by default and fails closed for incomplete or insecure settings', () => {
+    expect(loadAppConfig({ NODE_ENV: 'test' }).vnpay.enabled).toBe(false);
+
+    expect(() => loadAppConfig({
+      NODE_ENV: 'test',
+      VNPAY_ENABLED: 'true',
+      VNPAY_TMN_CODE: 'DEMO1234',
+    })).toThrow(/VNPAY_HASH_SECRET is required/);
+
+    expect(() => loadAppConfig({
+      NODE_ENV: 'test',
+      WEB_ORIGIN: 'https://brew.example',
+      VNPAY_ENABLED: 'true',
+      VNPAY_TMN_CODE: 'DEMO1234',
+      VNPAY_HASH_SECRET: '12345678901234567890123456789012',
+      VNPAY_RETURN_URL: 'https://api.example/vnpay/return',
+      VNPAY_IPN_URL: 'http://api.example/vnpay/ipn',
+    })).toThrow(/VNPAY_IPN_URL must be a valid HTTPS URL/);
+  });
+
+  it('loads complete VNPay settings with HTTPS endpoints and the official sandbox URL by default', () => {
+    const config = loadAppConfig({
+      NODE_ENV: 'test',
+      WEB_ORIGIN: 'https://brew.example',
+      VNPAY_ENABLED: 'true',
+      VNPAY_TMN_CODE: 'DEMO1234',
+      VNPAY_HASH_SECRET: '12345678901234567890123456789012',
+      VNPAY_RETURN_URL: 'https://api.brew.example/api/v1/payments/vnpay/return',
+      VNPAY_IPN_URL: 'https://api.brew.example/api/v1/payments/vnpay/ipn',
+    });
+    expect(config.vnpay).toMatchObject({
+      enabled: true,
+      tmnCode: 'DEMO1234',
+      paymentUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+      returnUrl: 'https://api.brew.example/api/v1/payments/vnpay/return',
+      ipnUrl: 'https://api.brew.example/api/v1/payments/vnpay/ipn',
+      frontendOrigin: 'https://brew.example',
+    });
+  });
+
   it('keeps AuthModule JwtService signOptions synchronized with AuthService expiresIn when env changes after module import', async () => {
     const prevExpires = process.env.JWT_EXPIRES_IN;
     const prevNodeEnv = process.env.NODE_ENV;

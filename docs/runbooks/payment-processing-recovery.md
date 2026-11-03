@@ -1,6 +1,6 @@
 # Runbook — Payment bị treo ở trạng thái `PROCESSING`
 
-**Phạm vi:** Payment/Order trong BrewLite; implementation hiện tại chỉ đăng ký `MockGatewayService`.  
+**Phạm vi:** Payment/Order trong BrewLite; `MockGatewayService` là provider mặc định cho local/CI, `VnpayGatewayService` là provider opt-in và chỉ được bật khi cấu hình merchant/HTTPS hợp lệ.  
 **Mục tiêu:** khôi phục trạng thái nhất quán mà không tạo double-charge, trả kho sớm hoặc làm mất dấu vết đối soát.  
 **Phân loại:** tài liệu vận hành và quy trình ứng cứu; **không phải** một recovery endpoint/script đã được triển khai.
 
@@ -117,3 +117,13 @@ Endpoint chỉ trả trạng thái Payment có cùng Idempotency-Key và thuộc
 - [ ] Root cause và corrective action được ghi nhận; nếu cần recovery automation thì tạo PR/work item riêng.
 
 **Không đóng incident chỉ vì Payment đã rời `PROCESSING`; phải xác nhận cả Order và các side effects nghiệp vụ.**
+
+
+## 8. VNPay asynchronous settlement
+
+1. VNPay IPN (GET /api/v1/payments/vnpay/ipn) is the only authoritative settlement input. It must pass HMAC-SHA512, TmnCode and exact amount checks before database mutation.
+2. IPN handling locks the Order, re-reads Payment by its unique gateway_reference, and applies Payment + Order settlement in one transaction.
+3. Duplicate terminal callbacks do not run settlement twice and return VNPay acknowledgement code 02.
+4. Browser Return (GET /api/v1/payments/vnpay/return) is display-only. Never mark a Payment as paid from Return query parameters.
+5. If Checkout returns while Payment remains PROCESSING, keep the existing Idempotency-Key and wait for IPN or escalate for gateway inquiry/reconciliation. Do not create another payment attempt.
+6. Automated inquiry, late-success recovery, refund and operator-approved reconciliation are not included in the current implementation; they remain required production operations work.

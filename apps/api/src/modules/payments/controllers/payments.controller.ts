@@ -1,4 +1,20 @@
-import { BadRequestException, Controller, Body, Headers, HttpStatus, HttpCode, Get, Post, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Body,
+  Headers,
+  HttpStatus,
+  HttpCode,
+  Get,
+  Post,
+  Query,
+  Ip,
+  Res,
+  UseGuards,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { PaymentsService } from '../services/payments.service.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { CreatePaymentDto } from '../dto/create-payment.dto.js';
@@ -10,50 +26,73 @@ import { UserRole, PaymentMethod } from '../../../generated/prisma/client.js';
 
 @Controller('payments')
 export class PaymentsController {
-    constructor(private readonly paymentsService: PaymentsService, private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly ordersService: OrdersService,
+  ) {}
 
-    @Get('status')
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.CUSTOMER)
-    async getStatus(
-        @Headers('idempotency-key') idempotencyKey: string,
-        @CurrentUser() user: { sub: string; username: string; role: string },
-    ) {
-        if (!idempotencyKey || idempotencyKey.trim() === '') {
-            throw new BadRequestException('Header Idempotency-Key là bắt buộc để tra cứu trạng thái thanh toán');
-        }
-        const result = await this.paymentsService.getPaymentStatus(idempotencyKey, user.sub);
-        return { data: result };
+  @Get('status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.CUSTOMER)
+  async getStatus(
+    @Headers('idempotency-key') idempotencyKey: string,
+    @CurrentUser() user: { sub: string; username: string; role: string },
+  ) {
+    if (!idempotencyKey || idempotencyKey.trim() === '') {
+      throw new BadRequestException(
+        'Header Idempotency-Key là bắt buộc để tra cứu trạng thái thanh toán',
+      );
+    }
+    return { data: await this.paymentsService.getPaymentStatus(idempotencyKey, user.sub) };
+  }
+
+  // VNPay calls IPN server-to-server; the service verifies the signed payload before writes.
+  @Get('vnpay/ipn')
+  @HttpCode(HttpStatus.OK)
+  async vnpayIpn(@Query() query: Record<string, unknown>) {
+    return this.paymentsService.handleVnpayIpn(query);
+  }
+
+  // Browser Return is display-only. Payment settlement happens only through verified IPN.
+  @Get('vnpay/return')
+  async vnpayReturn(
+    @Query() query: Record<string, unknown>,
+    @Res() response: Response,
+  ) {
+    const destination = await this.paymentsService.getVnpayReturnRedirect(query);
+    return response.redirect(HttpStatus.FOUND, destination);
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.CUSTOMER)
+  @UsePipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }))
+  async create(
+    @Body() dto: CreatePaymentDto,
+    @Headers('idempotency-key') idempotencyKey: string,
+    @Ip() clientIp: string,
+    @CurrentUser() user: { sub: string; username: string; role: string },
+  ) {
+    if (!idempotencyKey || idempotencyKey.trim() === '') {
+      throw new BadRequestException(
+        'Header Idempotency-Key là bắt buộc để chống double-charge',
+      );
     }
 
-    @Post()
-    @HttpCode(HttpStatus.OK)
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.CUSTOMER)
-    @UsePipes(new ValidationPipe({
-        whitelist: true, // Tự động loại bỏ các trường không có trong DTO (như amount, requestHash hacker cố tình nhét vào)
-        forbidNonWhitelisted: true, // Báo lỗi 400 nếu có trường lạ
-        transform: true,
-    }))
-    async create(
-        @Body() dto: CreatePaymentDto,
-        @Headers('idempotency-key') idempotencyKey: string,
-        @CurrentUser() user: { sub: string; username: string; role: string },
-    ) {
-        // Ép buộc kiểm tra Idempotency-Key từ Header theo đúng đặc tả TDD
-        if (!idempotencyKey || idempotencyKey.trim() === '') {throw new BadRequestException('Header Idempotency-Key là bắt buộc để chống double-charge');}
-
-        // Xác thực quyền sở hữu và lấy số tiền thanh toán thực tế trực tiếp từ DB
-        const order = await this.ordersService.getOrderForPayment(dto.orderId, user.sub);
-
-        const result = await this.paymentsService.processPayment({
-            idempotencyKey,
-            orderId: dto.orderId,
-            userId: user.sub,
-            method: dto.method as unknown as PaymentMethod,
-            amount: order.total,
-        });
-
-        return { data: result };
-    }
+    const order = await this.ordersService.getOrderForPayment(dto.orderId, user.sub);
+    const result = await this.paymentsService.processPayment({
+      idempotencyKey,
+      orderId: dto.orderId,
+      userId: user.sub,
+      method: dto.method as unknown as PaymentMethod,
+      amount: order.total,
+      clientIp,
+    });
+    return { data: result };
+  }
 }

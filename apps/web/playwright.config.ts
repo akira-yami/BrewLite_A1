@@ -12,9 +12,9 @@ export default defineConfig({
   retries: 0,
   timeout: 60000,
   reporter: [['list'], ['html', { open: 'never' }]],
-  use: { baseURL: webUrl, trace: 'retain-on-failure' },
+  use: { baseURL: process.env.E2E_EXTERNAL_BASE_URL ?? webUrl, trace: 'retain-on-failure' },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } }],
-  webServer: [
+  webServer: process.env.E2E_EXTERNAL_BASE_URL ? undefined : [
     {
       command: 'npm --prefix ../api run start:dev',
       url: `${apiUrl}/api/v1/health`,

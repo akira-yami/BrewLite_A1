@@ -61,14 +61,7 @@ export const ProductCard = ({
             {Number(product.basePrice).toLocaleString('vi-VN')} đ
           </span>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onQuickAdd(product)}
-              disabled={!canQuickAdd}
-              className="rounded-full border border-[#D8CCBA] bg-[#FAF7F2] px-3 py-1.5 text-xs font-bold text-[#163D2C] transition hover:border-[#163D2C] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              + Thêm
-            </button>
+            
             <button
               type="button"
               onClick={() => onCustomize(product)}

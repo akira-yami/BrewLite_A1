@@ -1,33 +1,11 @@
-export async function authenticatedRequest<T>(
-    endpoint: string,
-    options: RequestInit = {}
-): Promise<T> {
-    // Lấy token từ cơ sở hạ tầng của frontend (ví dụ: localStorage cho Client-side component)
-    const token = typeof window !== 'undefined' ? localStorage.getItem('brewlite_token') : null;
+import { authenticatedRequest as authRequest } from '@/features/auth/api';
 
-    const headers = new Headers(options.headers);
+export function authenticatedRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const path = endpoint.replace(/^\/api\/v1(?=\/|$)/, '') || '/';
+  const headers = new Headers(options.headers);
+  if (typeof options.body === 'string' && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
 
-    // Mặc định ép kiểu JSON trừ khi bị ghi đè
-    if (!headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
-    }
-
-    if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-    }
-
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
-    const path = endpoint.replace(/^\/api\/v1/, '');
-
-    const response = await fetch(`${baseUrl}${path}`, {
-        ...options,
-        headers,
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `API Error: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
+  return authRequest<T>(path, { ...options, headers });
 }

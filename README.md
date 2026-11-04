@@ -2,6 +2,14 @@
 
 BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt, được xây dựng cho bài tập lớn môn Công nghệ Phần mềm. Sản phẩm hướng tới luồng đặt món nhanh tại quầy: xem menu, chọn size/topping, quản lý giỏ hàng, đăng nhập, tạo đơn, thanh toán và theo dõi trạng thái.
 
+## Báo cáo Nhóm 7
+
+- [Đọc báo cáo PDF](BrewLite-Report/report/build/main.pdf).
+- [Mã nguồn LaTeX và hướng dẫn biên dịch](BrewLite-Report/report/README.md).
+- [Phân công và hồ sơ kiểm chứng](docs/scrum/team-assignment-analysis-2026-11-03.md); [audit ngày 03/11/2026](docs/scrum/trello-audit-2026-11-03.md).
+
+Báo cáo được đối chiếu với dự án ngày 03/11/2026; các yêu cầu và số liệu kiểm thử trong đó cần đọc cùng hiện trạng và giới hạn được nêu trong báo cáo.
+
 ## Gói bàn giao tài liệu Assignment 2
 
 Tài liệu và sơ đồ A2 đã được chuyển vào các thư mục ở gốc theo sheet `Assignment 2` và `SO_DO` của bảng phân công. Mỗi gói có README ghi task, file gốc, tài liệu phối hợp và phần còn thiếu:

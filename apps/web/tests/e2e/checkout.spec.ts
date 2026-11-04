@@ -14,9 +14,29 @@ for (const retry of [false, true]) {
     await page.goto('/menu');
     await page.evaluate(token => localStorage.setItem('brewlite_token', token), accessToken);
     await page.reload();
-    await page.getByRole('button', { name: '+ Thêm', exact: true }).first().click();
-    await page.getByRole('button', { name: /món trong giỏ/ }).click();
-    await page.getByRole('button', { name: 'Tiến hành đặt & thanh toán' }).click();
+    // Chọn sản phẩm bằng nút Tùy chọn trên ProductCard.
+// Chỉ chọn nút đang được bật (sản phẩm còn hàng).
+await page.locator('button:not(:disabled)')
+  .filter({ hasText: 'Tùy chọn' })
+  .first()
+  .click();
+
+// Modal chi tiết sản phẩm mở ra.
+const addToCartButton = page.getByRole('button', {
+  name: /Thêm vào giỏ/,
+});
+
+await expect(addToCartButton).toBeVisible();
+await expect(addToCartButton).toBeEnabled();
+
+// Thêm sản phẩm vào giỏ.
+// onAddedToCart tự động mở CartDrawer.
+await addToCartButton.click();
+
+// Tiến hành checkout.
+await page.getByRole('button', {
+  name: 'Tiến hành đặt & thanh toán',
+}).click();
     await expect(page).toHaveURL(/\/checkout/);
 
     let failedOrderId: string | undefined;

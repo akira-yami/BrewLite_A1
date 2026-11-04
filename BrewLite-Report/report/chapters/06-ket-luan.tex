@@ -1,0 +1,118 @@
+\chapter{Tổ chức thực hiện và kết luận}
+\label{chap:ket-luan}
+
+\section{Thành viên và vai trò Scrum}
+Nhóm 7 có năm thành viên. Vai trò được đối chiếu từ tài liệu phân công
+của nhóm~\cite{roles,assignment}; họ tên và MSSV được nhóm cung cấp.
+Phan Anh Khang kiêm Product Owner, Scrum Master và Tech Lead/Schema
+Owner; cả năm thành viên là Development Team và cùng chịu trách nhiệm
+về chất lượng sản phẩm.
+
+\begin{table}[H]
+\centering\small
+\caption{Vai trò Scrum và trách nhiệm điều phối}
+\label{tab:scrumroles}
+\begin{tabularx}{\textwidth}{@{}L{0.22\textwidth}L{0.23\textwidth}Y@{}}
+\toprule\textbf{Vai trò} & \textbf{Phụ trách} & \textbf{Trách nhiệm} \\\midrule
+Product Owner & Phan Anh Khang & Ưu tiên backlog, làm rõ AC và điều phối nghiệm thu Increment. \\
+Scrum Master & Phan Anh Khang & Điều phối Planning/Daily/Review/Retro, theo dõi blocker và cập nhật hồ sơ. \\
+Tech Lead / Schema Owner & Phan Anh Khang & Kiến trúc, schema, hợp đồng và tích hợp. PR của Khang vẫn cần người khác review. \\
+Development Team & Khang, Khải, Hoàng, Kiệt, Huy & Phân tích, thiết kế, code, kiểm thử, review chéo và bàn giao. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Bảng phân công công việc}
+\label{sec:assignment}
+Phân công theo mảng chính kết hợp chia đầu việc của từng luồng. Một
+module có thể được nhiều người phối hợp chỉnh sửa; người được giao chịu
+trách nhiệm đầu ra không nhất thiết là tác giả của mọi dòng code.
+Bảng~\ref{tab:assignment} tổng hợp trách nhiệm, không quy đổi thành tỷ lệ
+đóng góp hoặc xác nhận tất cả đầu việc đã hoàn thành.
+
+{\small\setstretch{1.1}
+\begin{longtable}{@{}L{0.22\textwidth}L{0.33\textwidth}L{0.38\textwidth}@{}}
+\caption{Phân công theo thành viên Nhóm 7}\label{tab:assignment}\\
+\toprule\textbf{Thành viên / MSSV} & \textbf{Mảng phụ trách chính} & \textbf{Đầu ra và phối hợp} \\\midrule\endfirsthead
+\toprule\textbf{Thành viên / MSSV} & \textbf{Mảng phụ trách chính} & \textbf{Đầu ra và phối hợp} \\\midrule\endhead
+\bottomrule\endfoot
+Phan Anh Khang\newline 3124410145 & Nền tảng, schema/hợp đồng, Orders, tích hợp và Scrum. & Scaffold FE/BE, env/build/Compose; tạo đơn, snapshot, transaction, history/detail API; thiết kế state machine; phối hợp inventory/payment/E2E và hồ sơ Sprint. \\
+Đoàn Quang Khải\newline 3124410138 & Frontend chi tiết, giỏ, checkout và màn hình sau thanh toán. & UI tùy chọn, cart store/identity/persist/tests; nối tạo đơn và payment; confirmation/history/detail; review các phần menu/auth/đầu ra Scrum theo thẻ. \\
+Nguyễn Huy Hoàng\newline 3124410105 & Catalog, Inventory, dataset và seed. & Menu/detail API, menu UI và trạng thái; dữ liệu sản phẩm/size/topping; công thức và nguyên liệu; reserve/consume/release/concurrency; migration/seed demo. \\
+Huỳnh Thái Kiệt\newline 3124410172 & Payments, Promotions và runtime state machine. & Mock gateway, payment outcome/retry/idempotency; coupon validation/lifecycle; phối hợp tác động PAID; full lifecycle core và extension staff queue theo kế hoạch. \\
+Đỗ Mạnh Huy\newline 3124410113 & Auth, Security, Loyalty và tài khoản demo. & Register/login, bcrypt/JWT, session/logout/401; role/ownership; owner nghiệp vụ điểm thưởng, phối hợp PAID với Kiệt; hướng dẫn kiểm tra bảo mật và demo. \\
+\end{longtable}}
+
+\subsection{Phối hợp giữa các mảng}
+\begin{table}[H]
+\centering\small
+\caption{Điểm phối hợp chính trong luồng nghiệp vụ}
+\label{tab:collaboration}
+\begin{tabularx}{\textwidth}{@{}L{0.22\textwidth}Y@{}}
+\toprule\textbf{Luồng} & \textbf{Phân chia đầu việc} \\\midrule
+Menu và chi tiết & Hoàng: API/dữ liệu/menu; Khải: UI tùy chọn; Khang: schema và hợp đồng. \\
+Giỏ và tạo đơn & Khải: giỏ/request; Khang: Orders; Huy: JWT/principal; Hoàng: nguyên liệu; Kiệt: coupon. \\
+Thanh toán và retry & Kiệt: payment/gateway; Khải: checkout; Khang: tích hợp/E2E; Hoàng: reservation/expiry; Huy: phiên và quyền. \\
+Điểm thưởng & Huy: owner nghiệp vụ; Kiệt: phối hợp tác động PAID trong code; Khang: reviewer theo phân công. \\
+Lịch sử và xác nhận & Khang: API/dữ liệu; Khải: UI; Huy: phiên/ownership; Kiệt: payment/state; Hoàng: review UI. \\
+Demo và bàn giao & Khang: toàn stack/tài liệu; Hoàng: migration/seed/menu; Huy: tài khoản/bảo mật; các thành viên kiểm tra chéo theo thẻ. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Theo bản phân công đối chiếu, 40 thẻ hiện hành gồm 36 thẻ kỹ thuật core,
+3 thẻ Scrum và 1 extension. Số thẻ giao lần lượt là Khang 12, Hoàng 10,
+Huy 6, Khải 6, Kiệt 6. Kích thước thẻ khác nhau nên không dùng số thẻ để
+suy phần trăm công sức. Danh mục mã thẻ và reviewer được trình bày ở
+Phụ lục~\ref{sec:task-assignment}.
+
+\section{Product Backlog và kế hoạch Sprint}
+Bảng sau giữ mã, Sprint và story point từ Product Backlog trong
+repository~\cite{backlog}. Đây là 10 hạng mục tổng hợp theo đề; bảng
+không thay thế danh mục thẻ chi tiết hoặc tự đổi lịch cam kết trên board.
+\begin{table}[H]
+\centering\small\setstretch{1.1}
+\caption{Product Backlog tổng hợp theo tài liệu nhóm}\label{tab:backlog}
+\begin{tabularx}{\textwidth}{@{}L{0.12\textwidth}L{0.09\textwidth}YL{0.06\textwidth}@{}}
+\toprule\textbf{Mã} & \textbf{Sprint} & \textbf{Hạng mục / kết quả mong đợi} & \textbf{SP} \\\midrule
+
+BL-01 & 1 & Khởi tạo monorepo, env mẫu, lint/test và README. & 3 \\
+BL-02 & 1 & API danh sách sản phẩm, seed và contract test. & 3 \\
+BL-03 & 1 & Menu tích hợp API, loading/empty/error. & 3 \\
+BL-04 & 1 & Chi tiết và size/topping/đường/đá/note hợp lệ. & 5 \\
+BL-05 & 2 & Giỏ thêm/sửa/xóa, identity, tổng và persist. & 5 \\
+BL-06 & 2 & Tạo đơn server-side, giữ tồn, trạng thái PENDING. & 8 \\
+BL-07 & 2 & Đăng ký/đăng nhập, hash, JWT và ownership. & 5 \\
+BL-08 & 3 & Thanh toán giả lập, idempotency, PAID/FAILED. & 8 \\
+BL-09 & 3 & Xác nhận, lịch sử, Docker và demo E2E. & 8 \\
+BL-10 & 3 & State machine, concurrency, coupon, loyalty và tests. & 13 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Mục tiêu Sprint 1 là nền tảng và menu; Sprint 2 là giỏ/tài khoản/tạo đơn;
+Sprint 3 là thanh toán và hoàn thiện nghiệp vụ. Board hiện được tổ chức
+thành S1 tuần 1--2, S2 tuần 3--4 và S3 tuần 5. Một số công việc như giỏ
+hoặc auth được lên thẻ ở mốc khác với bảng backlog tổng hợp. Báo cáo giữ
+sự phân biệt giữa hai cấp kế hoạch, không tự suy ngày họp, ngày kết thúc
+hoặc kết quả Sprint khi thiếu biên bản.
+
+\section{Kết quả đạt được}
+Đối chiếu source và hồ sơ kiểm chứng cho thấy luồng khách hàng menu,
+giỏ, đăng nhập, tạo đơn, thanh toán giả lập và xác nhận đã có tích hợp.
+Backend có tính giá và snapshot, cơ chế giữ nguyên liệu theo công thức,
+xử lý coupon, payment attempt và loyalty ledger. Lịch sử/chi tiết có API
+và giao diện gắn với tài khoản. Dự án có migration, seed và nhiều mức
+kiểm thử để kiểm tra các quy tắc quan trọng.
+
+\section{Hạn chế và hướng hoàn thiện}
+Ưu tiên tiếp theo là sửa lịch sử PAID; hoàn thiện state machine và luật
+hủy; đưa probe idempotency/loyalty vào regression dùng DB thật; chốt chính
+sách điểm; hoàn thiện bàn giao Compose/seed/tài khoản demo và hồ sơ
+Scrum. Giao diện quầy được phát triển như extension sau khi các quy tắc
+core được kiểm tra đầy đủ.
+
+Các bước phát triển sau có thể bao gồm tích hợp cổng thanh toán thật,
+quy trình đối soát/hoàn tiền, đo tải theo NFR-05 và cải thiện trải nghiệm
+trên nhiều kích thước màn hình. Các nội dung này là định hướng, không
+được tính vào kết quả hiện tại của BrewLite.

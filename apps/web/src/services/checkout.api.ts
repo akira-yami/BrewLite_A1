@@ -1,3 +1,4 @@
+import { authSession } from '../features/auth/session';
 import type {
     ValidateCouponPayload,
     ValidateCouponResponse,
@@ -24,6 +25,7 @@ async function request<T>(path: string, token: string, init: RequestInit): Promi
         },
     });
     const json = await response.json().catch(() => null);
+    if (response.status === 401) authSession.invalidate(token);
 
     if (!response.ok) {
         const payload = json as {

@@ -40,6 +40,12 @@ enum PaymentStatus {
   SUCCEEDED
   FAILED
   MANUAL_REVIEW
+  REFUNDED
+}
+
+enum PaymentRecoveryDecision {
+  REFUND_CONFIRMED
+  NO_CHARGE_CONFIRMED
 }
 
 enum PaymentRecoveryRequestStatus {
@@ -103,6 +109,7 @@ model User {
   orders                      Order[]
   paymentRecoveryRequests     PaymentRecoveryRequest[] @relation("PaymentRecoveryActor")
   paymentRecoveryAudits       PaymentRecoveryAudit[]   @relation("PaymentRecoveryAuditActor")
+  paymentRecoveryResolutions  PaymentRecoveryResolution[] @relation("PaymentRecoveryResolutionActor")
   couponRedemptions           CouponRedemption[]
   loyaltyTransactions         LoyaltyTransaction[]
   changedOrderStatusHistories OrderStatusHistory[] @relation("OrderStatusChangedBy")
@@ -307,6 +314,7 @@ model Payment {
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
   recoveryRequests PaymentRecoveryRequest[]
   recoveryAudits   PaymentRecoveryAudit[]
+  recoveryResolutions PaymentRecoveryResolution[]
 
   @@index([orderId, createdAt(sort: Desc)])
   @@map("payments")
@@ -363,6 +371,26 @@ model PaymentRecoveryAudit {
   @@index([paymentId, createdAt])
   @@index([correlationId])
   @@map("payment_recovery_audits")
+}
+
+model PaymentRecoveryResolution {
+  id                String                 @id @default(uuid()) @db.Uuid
+  paymentId         String                 @map("payment_id") @db.Uuid
+  idempotencyKey    String                 @map("idempotency_key") @db.VarChar(100)
+  requestHash       String                 @map("request_hash") @db.Char(64)
+  decision          PaymentRecoveryDecision
+  evidenceReference String                 @map("evidence_reference") @db.VarChar(120)
+  incidentReference String                 @map("incident_reference") @db.VarChar(120)
+  correlationId     String                 @map("correlation_id") @db.VarChar(100)
+  actorUserId       String                 @map("actor_user_id") @db.Uuid
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  actor   User    @relation("PaymentRecoveryResolutionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, idempotencyKey])
+  @@index([paymentId, createdAt])
+  @@map("payment_recovery_resolutions")
 }
 
 model OrderStatusHistory {

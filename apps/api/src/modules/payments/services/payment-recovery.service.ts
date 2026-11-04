@@ -16,6 +16,7 @@ import {
   PaymentMethod,
   PaymentRecoveryActorType,
   PaymentRecoveryRequestStatus,
+  PaymentRecoveryDecision,
   PaymentStatus,
 } from '../../../generated/prisma/client.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
@@ -267,6 +268,171 @@ export class PaymentRecoveryService {
       );
       return this.finalizeUnknown(start.request.id, 'SETTLEMENT_ROLLED_BACK', 'SETTLEMENT_ROLLED_BACK');
     }
+  }
+
+
+  async resolveManualReview(input: {
+    paymentId: string;
+    idempotencyKey: string;
+    decision: PaymentRecoveryDecision;
+    evidenceReference: string;
+    incidentReference: string;
+    correlationId?: string;
+    actorUserId: string;
+  }) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.paymentId)) {
+      throw new ConflictException({ code: 'INVALID_PAYMENT_ID', message: 'Payment ID không hợp lệ.' });
+    }
+    if (!input.idempotencyKey || input.idempotencyKey.length > 100 || input.idempotencyKey.trim() !== input.idempotencyKey) {
+      throw new ConflictException({ code: 'INVALID_IDEMPOTENCY_KEY', message: 'Resolution Idempotency-Key không hợp lệ.' });
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(input.evidenceReference)) {
+      throw new ConflictException({ code: 'INVALID_RESOLUTION_EVIDENCE', message: 'Evidence reference phải là mã chứng cứ bên ngoài.' });
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(input.incidentReference)) {
+      throw new ConflictException({ code: 'INVALID_INCIDENT_REFERENCE', message: 'Incident/ticket reference không hợp lệ.' });
+    }
+    const correlationId = input.correlationId || randomUUID();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/.test(correlationId)) {
+      throw new ConflictException({ code: 'INVALID_CORRELATION_ID', message: 'Correlation ID không hợp lệ.' });
+    }
+    const requestHash = createHash('sha256').update(JSON.stringify({
+      paymentId: input.paymentId,
+      decision: input.decision,
+      evidenceReference: input.evidenceReference,
+      incidentReference: input.incidentReference,
+    })).digest('hex');
+
+    const replay = await this.prisma.paymentRecoveryResolution.findFirst({
+      where: { paymentId: input.paymentId, idempotencyKey: input.idempotencyKey },
+    });
+    if (replay) {
+      if (replay.requestHash !== requestHash) {
+        throw new ConflictException({ code: 'RESOLUTION_IDEMPOTENCY_KEY_REUSED', message: 'Resolution Idempotency-Key đã được dùng cho payload khác.' });
+      }
+      return this.toResolutionResponse(replay, true);
+    }
+
+    const candidate = await this.prisma.payment.findUnique({
+      where: { id: input.paymentId },
+      include: { order: { select: { userId: true } } },
+    });
+    if (!candidate) throw new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: 'Không tìm thấy Payment.' });
+    if (candidate.method !== PaymentMethod.VNPAY) {
+      throw new ConflictException({ code: 'PAYMENT_NOT_RECONCILABLE', message: 'Chỉ VNPay Payment được xử lý bằng recovery disposition này.' });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const order = await this.ordersService.getOrderForPaymentForUpdate(candidate.orderId, candidate.order.userId, tx);
+      const payment = await tx.payment.findUnique({ where: { id: input.paymentId } });
+      if (!payment) throw new NotFoundException({ code: 'PAYMENT_NOT_FOUND', message: 'Không tìm thấy Payment.' });
+
+      const racedReplay = await tx.paymentRecoveryResolution.findFirst({
+        where: { paymentId: input.paymentId, idempotencyKey: input.idempotencyKey },
+      });
+      if (racedReplay) {
+        if (racedReplay.requestHash !== requestHash) {
+          throw new ConflictException({ code: 'RESOLUTION_IDEMPOTENCY_KEY_REUSED', message: 'Resolution Idempotency-Key đã được dùng cho payload khác.' });
+        }
+        return this.toResolutionResponse(racedReplay, true);
+      }
+      if (payment.status !== PaymentStatus.MANUAL_REVIEW) {
+        throw new ConflictException({
+          code: 'PAYMENT_NOT_IN_MANUAL_REVIEW',
+          message: 'Chỉ Payment MANUAL_REVIEW mới được xác nhận kết quả compensation.',
+          status: payment.status,
+        });
+      }
+
+      const initiatingOperator = await tx.paymentRecoveryAudit.findFirst({
+        where: {
+          paymentId: payment.id,
+          actorType: PaymentRecoveryActorType.USER,
+          actorUserId: { not: null },
+          afterState: PaymentStatus.MANUAL_REVIEW,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (initiatingOperator?.actorUserId === input.actorUserId) {
+        throw new ConflictException({
+          code: 'SECOND_OPERATOR_REQUIRED',
+          message: 'Operator khác người đã khởi tạo recovery phải xác nhận refund/no-charge.',
+        });
+      }
+
+      const beforeState = payment.status;
+      const afterState = input.decision === PaymentRecoveryDecision.REFUND_CONFIRMED
+        ? PaymentStatus.REFUNDED
+        : PaymentStatus.FAILED;
+      const resolution = await tx.paymentRecoveryResolution.create({
+        data: {
+          paymentId: payment.id,
+          idempotencyKey: input.idempotencyKey,
+          requestHash,
+          decision: input.decision,
+          evidenceReference: input.evidenceReference,
+          incidentReference: input.incidentReference,
+          correlationId,
+          actorUserId: input.actorUserId,
+        },
+      });
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: afterState,
+          failureCode: input.decision === PaymentRecoveryDecision.REFUND_CONFIRMED
+            ? 'OPERATOR_CONFIRMED_REFUND'
+            : 'OPERATOR_CONFIRMED_NO_CHARGE',
+          processedAt: new Date(),
+        },
+      });
+      if (order.status === OrderStatus.PENDING) {
+        await this.ordersService.markOrderPaymentFailed(
+          payment.orderId,
+          order.userId,
+          input.decision === PaymentRecoveryDecision.REFUND_CONFIRMED
+            ? 'VNPAY_REFUND_CONFIRMED'
+            : 'VNPAY_NO_CHARGE_CONFIRMED',
+          tx,
+        );
+      }
+      await tx.paymentRecoveryAudit.create({
+        data: {
+          paymentId: payment.id,
+          actorUserId: input.actorUserId,
+          actorType: PaymentRecoveryActorType.USER,
+          gatewayReference: payment.gatewayReference,
+          correlationId,
+          incidentReference: input.incidentReference,
+          beforeState,
+          afterState,
+          providerOutcome: input.decision === PaymentRecoveryDecision.REFUND_CONFIRMED
+            ? 'OPERATOR_REFUND_CONFIRMED'
+            : 'OPERATOR_NO_CHARGE_CONFIRMED',
+          details: {
+            resolutionId: resolution.id,
+            decision: input.decision,
+            evidenceReference: input.evidenceReference,
+            orderStatus: order.status,
+            policy: 'External merchant/finance action verified by a second operator; no automatic refund is issued by this API.',
+          },
+        },
+      });
+      return this.toResolutionResponse(resolution, false);
+    });
+  }
+
+  private toResolutionResponse(resolution: any, replay: boolean) {
+    return {
+      resolutionId: resolution.id,
+      paymentId: resolution.paymentId,
+      decision: resolution.decision,
+      paymentStatus: resolution.decision === PaymentRecoveryDecision.REFUND_CONFIRMED
+        ? PaymentStatus.REFUNDED
+        : PaymentStatus.FAILED,
+      evidenceReference: resolution.evidenceReference,
+      isRetried: replay,
+    };
   }
 
   private async applyInquiryResult(input: {

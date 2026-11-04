@@ -211,3 +211,30 @@ Expected behavior:
 ### Explicitly deferred
 
 This delivery does not provide a scheduled worker, automatic refund adapter, or merchant Sandbox acceptance. QueryDr recovery is operator-triggered and one Payment at a time. The circuit breaker is process-local; multi-replica circuit coordination remains a follow-up. Merchant Sandbox evidence is deferred by project decision and is not reported as passed.
+
+
+### Manual-review disposition API
+
+A second operator records externally verified evidence; this endpoint never sends a refund to VNPay:
+
+```http
+POST /api/v1/payments/{paymentId}/recovery/resolve
+Authorization: Bearer <different-operator-jwt>
+Idempotency-Key: <unique-resolution-key>
+X-Correlation-Id: <optional-correlation-id>
+Content-Type: application/json
+
+{
+  "decision": "REFUND_CONFIRMED",
+  "evidenceReference": "VN-REFUND-2026-0001",
+  "incidentReference": "INC-2026-1042"
+}
+```
+
+- `REFUND_CONFIRMED`: use only after the approved merchant/finance process confirms the refund or reversal. Payment becomes REFUNDED.
+- `NO_CHARGE_CONFIRMED`: use only with provider evidence proving no charge occurred. Payment becomes FAILED; retry is only possible while the Order remains eligible.
+- Both decisions require a stable external evidence reference, a unique idempotency key, and a different operator from the one who initiated the human recovery that moved Payment to MANUAL_REVIEW.
+- Decision, evidence reference, actor, correlation/incident and before/after state are stored in append-only resolution and audit tables in the same transaction as the Payment/Order transition.
+- If Order is PENDING, it moves to PAYMENT_FAILED. Expired reservations are released once by the existing expiry job; a cancelled Order remains cancelled. This endpoint never sets Order PAID.
+- Replays return the saved resolution; reusing a key with another decision/evidence returns HTTP 409.
+- The operator must execute and verify the actual refund/reversal through the approved merchant/finance channel before selecting REFUND_CONFIRMED; the application does not issue or simulate a refund.

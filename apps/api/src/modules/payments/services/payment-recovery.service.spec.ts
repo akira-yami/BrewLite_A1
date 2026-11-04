@@ -1,6 +1,6 @@
 import { ConflictException, HttpException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PaymentMethod, PaymentRecoveryRequestStatus, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
+import { PaymentMethod, PaymentRecoveryDecision, PaymentRecoveryRequestStatus, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
 import { PaymentRecoveryService } from './payment-recovery.service.js';
 
 const PAYMENT_ID = 'a1698475-3d03-4681-86af-4e68bc9b8d97';
@@ -69,11 +69,23 @@ function setup(options: {
       findUnique: vi.fn().mockResolvedValue(request),
       update: vi.fn().mockImplementation(async ({ data }: any) => ({ ...request, ...data })),
     },
-    paymentRecoveryAudit: { create: vi.fn().mockResolvedValue({ id: 'audit-1' }) },
+    paymentRecoveryAudit: {
+      create: vi.fn().mockResolvedValue({ id: 'audit-1' }),
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    paymentRecoveryResolution: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({
+        id: 'resolution-1', paymentId: PAYMENT_ID,
+        decision: PaymentRecoveryDecision.REFUND_CONFIRMED,
+        evidenceReference: 'VNREF-2026-001',
+      }),
+    },
   };
   const prisma = {
     payment: { findUnique: vi.fn().mockResolvedValue(candidate) },
     paymentRecoveryRequest: { findFirst: vi.fn().mockResolvedValue(null) },
+    paymentRecoveryResolution: { findFirst: vi.fn().mockResolvedValue(null) },
     $transaction: vi.fn(async (callback: (client: any) => unknown) => callback(tx)),
   };
   const orders = {
@@ -314,4 +326,74 @@ describe('PaymentRecoveryService', () => {
     expect(result).toMatchObject({ status: PaymentRecoveryRequestStatus.UNKNOWN, errorCode: 'SETTLEMENT_ROLLED_BACK' });
     expect(h.tx.paymentRecoveryAudit.create).toHaveBeenCalledTimes(2);
   });
+
+  it('requires a second operator to confirm a refund', async () => {
+    const h = setup();
+    h.tx.payment.findUnique.mockResolvedValue({ ...h.candidate, status: PaymentStatus.MANUAL_REVIEW });
+    h.tx.paymentRecoveryAudit.findFirst.mockResolvedValue({ actorUserId: ACTOR_ID });
+    await expect(h.service.resolveManualReview({
+      paymentId: PAYMENT_ID, idempotencyKey: 'resolution-refund-1',
+      decision: PaymentRecoveryDecision.REFUND_CONFIRMED,
+      evidenceReference: 'VNREF-2026-001', incidentReference: INCIDENT, actorUserId: ACTOR_ID,
+    })).rejects.toMatchObject({ response: { code: 'SECOND_OPERATOR_REQUIRED' } });
+    expect(h.tx.paymentRecoveryResolution.create).not.toHaveBeenCalled();
+  });
+
+  it('records a refund as REFUNDED and transitions a pending Order to PAYMENT_FAILED', async () => {
+    const h = setup({ orderStatus: OrderStatus.PENDING });
+    h.tx.payment.findUnique.mockResolvedValue({ ...h.candidate, status: PaymentStatus.MANUAL_REVIEW });
+    const result = await h.service.resolveManualReview({
+      paymentId: PAYMENT_ID, idempotencyKey: 'resolution-refund-2',
+      decision: PaymentRecoveryDecision.REFUND_CONFIRMED,
+      evidenceReference: 'VNREF-2026-002', incidentReference: INCIDENT,
+      actorUserId: 'b1698475-3d03-4681-86af-4e68bc9b8d91',
+    });
+    expect(result).toMatchObject({ resolutionId: 'resolution-1', paymentStatus: PaymentStatus.REFUNDED, isRetried: false });
+    expect(h.tx.payment.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: PaymentStatus.REFUNDED, failureCode: 'OPERATOR_CONFIRMED_REFUND' }),
+    }));
+    expect(h.orders.markOrderPaymentFailed).toHaveBeenCalledWith(ORDER_ID, ACTOR_ID, 'VNPAY_REFUND_CONFIRMED', h.tx);
+    expect(h.tx.paymentRecoveryAudit.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ beforeState: PaymentStatus.MANUAL_REVIEW, afterState: PaymentStatus.REFUNDED, providerOutcome: 'OPERATOR_REFUND_CONFIRMED' }),
+    }));
+  });
+
+  it('records confirmed no-charge as FAILED without resurrecting a cancelled Order', async () => {
+    const h = setup({ orderStatus: OrderStatus.CANCELLED });
+    h.tx.payment.findUnique.mockResolvedValue({ ...h.candidate, status: PaymentStatus.MANUAL_REVIEW });
+    const result = await h.service.resolveManualReview({
+      paymentId: PAYMENT_ID, idempotencyKey: 'resolution-no-charge-1',
+      decision: PaymentRecoveryDecision.NO_CHARGE_CONFIRMED,
+      evidenceReference: 'VNQ-2026-003', incidentReference: INCIDENT,
+      actorUserId: 'b1698475-3d03-4681-86af-4e68bc9d8d91',
+    });
+    expect(result.paymentStatus).toBe(PaymentStatus.FAILED);
+    expect(h.orders.markOrderPaymentFailed).not.toHaveBeenCalled();
+  });
+
+  it('replays disposition idempotently and rejects key reuse for a different decision', async () => {
+    const h = setup();
+    const requestHash = await import('node:crypto').then(({ createHash }) => createHash('sha256').update(JSON.stringify({
+      paymentId: PAYMENT_ID, decision: PaymentRecoveryDecision.REFUND_CONFIRMED,
+      evidenceReference: 'VNREF-2026-001', incidentReference: INCIDENT,
+    })).digest('hex'));
+    const saved = { id: 'resolution-saved', paymentId: PAYMENT_ID, requestHash,
+      decision: PaymentRecoveryDecision.REFUND_CONFIRMED, evidenceReference: 'VNREF-2026-001' };
+    h.prisma.paymentRecoveryResolution.findFirst.mockResolvedValue(saved);
+    const result = await h.service.resolveManualReview({
+      paymentId: PAYMENT_ID, idempotencyKey: 'resolution-refund-1',
+      decision: PaymentRecoveryDecision.REFUND_CONFIRMED, evidenceReference: 'VNREF-2026-001',
+      incidentReference: INCIDENT, actorUserId: ACTOR_ID,
+    });
+    expect(result).toMatchObject({ resolutionId: 'resolution-saved', paymentStatus: PaymentStatus.REFUNDED, isRetried: true });
+    expect(h.prisma.$transaction).not.toHaveBeenCalled();
+    h.prisma.paymentRecoveryResolution.findFirst.mockResolvedValue({ ...saved, requestHash: 'different' });
+    await expect(h.service.resolveManualReview({
+      paymentId: PAYMENT_ID, idempotencyKey: 'resolution-refund-1',
+      decision: PaymentRecoveryDecision.NO_CHARGE_CONFIRMED, evidenceReference: 'VNQ-2026-004',
+      incidentReference: INCIDENT, actorUserId: ACTOR_ID,
+    })).rejects.toMatchObject({ response: { code: 'RESOLUTION_IDEMPOTENCY_KEY_REUSED' } });
+  });
+
+
 });

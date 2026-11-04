@@ -12,7 +12,6 @@ import {
   Res,
   UseGuards,
   UsePipes,
-  Optional,
   Param,
   ValidationPipe,
 } from '@nestjs/common';
@@ -20,6 +19,7 @@ import type { Response } from 'express';
 import { PaymentsService } from '../services/payments.service.js';
 import { PaymentRecoveryService } from '../services/payment-recovery.service.js';
 import { PaymentRecoveryDto } from '../dto/payment-recovery.dto.js';
+import { PaymentRecoveryResolutionDto } from '../dto/payment-recovery-resolution.dto.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { CreatePaymentDto } from '../dto/create-payment.dto.js';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
@@ -33,7 +33,7 @@ export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
     private readonly ordersService: OrdersService,
-    @Optional() private readonly paymentRecoveryService?: PaymentRecoveryService,
+    private readonly paymentRecoveryService: PaymentRecoveryService,
   ) {}
 
   @Get('status')
@@ -85,9 +85,6 @@ export class PaymentsController {
     if (!idempotencyKey || idempotencyKey.trim() === '') {
       throw new BadRequestException('Header Idempotency-Key là bắt buộc cho recovery.');
     }
-    if (!this.paymentRecoveryService) {
-      throw new BadRequestException('Payment recovery service is unavailable.');
-    }
     return {
       data: await this.paymentRecoveryService.recover({
         paymentId,
@@ -97,6 +94,33 @@ export class PaymentsController {
         actorUserId: user.sub,
       }),
     };
+  }
+
+
+  @Post(':paymentId/recovery/resolve')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.PAYMENT_OPERATOR)
+  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+  async resolveRecovery(
+    @Param('paymentId') paymentId: string,
+    @Body() dto: PaymentRecoveryResolutionDto,
+    @Headers('idempotency-key') idempotencyKey: string,
+    @Headers('x-correlation-id') correlationId: string | undefined,
+    @CurrentUser() user: { sub: string; username: string; role: string },
+  ) {
+    if (!idempotencyKey || idempotencyKey.trim() === '') {
+      throw new BadRequestException('Header Idempotency-Key là bắt buộc cho resolution.');
+    }
+    return { data: await this.paymentRecoveryService.resolveManualReview({
+      paymentId,
+      idempotencyKey,
+      decision: dto.decision,
+      evidenceReference: dto.evidenceReference,
+      incidentReference: dto.incidentReference,
+      correlationId,
+      actorUserId: user.sub,
+    }) };
   }
 
   @Post()

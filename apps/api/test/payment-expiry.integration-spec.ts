@@ -332,4 +332,48 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
   });
 
 
+
+  it('requires a second operator to confirm refund, persists resolution and releases expired resources once', async () => {
+    const f = await fixture();
+    const operator = await prisma.user.create({
+      data: { username: `operator-${randomUUID()}`, passwordHash: 'test-only', role: 'PAYMENT_OPERATOR' },
+    });
+    const payment = await createVnpayPayment(f.order.id, f.params.amount);
+    await f.expire();
+    const inquiry = vi.fn().mockResolvedValue(successfulInquiry(payment.gatewayReference!));
+    const service = recoveryService(inquiry);
+    const review = await service.recover({
+      paymentId: payment.id, idempotencyKey: 'recovery-refund-review',
+      incidentReference: 'INC-REFUND-2026', actorUserId: f.user.id,
+    });
+    expect(review.paymentStatus).toBe('MANUAL_REVIEW');
+    const resolutionInput = {
+      paymentId: payment.id, idempotencyKey: 'resolution-refund-confirmed',
+      decision: 'REFUND_CONFIRMED' as const,
+      evidenceReference: 'VN-REFUND-2026-0001', incidentReference: 'INC-REFUND-2026',
+    };
+    await expect(service.resolveManualReview({ ...resolutionInput, actorUserId: f.user.id }))
+      .rejects.toMatchObject({ response: { code: 'SECOND_OPERATOR_REQUIRED' } });
+    const resolved = await service.resolveManualReview({ ...resolutionInput, actorUserId: operator.id });
+    expect(resolved).toMatchObject({ paymentStatus: 'REFUNDED', decision: 'REFUND_CONFIRMED', isRetried: false });
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('REFUNDED');
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: f.order.id } })).status).toBe('PAYMENT_FAILED');
+    const replay = await service.resolveManualReview({ ...resolutionInput, actorUserId: operator.id });
+    expect(replay).toMatchObject({ resolutionId: resolved.resolutionId, isRetried: true });
+    expect(await prisma.paymentRecoveryResolution.count({ where: { paymentId: payment.id } })).toBe(1);
+    await job().handleExpiredOrders();
+    const state = await f.state();
+    expect(state.order.status).toBe('CANCELLED');
+    expect(state.reservation.status).toBe('EXPIRED');
+    expect(state.coupon.status).toBe('EXPIRED');
+    expect(state.stock.stockQuantity).toBe(20);
+    const resolution = await prisma.paymentRecoveryResolution.findFirstOrThrow({ where: { paymentId: payment.id } });
+    await expect(prisma.paymentRecoveryResolution.update({
+      where: { id: resolution.id }, data: { evidenceReference: 'FORGED' },
+    })).rejects.toThrow(/append-only/);
+    await expect(prisma.paymentRecoveryResolution.delete({
+      where: { id: resolution.id },
+    })).rejects.toThrow(/append-only/);
+  });
+
 });

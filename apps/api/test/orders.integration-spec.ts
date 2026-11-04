@@ -287,6 +287,27 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       incidentReference: 'INC-HTTP-RECOVERY',
       actorUserId: paymentOperatorId,
     }));
+    const resolveSpy = vi.spyOn(recovery, 'resolveManualReview').mockResolvedValue({
+      resolutionId: randomUUID(), paymentId, decision: 'REFUND_CONFIRMED',
+      paymentStatus: 'REFUNDED', evidenceReference: 'VN-REFUND-HTTP-1', isRetried: false,
+    } as never);
+    const resolveEndpoint = () => request(app.getHttpServer())
+      .post(`/api/v1/payments/${paymentId}/recovery/resolve`)
+      .set('Idempotency-Key', 'http-resolution-key-1')
+      .send({
+        decision: 'REFUND_CONFIRMED',
+        evidenceReference: 'VN-REFUND-HTTP-1',
+        incidentReference: 'INC-HTTP-RESOLUTION',
+      });
+    await resolveEndpoint().expect(401);
+    await auth(resolveEndpoint()).expect(403);
+    await auth(resolveEndpoint(), baristaToken).expect(403);
+    const response = await auth(resolveEndpoint(), paymentOperatorToken).expect(200);
+    expect(response.body.data).toMatchObject({ decision: 'REFUND_CONFIRMED', paymentStatus: 'REFUNDED' });
+    expect(resolveSpy).toHaveBeenCalledWith(expect.objectContaining({
+      paymentId, idempotencyKey: 'http-resolution-key-1', decision: 'REFUND_CONFIRMED',
+      evidenceReference: 'VN-REFUND-HTTP-1', incidentReference: 'INC-HTTP-RESOLUTION', actorUserId: paymentOperatorId,
+    }));
   });
 
   it('rejects invalid preferences, forged prices, duplicate normalized toppings and quantities above 20', async () => {

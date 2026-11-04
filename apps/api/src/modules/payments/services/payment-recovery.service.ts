@@ -75,7 +75,6 @@ export class PaymentRecoveryService {
       .update(JSON.stringify({
         paymentId: input.paymentId,
         incidentReference: input.incidentReference,
-        correlationId,
       }))
       .digest('hex');
 
@@ -298,8 +297,8 @@ export class PaymentRecoveryService {
 
       const beforeState = payment.status;
       let afterState = beforeState;
-      let recoveryStatus = PaymentRecoveryRequestStatus.COMPLETED;
-      let providerOutcome = input.result.status;
+      let recoveryStatus: PaymentRecoveryRequestStatus = PaymentRecoveryRequestStatus.COMPLETED;
+      let providerOutcome: string = input.result.status;
       let failureCode: string | null = null;
       const transactionNo: string | null = input.result.transactionNo;
       const processedAt = new Date();

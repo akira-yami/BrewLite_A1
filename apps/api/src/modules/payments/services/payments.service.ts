@@ -337,7 +337,7 @@ export class PaymentsService {
       if (outcome === 'amount-mismatch') return { RspCode: '04', Message: 'Invalid amount' };
       if (outcome === 'pending') return { RspCode: '00', Message: 'Received; reconciliation remains required' };
       if (outcome === 'manual-review') return { RspCode: '00', Message: 'Received; manual review required' };
-      if (outcome === 'order-conflict' || outcome === 'missing-transaction') {
+      if (outcome === 'missing-transaction') {
         this.logger.error('VNPay IPN could not settle callback. reference=' + callback.vnp_TxnRef);
         return { RspCode: '99', Message: 'Unable to confirm transaction' };
       }

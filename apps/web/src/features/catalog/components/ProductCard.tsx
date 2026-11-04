@@ -17,7 +17,7 @@ export const ProductCard = ({
   onCustomize,
   
 }: ProductCardProps) => {
-  const canQuickAdd = product.variants.some((variant) => variant.availableServings > 0);
+  const canQuickAdd = product.variants.some((variant) => variant.available);
   // Ảnh không tải được (chưa có file, sai tên): hiện chữ cái đầu thay vì ảnh vỡ.
   const [imageFailed, setImageFailed] = useState(false);
 

@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { authSession } from './session';
 import { getMeApi } from './api';
+import { authSession } from './session';
 import { useAuthSession } from './use-auth-session';
 
 export function AuthControls() {
@@ -41,6 +41,14 @@ export function AuthControls() {
         >
           {session.user.username}
         </span>
+        {session.user.role === 'BARISTA' && (
+          <Link
+            href="/barista"
+            className="whitespace-nowrap font-semibold underline-offset-2 hover:underline"
+          >
+            Quầy Barista
+          </Link>
+        )}
         <button
           type="button"
           onClick={() => authSession.logout()}

@@ -8,14 +8,14 @@ interface ProductCardProps {
   product: Product;
   onPreview: (product: Product) => void;
   onCustomize: (product: Product) => void;
-  onQuickAdd: (product: Product) => void;
+  
 }
 
 export const ProductCard = ({
   product,
   onPreview,
   onCustomize,
-  onQuickAdd,
+  
 }: ProductCardProps) => {
   const canQuickAdd = product.variants.some((variant) => variant.availableServings > 0);
   // Ảnh không tải được (chưa có file, sai tên): hiện chữ cái đầu thay vì ảnh vỡ.

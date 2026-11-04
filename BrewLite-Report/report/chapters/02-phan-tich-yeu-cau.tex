@@ -1,0 +1,306 @@
+\chapter{Phân tích yêu cầu}
+\label{chap:phan-tich}
+
+\section{Quy ước và mức ưu tiên}
+Mỗi User Story theo mẫu: ``Là một [vai trò], tôi muốn [hành động], để
+[giá trị]''. Tiêu chí chấp nhận mô tả điều kiện có thể kiểm tra khi nghiệm
+thu. \textbf{Must} là yêu cầu cốt lõi của luồng đặt món; \textbf{Should}
+là nghiệp vụ nâng cao cần hoàn thiện; \textbf{Extension} là phần mở rộng.
+Mức ưu tiên thể hiện nhu cầu, không xác nhận đã triển khai. Hiện trạng
+được tổng hợp ở Bảng~\ref{tab:implementation}.
+
+\section{Danh sách User Story và tiêu chí chấp nhận}
+
+\Needspace{8\baselineskip}
+\subsection{US-01: Xem danh sách đồ uống}
+\label{us:01}
+\noindent\textbf{User Story -- Must.}
+Là một khách hàng, tôi muốn xem danh sách đồ uống để lựa chọn món phù hợp.
+\begin{acceptance}
+    \item Menu hiển thị tên, hình ảnh và giá của sản phẩm đang được bán;
+    dữ liệu được lấy từ Catalog API.
+    \item Khi đang tải, chưa có sản phẩm hoặc API lỗi, giao diện hiển thị
+    trạng thái tương ứng và cho phép thử lại khi phù hợp.
+    \item Chọn một sản phẩm mở chi tiết có các kích cỡ và topping hợp lệ.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-02: Tùy chỉnh đồ uống}
+\label{us:02}
+\noindent\textbf{User Story -- Must.}
+Là một khách hàng, tôi muốn chọn kích cỡ, topping, đường, đá và ghi chú
+để đồ uống phù hợp sở thích của mình.
+\begin{acceptance}
+    \item Chỉ chọn được biến thể và topping được gán cho sản phẩm, còn
+    hoạt động và đủ điều kiện phục vụ.
+    \item Giá tạm tính cập nhật theo kích cỡ, topping và số lượng;
+    đường, đá và ghi chú không làm thay đổi giá.
+    \item Đường/đá có lựa chọn công thức chuẩn hoặc 0/25/50/75/100\%;
+    giá trị 0 được giữ đúng, không thay bằng mặc định.
+    \item Ghi chú được trim; rỗng thành không có ghi chú, tối đa 500 ký tự.
+    Tùy chọn đã chọn được chuyển đầy đủ vào giỏ.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-03: Quản lý giỏ hàng}
+\label{us:03}
+\noindent\textbf{User Story -- Must.}
+Là một khách hàng, tôi muốn thêm, sửa số lượng và xóa món trong giỏ để
+điều chỉnh đơn trước khi đặt.
+\begin{acceptance}
+    \item Thêm món đã tùy chỉnh, tăng/giảm số lượng, sửa tùy chọn và xóa
+    dòng hàng; số lượng và tổng tạm tính cập nhật cùng nhau.
+    \item Dòng có cùng sản phẩm, size, topping, đường, đá và ghi chú được
+    nhận diện nhất quán; khác tùy chọn hoặc ghi chú được giữ thành dòng riêng.
+    \item Giỏ được khôi phục sau khi tải lại trang; đọc được dữ liệu giỏ
+    cũ thiếu trường tùy chọn theo cơ chế chuẩn hóa của store.
+    \item Giỏ rỗng có thông báo và không cho gửi yêu cầu tạo đơn rỗng.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-04: Tạo đơn hàng}
+\label{us:04}
+\noindent\textbf{User Story -- Must.}
+Là một khách hàng đã đăng nhập, tôi muốn gửi giỏ hàng để nhận mã đơn và
+số tiền do hệ thống xác nhận trước khi thanh toán.
+\begin{acceptance}
+    \item Chỉ CUSTOMER đang hoạt động được tạo đơn; chủ đơn lấy từ JWT,
+    không lấy từ mã người dùng trong nội dung request.
+    \item Request có 1--20 dòng, mỗi dòng có số lượng nguyên 1--20;
+    UUID, size, topping, đường/đá và ghi chú phải hợp lệ.
+    \item Backend đọc giá hiện hành, tự tính tổng và thẩm định coupon
+    nếu có; không dùng đơn giá hoặc tổng tiền do trình duyệt quyết định.
+    \item Trong một transaction, hệ thống lưu đơn \code{PENDING}, chi
+    tiết món dạng snapshot, giữ nguyên liệu, giữ lượt coupon nếu có và
+    ghi nhận mốc khởi tạo đơn.
+    \item Thiếu nguyên liệu hoặc lỗi bất kỳ bước ghi nào phải rollback,
+    không để lại đơn hay reservation dở dang.
+    \item Thành công trả mã đơn, tổng tiền và thời hạn giữ chỗ để tiếp
+    tục thanh toán; dữ liệu không hợp lệ trả lỗi có thể xử lý trên giao diện.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-05: Thanh toán không tiền mặt và thử lại}
+\label{us:05}
+\noindent\textbf{User Story -- Must.}
+Là một khách hàng, tôi muốn thanh toán bằng Ví hoặc Thẻ qua cổng giả lập
+để hoàn tất đơn mà không dùng tiền mặt.
+\begin{acceptance}
+    \item Khách chọn phương thức thanh toán; API xác thực chủ đơn và lấy
+    số tiền phải trả từ đơn đã lưu.
+    \item Request thanh toán có \code{Idempotency-Key}; gửi lặp cùng key
+    và cùng nội dung không tạo thêm giao dịch hoặc cộng điểm lần nữa.
+    \item Dùng lại key với nội dung khác bị từ chối; các yêu cầu đồng thời
+    không được tạo nhiều lần thanh toán thành công cho cùng đơn.
+    \item Thành công đưa đơn sang \code{PAID}, sử dụng reservation và
+    chuyển sang màn hình xác nhận; giỏ chỉ được xóa sau thành công.
+    \item Thất bại có thông báo và giữ giỏ; thử lại một lần thanh toán
+    mới dùng key mới trên cùng đơn còn hợp lệ, không tạo lại đơn để thử lại.
+    \item Đơn đã hết thời hạn giữ chỗ không được thanh toán như đơn còn hiệu lực.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-06: Xác nhận và xem lịch sử đơn hàng}
+\label{us:06}
+\noindent\textbf{User Story -- Must.}
+Là một khách hàng đã đăng nhập, tôi muốn xem xác nhận và lịch sử đơn
+của mình để kiểm tra món đã đặt và tiến trình xử lý.
+\begin{acceptance}
+    \item Màn hình xác nhận có mã đơn, món/tùy chọn, tổng tiền, kết quả
+    thanh toán và trạng thái đơn.
+    \item Lịch sử chỉ trả đơn của tài khoản hiện tại, sắp xếp mới nhất
+    trước; hỗ trợ tải trang tiếp theo theo cursor của API.
+    \item Mở chi tiết xem được snapshot món, đường/đá/ghi chú, payment
+    và các mốc trạng thái đã lưu; đơn người khác không được đọc.
+    \item Không có đơn, phiên hết hạn và lỗi API có trạng thái giao diện
+    rõ ràng; token không hợp lệ không được tiếp tục dùng.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-07: Đăng ký, đăng nhập và kết thúc phiên}
+\label{us:07}
+\noindent\textbf{User Story -- Must.}
+Là một khách hàng, tôi muốn có tài khoản và đăng nhập để đặt món và quản
+lý đơn thuộc về mình.
+\begin{acceptance}
+    \item Đăng ký kiểm tra dữ liệu và username trùng; mật khẩu chỉ được
+    lưu dưới dạng hash, không trả hash trong response.
+    \item Đăng nhập đúng cấp JWT; sai thông tin không cấp phiên.
+    Khách tự đăng ký không được tự gán role BARISTA.
+    \item Thiếu, sai hoặc hết hạn token bị từ chối ở API được bảo vệ;
+    giao diện xóa phiên không hợp lệ và hướng người dùng đăng nhập lại.
+    \item Đăng xuất xóa phiên ở trình duyệt; quyền đọc đơn vẫn được
+    backend kiểm tra trong mọi request.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-08: Áp dụng mã giảm giá}
+\label{us:08}
+\noindent\textbf{User Story -- Should.}
+Là một khách hàng, tôi muốn dùng coupon hợp lệ để nhận mức giảm phù hợp
+với đơn hàng.
+\begin{acceptance}
+    \item Kiểm tra mã đang hoạt động, thời gian áp dụng, giá trị đơn tối
+    thiểu, giới hạn tổng và giới hạn theo người dùng.
+    \item Số tiền giảm đúng loại phần trăm/số tiền cố định, tuân theo
+    mức trần và không làm tổng tiền âm.
+    \item Kiểm tra trước chỉ là báo giá; khi tạo đơn phải kiểm tra và
+    giữ lượt trong transaction dựa trên tổng do server tính.
+    \item Thanh toán thành công sử dụng lượt; hủy/hết hạn giải phóng lượt
+    theo vòng đời redemption; không vượt giới hạn khi có yêu cầu đồng thời.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-09: Đặt món trong giới hạn nguyên liệu}
+\label{us:09}
+\noindent\textbf{User Story -- Must.}
+Là một khách hàng, tôi muốn chỉ đặt được số lượng có thể pha chế để đơn
+được tiếp nhận phù hợp với nguyên liệu thực tế.
+\begin{acceptance}
+    \item Khả năng phục vụ của size được tính từ công thức và nguyên
+    liệu; topping cũng tiêu hao nguyên liệu theo công thức riêng.
+    \item Cộng gộp nhu cầu nguyên liệu dùng chung của các món và topping
+    trước khi kiểm tra và giữ chỗ.
+    \item Hai đơn đồng thời không làm tồn nguyên liệu âm; gặp xung đột
+    thì thử lại có giới hạn hoặc trả lỗi phù hợp.
+    \item Hủy/hết hạn hoàn đúng lượng đã ghi trong reservation, không
+    tính lại từ công thức có thể đã thay đổi; mỗi reservation chỉ hoàn một lần.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-10: Ghi nhận điểm thưởng}
+\label{us:10}
+\noindent\textbf{User Story -- Should.}
+Là một khách hàng, tôi muốn đơn thanh toán thành công được ghi nhận điểm
+thưởng để quyền lợi của mình được theo dõi chính xác.
+\begin{acceptance}
+    \item Chỉ cộng điểm khi đơn thực sự được xác nhận đã thanh toán;
+    thanh toán thất bại không tăng số dư.
+    \item Một đơn chỉ tạo một giao dịch EARN dù replay hoặc có nhiều
+    yêu cầu thanh toán đồng thời; số dư và ledger được cập nhật nhất quán.
+    \item Chính sách quy đổi phải được nhóm xác nhận khi nghiệm thu.
+    Code hiện tính \code{floor(total / 10)}; báo cáo không coi tỷ lệ này
+    là quy tắc đã được phê duyệt.
+\end{acceptance}
+
+\Needspace{8\baselineskip}
+\subsection{US-11: Nhân viên tiếp nhận và hoàn tất đơn}
+\label{us:11}
+\noindent\textbf{User Story -- Extension cho giao diện quầy.}
+Là một Barista, tôi muốn nhận đơn đã thanh toán và cập nhật quá trình pha
+chế để khách biết khi nào có thể nhận món.
+\begin{acceptance}
+    \item Chỉ BARISTA được thao tác nghiệp vụ quầy; CUSTOMER bị từ chối.
+    \item Chỉ đi theo thứ tự \code{PAID} $\rightarrow$ \code{PREPARING}
+    $\rightarrow$ \code{READY} $\rightarrow$ \code{COMPLETED}; chặn bỏ
+    bước và thao tác trên trạng thái kết thúc.
+    \item Mỗi lần chuyển trạng thái lưu người thao tác, trạng thái trước/sau
+    và thời gian; danh sách quầy hiển thị tùy chọn và ghi chú của món.
+\end{acceptance}
+\noindent\textit{Ranh giới:} máy trạng thái đầy đủ thuộc công việc core
+A1-10.2; page/queue của quầy là extension EXT-UC10. Cả hai chưa có đầy đủ
+runtime trong mã nguồn được đối chiếu.
+
+\Needspace{8\baselineskip}
+\subsection{US-12: Hủy đơn và xử lý hết hạn giữ chỗ}
+\label{us:12}
+\noindent\textbf{User Story -- Should.}
+Là một khách hàng, tôi muốn đơn chưa được xử lý tiếp được hủy theo quy
+tắc rõ ràng để không giữ nguyên liệu vô thời hạn.
+\begin{acceptance}
+    \item Job tự hủy đơn chưa thanh toán đã quá hạn và hoàn reservation
+    nguyên liệu/coupon đúng một lần.
+    \item Thiết kế cho phép chủ đơn hủy ở \code{PENDING},
+    \code{PAYMENT_FAILED} hoặc \code{PAID} trước khi nhận pha; phải kiểm
+    tra chủ đơn và trạng thái trong transaction.
+    \item \code{COMPLETED} và \code{CANCELLED} là trạng thái kết thúc.
+    Hủy từ PAID không được diễn giải là đã hoàn tiền qua ngân hàng.
+\end{acceptance}
+\noindent\textit{Hiện trạng:} job hết hạn đã có; API khách chủ động hủy
+và toàn bộ luật hủy còn cần hoàn thiện.
+
+\section{Yêu cầu chức năng (Functional Requirements)}
+\label{sec:functional}
+{\small\setstretch{1.1}
+\begin{longtable}{@{}L{0.10\textwidth}L{0.61\textwidth}L{0.22\textwidth}@{}}
+\caption{Danh mục yêu cầu chức năng và User Story liên quan}\label{tab:functional}\\
+\toprule\textbf{Mã} & \textbf{Chức năng cần cung cấp} & \textbf{Truy vết} \\\midrule\endfirsthead
+\toprule\textbf{Mã} & \textbf{Chức năng cần cung cấp} & \textbf{Truy vết} \\\midrule\endhead
+\bottomrule\endfoot
+FR-01 & Trả và hiển thị menu từ dữ liệu sản phẩm đang hoạt động; xử lý loading/empty/error. & US-01 \\
+FR-02 & Trả chi tiết, chọn size/topping hợp lệ, đường/đá/ghi chú và cập nhật giá tạm tính. & US-02 \\
+FR-03 & Thêm/sửa/xóa, gộp/tách dòng đúng tùy chọn, tính tổng và khôi phục giỏ sau tải lại. & US-03 \\
+FR-04 & Đăng ký, đăng nhập, đọc hồ sơ, đăng xuất phía client và xử lý phiên hết hạn. & US-07 \\
+FR-05 & Tạo đơn từ JWT và giỏ hợp lệ; tính giá server, lưu snapshot và trạng thái PENDING. & US-04 \\
+FR-06 & Tính nhu cầu nguyên liệu cho đồ uống và topping; giữ chỗ trong transaction khi tạo đơn. & US-04, US-09 \\
+FR-07 & Thanh toán Ví/Thẻ qua mock gateway, xử lý thành công, thất bại, replay và retry. & US-05 \\
+FR-08 & Hiển thị xác nhận; trả lịch sử có phân trang và chi tiết đơn thuộc tài khoản hiện tại. & US-06 \\
+FR-09 & Kiểm tra coupon; giữ, sử dụng và giải phóng lượt theo vòng đời đơn. & US-08 \\
+FR-10 & Ghi ledger điểm và cập nhật số dư đúng một lần khi đơn được thanh toán. & US-10 \\
+FR-11 & Tự hủy đơn quá hạn; hoàn nguyên liệu và giải phóng coupon theo dữ liệu reservation. & US-09, US-12 \\
+FR-12 & Thực thi đầy đủ máy trạng thái; chặn bước sai và ghi lịch sử mọi lần chuyển. & US-05, US-11, US-12 \\
+FR-13 & Khách chủ động hủy đơn ở các trạng thái được cho phép và xem kết quả hủy. & US-12 \\
+FR-14 & Quầy nhân viên nhận đơn, cập nhật pha chế, sẵn sàng và giao món. & US-11 (mở rộng) \\
+\end{longtable}}
+
+\section{Yêu cầu phi chức năng (Non-functional Requirements)}
+Các yêu cầu dưới đây xác định thuộc tính chất lượng và cách đánh giá.
+Chỉ tiêu được ghi là \textit{mục tiêu} cần được đo khi nghiệm thu; báo cáo
+không coi là kết quả đã đạt nếu chưa có bằng chứng.
+{\small\setstretch{1.1}
+\begin{longtable}{@{}L{0.10\textwidth}L{0.24\textwidth}L{0.59\textwidth}@{}}
+\caption{Yêu cầu phi chức năng và tiêu chí kiểm chứng}\label{tab:nonfunctional}\\
+\toprule\textbf{Mã} & \textbf{Thuộc tính} & \textbf{Tiêu chí đánh giá} \\\midrule\endfirsthead
+\toprule\textbf{Mã} & \textbf{Thuộc tính} & \textbf{Tiêu chí đánh giá} \\\midrule\endhead
+\bottomrule\endfoot
+NFR-01 & Bảo mật tài khoản & Hash mật khẩu; kiểm tra JWT; không ghi secret vào mã nguồn/response. Kiểm thử thiếu, sai, hết hạn token và đăng ký role trái phép. \\
+NFR-02 & Phân quyền dữ liệu & CUSTOMER chỉ đọc/thao tác đơn của mình; BARISTA chỉ thực hiện tác vụ được cấp. Kiểm thử role và truy cập chéo tài khoản. \\
+NFR-03 & Toàn vẹn giao dịch & Tạo đơn/giữ nguyên liệu/coupon cùng transaction; lỗi giữa chừng không để lại dữ liệu dở dang; tồn không âm. Kiểm thử rollback và DB đồng thời. \\
+NFR-04 & Chống tác động lặp & Replay key không gọi gateway lại hoặc cộng điểm lại; không có hai payment thành công cho một đơn. Kiểm thử cùng key, khác key, payload khác và retry. \\
+NFR-05 & Hiệu năng & Mục tiêu đề xuất: API menu/lịch sử có p95 dưới 2 giây với 50 người dùng đồng thời trên môi trường đã công bố; đo riêng gateway và chưa khẳng định đạt qua unit test. \\
+NFR-06 & Dễ sử dụng & Luồng mua hàng có trạng thái tải/rỗng/lỗi, tổng tiền và thông báo rõ ràng; không xóa giỏ khi thanh toán thất bại. Kiểm tra thủ công và E2E. \\
+NFR-07 & Tương thích giao diện & Mục tiêu kiểm tra màn hình 390 px và 1366 px, trình duyệt Chromium hiện đại; không che nút thao tác hoặc tràn ngang. Chưa suy rộng thành mọi thiết bị. \\
+NFR-08 & Bảo trì và kiểm thử & Chia module, dùng DTO và migration có phiên bản; nghiệp vụ có unit/integration test, thay đổi tích hợp được review chéo. \\
+NFR-09 & Tái lập môi trường & Có env mẫu, secret bắt buộc, migration chạy lặp và hướng dẫn seed. Nghiệm thu bằng môi trường sạch; chỉ có Compose chưa đủ chứng minh bàn giao. \\
+NFR-10 & Khả năng truy vết & Snapshot giữ thông tin đơn cũ; tiền dùng số nguyên VND, thời gian lưu UTC; lịch sử trạng thái phải phản ánh đủ các bước thực tế. \\
+\end{longtable}}
+
+\section{Quy tắc nghiệp vụ}
+\begin{enumerate}[label=BR-\arabic*:,leftmargin=3.8em]
+    \item \textbf{Giá đáng tin cậy:} frontend chỉ hiển thị tạm tính;
+    backend xác nhận giá và coupon trước khi lưu đơn.
+    \item \textbf{Kho theo nguyên liệu:} không lưu số lượng thành phẩm
+    ở ProductVariant. Số ly có thể làm là giá trị tính từ công thức;
+    đường/đá được lưu như tùy chọn, không tự suy ra một chính sách giảm
+    định lượng nguyên liệu nếu công thức chưa quy định.
+    \item \textbf{Giữ chỗ có hạn:} TTL mặc định trong cấu hình là 15 phút,
+    có thể thay bằng biến môi trường; thanh toán và job hết hạn phải đồng bộ.
+    \item \textbf{Thanh toán:} phân biệt replay cùng lần thử và retry
+    lần mới; tiền thanh toán lấy từ đơn trong database.
+    \item \textbf{Lưu vết:} đổi tên/giá catalog không sửa snapshot của đơn
+    cũ; mọi lần chuyển trạng thái theo yêu cầu phải có history tương ứng.
+\end{enumerate}
+
+\section{Đặc tả luồng tạo đơn và thanh toán}
+\noindent\textbf{Tác nhân:} CUSTOMER và Mock Payment Gateway.
+\textbf{Tiền điều kiện:} đăng nhập hợp lệ, giỏ có món và API hoạt động.
+\begin{enumerate}
+    \item Khách kiểm tra giỏ, chọn phương thức thanh toán và xác nhận.
+    \item Frontend gửi danh sách biến thể, số lượng, topping, tùy chọn và
+    coupon nếu có đến \code{POST /orders}.
+    \item Backend xác thực, tính lại tiền và thực hiện transaction tạo
+    đơn/giữ nguyên liệu; trả đơn PENDING cùng thời hạn giữ chỗ.
+    \item Frontend gửi \code{POST /payments} kèm mã đơn, phương thức và
+    key của lần thử; backend kiểm tra chủ đơn, hạn và số tiền.
+    \item Gateway trả thành công: payment được ghi nhận, đơn sang PAID,
+    reservation/coupon được sử dụng và loyalty được ghi một lần.
+    \item Frontend nhận kết quả, hiển thị xác nhận và cho xem lại đơn.
+\end{enumerate}
+\noindent\textbf{Luồng thay thế:} thiếu nguyên liệu thì không tạo đơn;
+validation lỗi thì sửa dữ liệu; gateway thất bại thì giữ giỏ và cho thử
+lại trên đơn còn hiệu lực; mất kết nối khi chưa rõ kết quả phải đối chiếu
+lần thử cũ, không mặc định đã thất bại; hết TTL thì giải phóng giữ chỗ.
+
+\noindent\textbf{Hậu điều kiện mong đợi:} thành công có đúng một đơn đã
+thanh toán và các tác động liên quan nhất quán; thất bại không để tồn âm,
+không cộng điểm và không tạo tác động thanh toán trùng.

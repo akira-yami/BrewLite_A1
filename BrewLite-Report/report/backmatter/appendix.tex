@@ -1,0 +1,119 @@
+\chapter{Hướng dẫn chạy và phân công chi tiết}
+\label{chap:phu-luc}
+
+\section{Chạy ứng dụng trên môi trường phát triển}
+Cần Node.js 24, PostgreSQL và thông tin kết nối riêng của môi trường.
+Các bước dưới đây dùng PowerShell; thực hiện từ thư mục gốc repository.
+Không ghi đè file env đang sử dụng. Nếu file đã có, kiểm tra và cập nhật
+các biến cần thiết theo env mẫu.
+
+\begin{lstlisting}[caption={Chuẩn bị backend và dữ liệu menu}]
+Set-Location apps/api
+npm ci
+# Chi sao chep khi chua co file .env
+Copy-Item .env.example .env
+# Dien DATABASE_URL va JWT_SECRET rieng trong .env.
+# Tao database PostgreSQL truoc khi chay migrate.
+npm run prisma:generate
+npm run prisma:deploy
+npm run db:seed
+npm run start:dev
+\end{lstlisting}
+Mở terminal khác để chạy frontend:
+\begin{lstlisting}[caption={Chạy frontend từ gốc repository}]
+Set-Location apps/web
+npm ci
+npm run dev
+\end{lstlisting}
+Frontend mặc định tại \url{http://localhost:3000}, API có tiền tố
+\url{http://localhost:3001/api/v1}. Env frontend theo
+\sourcefile{.env.example}: cần kiểm tra \code{NEXT_PUBLIC_API_URL} khớp
+địa chỉ API. Kiểm tra \code{/health}, menu và đăng ký một tài khoản
+CUSTOMER trước khi demo. Không dùng seed E2E làm quy trình bàn giao
+chính thức hoặc coi seed catalog là đã tạo sẵn tài khoản Barista.
+
+Compose có thể khởi chạy bằng \code{docker compose up --build} sau khi
+chuẩn bị env gốc. Service migrate hiện không seed catalog: phải thực
+hiện bước seed với cùng database qua môi trường API đã cấu hình, rồi
+kiểm tra menu. Hướng dẫn Compose sạch và tài khoản demo là hạng mục
+cần được nhóm kiểm chứng khi bàn giao.
+
+\section{Lệnh kiểm tra ứng dụng}
+\begin{lstlisting}[caption={Các lệnh kiểm tra dùng trong từng ứng dụng}]
+# Trong apps/api
+npm run lint
+npm run typecheck
+npm test
+npm run test:e2e
+# DB integration can SMOKE_DATABASE_URL cua DB test rieng.
+npm run test:integration
+npm run build
+
+# Trong apps/web
+npm run lint
+npm run typecheck
+npm test
+npm run test:e2e
+npm run build
+\end{lstlisting}
+DB integration và browser E2E phải theo cấu hình fixture của repo và
+hướng dẫn \sourcefile{apps/api/README.md},
+\sourcefile{tests/e2e/README.md}. Không trỏ các bài ghi dữ liệu vào DB
+đang dùng của ứng dụng. Kết quả của các lệnh này cần được lưu cùng mốc
+source khi thực sự chạy, không mặc định lấy từ bảng số liệu lịch sử.
+
+\section{Danh mục thẻ phân công và reviewer}
+\label{sec:task-assignment}
+Bảng trích từ bản đối chiếu phân công ngày 03/11/2026~\cite{assignment}.
+Tên ngắn tương ứng các thành viên đầy đủ ở Bảng~\ref{tab:assignment}.
+Cột reviewer thể hiện người được giao kiểm tra, chưa xác nhận đã approve.
+Tên đầu việc giữ theo nội dung phân công; kỹ thuật cũ trên thẻ cần đọc
+cùng thiết kế/hiện trạng mới trong báo cáo.
+
+{\footnotesize\setstretch{1.08}
+\begin{longtable}{@{}L{0.15\textwidth}L{0.50\textwidth}L{0.12\textwidth}L{0.13\textwidth}@{}}
+\caption{Danh mục 40 thẻ, người phụ trách và người kiểm tra}\label{tab:task-assignment}\\
+\toprule\textbf{Mã thẻ} & \textbf{Đầu việc được giao} & \textbf{Phụ trách} & \textbf{Reviewer} \\\midrule\endfirsthead
+\toprule\textbf{Mã thẻ} & \textbf{Đầu việc được giao} & \textbf{Phụ trách} & \textbf{Reviewer} \\\midrule\endhead
+\bottomrule\endfoot
+A1-1.1 & Repository và khung API NestJS & Khang & Huy \\
+A1-1.2 & Khởi tạo Next.js và kết nối backend & Khang & Huy \\
+A1-1.4 & Env mẫu, lint/build và hướng dẫn môi trường & Khang & Huy \\
+A1-2.1 & Contract Product và GET /products & Khang & Kiệt \\
+A1-10.1 & Thiết kế Order State Machine & Khang & Kiệt \\
+SCRUM-S1 & Review/Retro và hồ sơ Sprint & Khang & Khải \\
+A1-6.1 & POST /orders, giá server và PENDING & Khang & Hoàng \\
+A1-6.2 & Order snapshot, transaction và rollback & Khang & Hoàng \\
+A1-9.1 & API lịch sử và chi tiết đơn của tôi & Khang & Huy \\
+SCRUM-S2 & Review/Retro và hồ sơ Sprint & Khang & Khải \\
+A1-9.5 & Docker Compose và README bàn giao & Khang & Hoàng \\
+SCRUM-S3 & Review/Retro và hồ sơ Sprint & Khang & Khải \\
+A1-1.3 & Kết nối PostgreSQL/Prisma và dữ liệu mẫu & Hoàng & Khang \\
+A1-2.2 & Seed menu và API GET /products & Hoàng & Khải \\
+A1-2.3 & Kiểm thử API danh sách sản phẩm & Hoàng & Khải \\
+A1-3.1 & Lưới menu và thẻ đồ uống mobile-first & Hoàng & Khải \\
+A1-3.2 & Tích hợp API thật vào Menu & Hoàng & Khải \\
+A1-3.3 & Loading, empty, error và retry của Menu & Hoàng & Khải \\
+A1-4.1 & Product Detail API và tùy chọn hợp lệ & Hoàng & Khang \\
+A1-4.3 & Kiểm thử API tùy chọn và giá sản phẩm & Hoàng & Khang \\
+A1-10.4 & Inventory reserve/consume/release và concurrency & Hoàng & Khang \\
+A1-9.3 & Migration/seed và dữ liệu demo sạch & Hoàng & Khải \\
+A1-7.1 & Register/Login, bcrypt và JWT & Huy & Khang \\
+A1-7.2 & Auth UI, phiên, logout và 401 & Huy & Khải \\
+A1-6.3 & JWT, validation và chủ sở hữu đơn & Huy & Khải \\
+A1-7.3 & Bảo vệ API đặt đơn và token an toàn & Huy & Khải \\
+A1-10.6 & Loyalty ledger/balance sau PAID & Huy & Khang \\
+A1-9.4 & Tài khoản demo, bảo mật và hướng dẫn test & Huy & Khang \\
+A1-4.2 & Detail UI, size/topping và giá tạm tính & Khải & Hoàng \\
+A1-5.1 & Cart store thêm/sửa/xóa và persist & Khải & Hoàng \\
+A1-5.2 & Định danh dòng giỏ và tính tổng & Khải & Hoàng \\
+A1-5.3 & Kiểm thử phép tính và khôi phục giỏ & Khải & Hoàng \\
+A1-8.2 & Checkout UI và xử lý payment outcome & Khải & Khang \\
+A1-9.2 & Confirmation và History/Detail UI & Khải & Hoàng \\
+A1-10.5 & Coupon validation và retry an toàn & Kiệt & Huy \\
+A1-8.1 & Mock gateway và POST /payments & Kiệt & Khang \\
+A1-8.3 & PAID/PAYMENT\_FAILED qua OrdersService & Kiệt & Khang \\
+A1-10.3 & Payment idempotency và chống double-charge & Kiệt & Khang \\
+A1-10.2 & Hiện thực full Order State Machine & Kiệt & Khang \\
+EXT-UC10 & Staff UI queue và cập nhật trạng thái đơn & Kiệt & Huy \\
+\end{longtable}}

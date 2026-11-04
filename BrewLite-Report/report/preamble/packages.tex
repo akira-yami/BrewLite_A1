@@ -1,0 +1,71 @@
+%==============================================================%
+%  GÓI LỆNH (PACKAGES)                                         %
+%==============================================================%
+
+% ---- Hỗ trợ tiếng Việt (UTF-8) ----
+% Biên dịch bằng XeLaTeX/LuaLaTeX; không trộn T5 với fontspec.
+\usepackage{iftex}
+\ifPDFTeX
+    \PackageError{BrewLite}{Hay bien dich bang XeLaTeX hoac LuaLaTeX}
+        {Chon XeLaTeX trong trinh soan thao; khong dung pdfLaTeX.}
+\fi
+\usepackage{fontspec}
+\defaultfontfeatures{Ligatures=TeX}
+\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{\setmainfont{TeX Gyre Termes}}
+\IfFontExistsTF{Arial}{\setsansfont{Arial}}{\setsansfont{TeX Gyre Heros}}
+\setmonofont{Latin Modern Mono}[Scale=MatchLowercase]
+\usepackage[vietnamese]{babel}
+
+% ---- Trình bày trang ----
+\usepackage[a4paper,left=3cm,right=2cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% ---- Toán học ----
+\usepackage{amsmath,amssymb,amsfonts,latexsym}
+
+% ---- Hình ảnh, bảng biểu ----
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{etoolbox}
+% longtable chèn \vss vào hộp trang; kernel mới tách hộp sẽ báo
+% "Infinite glue shrinkage". Giữ phần giãn, bỏ phần co vô hạn.
+\makeatletter
+\patchcmd{\LT@output}{\vss}{\vfil}{}{}
+\patchcmd{\LT@output}{\vss}{\vfil}{}{}
+\makeatother
+\usepackage{needspace}
+\usepackage{caption}
+\usepackage{subcaption}
+
+% ---- Danh sách, màu sắc ----
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+% ---- Code / listings ----
+\usepackage{listings}
+
+% ---- Sơ đồ ----
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,shapes,positioning,calc}
+
+% ---- Liên kết ----
+\usepackage{xurl}
+\usepackage[unicode]{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue,
+    pdftitle={Bao cao do an BrewLite},
+    pdfauthor={Nhom 7 - BrewLite},
+    bookmarksnumbered=true,
+    pdfencoding=auto
+}

@@ -1,5 +1,7 @@
 # Tiến độ BrewLite tại ngày 22/10/2026
 
+> Báo cáo lịch sử, giữ làm đầu vào cho hồ sơ Sprint. Xem [audit 03/11/2026](trello-audit-2026-11-03.md) cho lần kiểm chứng sau; đây không phải trạng thái hiện tại.
+
 Phạm vi kiểm tra: source, test, workflow, cấu hình và Git local tại baseline `7feda73` (merge PR #22 ngày 20/10/2026), cộng tài liệu/sơ đồ đang sửa trong working tree. Báo cáo này không thay workbook 33 task hoặc trạng thái Trello; không sửa phân công đã gửi nhóm.
 
 ## Sản phẩm và mức kiểm chứng
@@ -15,24 +17,24 @@ Phạm vi kiểm tra: source, test, workflow, cấu hình và Git local tại ba
 | Task 10 | Schema/constraint, state diagram, ADR, review coupon | Chưa có runtime state machine, inventory, promotions, loyalty hoặc test nghiệp vụ concurrent |
 | Hồ sơ | FR/NFR/UC/US, ERD/ADR/contracts, handover; thêm truy vết/Class/Deployment | Review độc lập, biên bản Scrum, xác nhận A2 và hồ sơ release còn thiếu |
 
-Mã nguồn/test và trạng thái từng AC được nối tại [ma trận truy vết](../../Khang-A2/docs/traceability-matrix.md). Trạng thái “có code/test” không đồng nghĩa đã đạt DoD.
+Mã nguồn/test và trạng thái từng AC được nối tại ma trận truy vết (tài liệu A2 chưa có trong checkout). Trạng thái “có code/test” không đồng nghĩa đã đạt DoD.
 
 ## Mốc có bằng chứng
 
 | Mốc | Minh chứng | Ý nghĩa và giới hạn |
 |---|---|---|
-| 17/10/2026 | [Khang W2](khang-week-02-handover.md), `89ad479`, PR #18 | Contract/DTO/S1 DB integration; kết quả local ghi trong handover là lịch sử tại baseline khi đó |
-| Catalog detail đã vào main | `23736aa`, PR #19 (`bac6713`) | Phát hiện thiếu detail API trong handover 17/10 đã có triển khai sau đó; không tiếp tục báo detail route còn thiếu |
+| 17/10/2026 | `89ad479`, PR #18 | Contract/DTO/S1 DB integration; mốc triển khai lịch sử; bản bàn giao cá nhân đã được dọn khỏi docs |
+| Catalog detail đã vào main | `23736aa`, PR #19 (`bac6713`) | Detail API đã được bổ sung sau mốc 17/10; không tiếp tục báo detail route còn thiếu |
 | Giỏ hàng vào main | `c66c4ae`, PR #20 (`f0d2520`) | Có cart logic và test; checkout vẫn chưa nối |
-| 19/10/2026 | [Huy W2](huy-week-02-handover.md), PR #21 (`cd49fe6`) | Session, logout, JWT HTTP; không phải thanh toán |
-| 20/10/2026 | [Huy W3](huy-week-03-handover.md), PR #22 (`7feda73`) | RBAC/ownership Auth, filter 401/403 và review coupon; chưa chứng minh ownership order |
+| 19/10/2026 | PR #21 (`cd49fe6`) | Session, logout, JWT HTTP; không phải thanh toán |
+| 20/10/2026 | PR #22 (`7feda73`) | RBAC/ownership Auth, filter 401/403 và review coupon; chưa chứng minh ownership order |
 | 22/10/2026 | Bộ cập nhật tài liệu này | Đối chiếu source, bổ sung mapping và sơ đồ; chưa có approval của thành viên hoặc biên bản họp mới |
 
 Nguồn hội thoại có dẫn [CI run 39402027237](https://github.com/phananhkhang/BrewLite/actions/runs/39402027237). Đây là link tham chiếu từ lần đánh giá trước; lần cập nhật tài liệu này không xác minh lại trạng thái live của run hoặc ruleset GitHub. Chỉ có `.github/workflows/ci.yml` trong repo chưa chứng minh merge bị chặn khi CI lỗi.
 
 ## Theo dõi owner mà không đổi phân công
 
-Owner domain lấy từ [Use Case overview](../../Khang-A2/docs/architecture/use-case-overview.md) và [team roles](team-roles.md): Khang điều phối/schema/UC-06; Hoàng catalog và inventory theo kế hoạch tích hợp; Huy Auth; Khải cart/UC-09 frontend; Kiệt coupon/payment/state machine. Đầu việc chi tiết và SP vẫn tra bảng phân công gốc. Việc bổ sung API history, loyalty, review hoặc deployment phải đối chiếu owner trong workbook trước khi cập nhật bảng phân công, không tự tạo task mới trong báo cáo này.
+Owner domain lấy từ Use Case overview (tài liệu A2 chưa có trong checkout) và [team roles](team-roles.md): Khang điều phối/schema/UC-06; Hoàng catalog và inventory theo kế hoạch tích hợp; Huy Auth; Khải cart/UC-09 frontend; Kiệt coupon/payment/state machine. Đầu việc chi tiết và SP vẫn tra bảng phân công gốc. Việc bổ sung API history, loyalty, review hoặc deployment phải đối chiếu owner trong workbook trước khi cập nhật bảng phân công, không tự tạo task mới trong báo cáo này.
 
 Các phụ thuộc cần giải quyết trong phạm vi task đã giao:
 

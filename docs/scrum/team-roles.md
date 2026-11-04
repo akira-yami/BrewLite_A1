@@ -12,7 +12,7 @@ Tài liệu này dùng để ghi nhận vai trò thực tế của nhóm. Đề 
 
 > Một sinh viên có thể kiêm PO hoặc SM trong phạm vi bài tập, nhưng toàn nhóm vẫn cùng chịu trách nhiệm chất lượng Increment.
 
-Khang đồng thời là Tech Lead/Schema Owner; PR của Khang phải có reviewer khác owner. Phân công hiện hành nằm trên [Trello 6 tuần](https://trello.com/b/JXTjedPU) và workbook `BrewLite_PhanCong_Scrum.xlsx`.
+Khang đồng thời là Tech Lead/Schema Owner; PR của Khang phải có reviewer khác owner. Phân công hiện hành trong docs nằm tại [bảng 41 đầu việc](phan-cong.md), theo báo cáo PDF và điều chỉnh EXT ngày 04/11/2026. [Trello](https://trello.com/b/JXTjedPU) và workbook `BrewLite_PhanCong_Scrum.xlsx` là nguồn phối hợp của nhóm; thay đổi trong docs không tự cập nhật các nguồn đó.
 
 ## Stakeholders cần lấy phản hồi
 

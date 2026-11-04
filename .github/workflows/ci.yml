@@ -139,7 +139,6 @@ jobs:
     env:
       DATABASE_URL: postgresql://brewlite:ci_only_password@localhost:5432/brewlite_foundation_smoke_ci?schema=public
       SMOKE_DATABASE_URL: postgresql://brewlite:ci_only_password@localhost:5432/brewlite_foundation_smoke_ci?schema=public
-      MOCK_PAYMENT_MODE: deterministic
       JWT_SECRET: cf40f6ffdda376c12dfb4370b2f84db0a740a6c4efc6eb71032602c99e6ad933
       JWT_ISSUER: brewlite-api
       JWT_AUDIENCE: brewlite-web
@@ -167,6 +166,8 @@ jobs:
       - name: Unit tests
         run: npm test
       - name: API E2E tests
+        env:
+          MOCK_PAYMENT_MODE: deterministic
         run: npm run test:e2e
       - name: Build
         run: npm run build

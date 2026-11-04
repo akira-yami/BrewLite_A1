@@ -1,0 +1,91 @@
+\chapter{Kiểm thử và đánh giá}
+\label{chap:kiem-thu}
+
+\section{Chiến lược kiểm thử}
+BrewLite kết hợp kiểm thử đơn vị cho quy tắc và phép tính; kiểm thử
+integration với PostgreSQL cho ràng buộc, transaction và đồng thời;
+HTTP E2E cho API; Playwright cho luồng trình duyệt. Các kiểm tra lint,
+typecheck và build bổ sung tính nhất quán kỹ thuật, nhưng không thay thế
+kiểm tra tiêu chí chấp nhận.
+
+Trong phạm vi chỉnh sửa báo cáo, nhóm số liệu dưới đây được sử dụng từ
+hồ sơ audit đã lưu ngày \NgayDoiChieu~\cite{audit}. Báo cáo không ghi nhận
+đã chạy lại các bộ kiểm thử ứng dụng hoặc đã sửa lỗi runtime. Số liệu
+thuộc baseline của audit, trước thay đổi giao diện menu đang có trong
+working tree được hồ sơ đó nêu rõ.
+
+\section{Các ca kiểm thử tiêu biểu}
+{\small\setstretch{1.1}
+\begin{longtable}{@{}L{0.10\textwidth}L{0.39\textwidth}L{0.44\textwidth}@{}}
+\caption{Ca kiểm thử, yêu cầu liên quan và kết quả cần kiểm tra}\label{tab:testcases}\\
+\toprule\textbf{Mã} & \textbf{Tình huống / truy vết} & \textbf{Kết quả mong đợi và căn cứ} \\\midrule\endfirsthead
+\toprule\textbf{Mã} & \textbf{Tình huống / truy vết} & \textbf{Kết quả mong đợi và căn cứ} \\\midrule\endhead
+\bottomrule\endfoot
+TC-01 & Menu có dữ liệu, rỗng hoặc API lỗi. FR-01, NFR-06. & Hiển thị đúng trạng thái, có thử lại khi lỗi. Có catalog/menu-states tests. \\
+TC-02 & Chọn size/topping; đường/đá bằng 0; ghi chú rỗng/quá 500 ký tự. FR-02. & Giá đúng size/topping; giữ giá trị 0; chuẩn hóa/chặn dữ liệu sai. Có modal/DTO tests. \\
+TC-03 & Hai món khác đường/đá/ghi chú; sửa lượng và tải lại trang. FR-03. & Không gộp sai dòng, tổng đúng và dữ liệu giỏ khôi phục. Có cart-store tests. \\
+TC-04 & Register/login, username trùng, sai mật khẩu và token hết hạn. FR-04, NFR-01. & Hash mật khẩu, từ chối dữ liệu/phiên sai; client xử lý 401. Có auth unit/HTTP/session tests. \\
+TC-05 & Tạo đơn có dữ liệu/giá giả từ client; lỗi khi giữ nguyên liệu. FR-05--06, NFR-03. & Tiền do backend xác nhận; lỗi thì rollback đơn, chi tiết và giữ chỗ. Có orders DB integration. \\
+TC-06 & Hai giỏ đồng thời dùng cùng nguyên liệu cuối cùng. FR-06, NFR-03. & Tổng lượng nhận không vượt tồn; không tồn âm. Có inventory-concurrency integration. \\
+TC-07 & Thanh toán lỗi, sau đó thử lại cùng order. FR-07, NFR-06. & Giỏ còn nguyên khi lỗi; lần mới có key mới; thành công chỉ có một đơn được thanh toán. Có checkout browser test. \\
+TC-08 & Replay/cùng key đồng thời/khác payload/khác key cùng order. FR-07, NFR-04. & Không double-charge hoặc tác động lặp; sai payload bị từ chối. Probe DB trong audit có bằng chứng; cần regression chính thức đầy đủ. \\
+TC-09 & Coupon hết hạn/vượt giới hạn; release và retry. FR-09. & Không vượt lượt, không giảm âm; giữ và giải phóng nhất quán. Có promotions tests; cần củng cố toàn luồng fail/retry. \\
+TC-10 & Đơn hết TTL trong khi payment đang được xử lý. FR-11, NFR-03. & Job kiểm tra lại dưới khóa; không hoàn nguyên liệu đang được payment hợp lệ sử dụng. Có payment-expiry integration. \\
+TC-11 & Đọc chi tiết đơn tài khoản khác, history rỗng và phân trang. FR-08, NFR-02. & Chặn truy cập chéo, danh sách đúng chủ đơn và trạng thái rỗng rõ ràng. Có orders/session tests. \\
+TC-12 & Thành công/replay không nhân đôi điểm; timeline có mốc PAID. FR-10, FR-12, NFR-10. & Một EARN/đơn; mọi transition có history. Probe xác nhận EARN một lần nhưng phát hiện thiếu history PAID. \\
+TC-13 & Barista chuyển trạng thái sai thứ tự, khách chủ động hủy. FR-12--14. & Chặn quyền/trạng thái sai, ghi đủ history. Ca nghiệm thu còn phải bổ sung khi có runtime tương ứng. \\
+\end{longtable}}
+
+\section{Kết quả từ hồ sơ kiểm chứng}
+\begin{table}[H]
+\centering\small
+\caption{Số liệu kiểm thử được lưu trong audit ngày 03/11/2026}
+\label{tab:testresults}
+\begin{tabularx}{\textwidth}{@{}L{0.45\textwidth}L{0.12\textwidth}Y@{}}
+\toprule\textbf{Nhóm kiểm tra} & \textbf{Số test đạt} & \textbf{Phạm vi} \\\midrule
+Backend unit & 213 & 29 file kiểm thử. \\
+Frontend unit/component/contract & 68 & Giỏ, auth, catalog, menu và API contract. \\
+Env và Compose config & 9 & Kiểm tra cấu hình. \\
+API HTTP E2E & 17 & 2 file; không coi toàn bộ là UI E2E. \\
+PostgreSQL integration & 53 & 8 file, kèm 10 migration chạy trên DB rỗng. \\
+Chromium browser & 9 & 2 checkout dùng API/DB thật; 7 session dùng API auth thật và mock response order. \\
+\midrule
+\textbf{Tổng} & \textbf{369} & Tổng các nhóm nêu trên, không phải 369 E2E. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Hồ sơ còn ghi lint/typecheck hai ứng dụng, backend build và frontend
+build bằng Webpack trên Windows đạt; không xác nhận lại Turbopack mặc
+định. Migration deploy lần hai không thay đổi và seed được kiểm tra chạy
+lặp. Chưa có số liệu coverage đầy đủ, load test cho NFR-05 hoặc nghiệm
+thu giao diện trên mọi thiết bị.
+
+Minh chứng lưu tại
+\sourcefile{docs/scrum/evidence/trello-audit-2026-11-03/}, gồm
+\code{backend-unit.txt}, \code{database-smoke.txt},
+\code{browser-e2e.txt} và \code{payment-probe.txt}. Kết quả xanh của bộ
+hiện tại không bảo đảm phát hiện tất cả lỗi hoặc đáp ứng đủ DoD.
+
+\section{Vấn đề và giới hạn cần xử lý}
+\begin{enumerate}
+    \item \textbf{Lịch sử PAID:} code đổi trạng thái sang PAID nhưng
+    \code{markAsPaid} chưa tạo \code{OrderStatusHistory} tương ứng.
+    Cần cập nhật trong transaction và thêm assertion timeline.
+    \item \textbf{State machine và hủy:} chưa đủ bước pha chế/giao món
+    và API khách hủy; enum/route kiểm tra role không thay thế nghiệp vụ.
+    \item \textbf{Idempotency regression:} file kiểm thử cũ mock chính
+    \code{processPayment}; phải kiểm tra implementation với DB thật.
+    Probe audit là bằng chứng bổ sung, chưa thay cho CI regression.
+    \item \textbf{Loyalty:} cần xác nhận tỷ lệ đổi điểm hiện tại và cập
+    nhật nghiệm thu theo owner, không suy từ số lượng commit.
+    \item \textbf{Bàn giao:} cần demo toàn stack Compose sạch, bước seed,
+    tài khoản demo và hồ sơ Sprint Review/Retro có minh chứng thực tế.
+\end{enumerate}
+
+\section{Điều kiện nghiệm thu}
+Theo Definition of Done của nhóm~\cite{dod}, một hạng mục cần build,
+lint/typecheck đạt, review chéo, kiểm thử theo mức rủi ro, kiểm tra AC,
+tài liệu/API/migration cập nhật và môi trường demo chạy được. Trạng thái
+Done trên board là thông tin theo dõi; chưa đủ để khẳng định mọi điều
+kiện nghiệm thu đã được chứng minh.

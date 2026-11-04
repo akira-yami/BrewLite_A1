@@ -1,0 +1,17 @@
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.synctex.gz
+*.toc
+*.pyg
+*.xdv
+
+# Giữ lại PDF kết quả (bỏ dòng dưới nếu không muốn commit pdf)
+# *.pdf

@@ -258,11 +258,6 @@ export class PaymentsService {
       if (!initialPayment || initialPayment.method !== PaymentMethod.VNPAY) {
         return { RspCode: '01', Message: 'Order not found' };
       }
-      if (BigInt(callback.vnp_Amount) !== initialPayment.amount * 100n) {
-        this.logger.warn('VNPay IPN amount mismatch. reference=' + callback.vnp_TxnRef);
-        return { RspCode: '04', Message: 'Invalid amount' };
-      }
-
       const outcome = await this.prisma.$transaction(async (tx) => {
         const lockedOrder = await this.ordersService.getOrderForPaymentForUpdate(
           initialPayment.orderId,
@@ -271,9 +266,93 @@ export class PaymentsService {
         );
         const payment = await this.paymentsRepository.findByGatewayReference(callback.vnp_TxnRef, tx);
         if (!payment || payment.method !== PaymentMethod.VNPAY) return 'missing' as const;
-        if (payment.status !== PaymentStatus.PROCESSING) return 'duplicate' as const;
-        if (payment.amount * 100n !== BigInt(callback.vnp_Amount)) return 'amount-mismatch' as const;
-        if (callback.vnp_ResponseCode === '00' && callback.vnp_TransactionStatus === '00') {
+        if (payment.amount * 100n !== BigInt(callback.vnp_Amount)) {
+          await tx.paymentRecoveryAudit.create({
+            data: {
+              paymentId: payment.id,
+              actorType: 'SYSTEM',
+              gatewayReference: callback.vnp_TxnRef,
+              correlationId: randomUUID(),
+              incidentReference: 'VNPAY_IPN_AMOUNT_MISMATCH',
+              beforeState: payment.status,
+              afterState: payment.status,
+              providerOutcome: 'IPN_AMOUNT_MISMATCH_REJECTED',
+              details: {
+                reportedAmount: callback.vnp_Amount,
+                expectedAmount: (payment.amount * 100n).toString(),
+                responseCode: callback.vnp_ResponseCode,
+                transactionStatus: callback.vnp_TransactionStatus,
+              },
+            },
+          });
+          return 'amount-mismatch' as const;
+        }
+
+        const providerSucceeded =
+          callback.vnp_ResponseCode === '00' && callback.vnp_TransactionStatus === '00';
+        if (payment.status !== PaymentStatus.PROCESSING) {
+          const transactionNo = callback.vnp_TransactionNo || callback.vnp_BankTranNo || null;
+          if (payment.status === PaymentStatus.FAILED && providerSucceeded) {
+            if (!transactionNo) return 'missing-transaction' as const;
+            const processedAt = new Date();
+            const failureCode = 'LATE_SUCCESS_AFTER_FAILURE_REQUIRES_REVIEW';
+            await tx.payment.update({
+              where: { id: payment.id },
+              data: {
+                status: PaymentStatus.MANUAL_REVIEW,
+                gatewayTransactionId: transactionNo,
+                failureCode,
+                processedAt,
+              },
+            });
+            await tx.paymentRecoveryAudit.create({
+              data: {
+                paymentId: payment.id,
+                actorType: 'SYSTEM',
+                gatewayReference: callback.vnp_TxnRef,
+                correlationId: randomUUID(),
+                incidentReference: 'VNPAY_IPN_OUT_OF_ORDER_SUCCESS',
+                beforeState: PaymentStatus.FAILED,
+                afterState: PaymentStatus.MANUAL_REVIEW,
+                providerOutcome: 'LATE_SUCCESS_AFTER_FAILURE_REQUIRES_REFUND_REVIEW',
+                details: {
+                  responseCode: callback.vnp_ResponseCode,
+                  transactionStatus: callback.vnp_TransactionStatus,
+                  transactionNo,
+                  orderStatus: lockedOrder.status,
+                  orderDeadlinePassed: lockedOrder.reservationExpiresAt
+                    ? lockedOrder.reservationExpiresAt <= processedAt
+                    : null,
+                },
+              },
+            });
+            return 'manual-review' as const;
+          }
+
+          await tx.paymentRecoveryAudit.create({
+            data: {
+              paymentId: payment.id,
+              actorType: 'SYSTEM',
+              gatewayReference: callback.vnp_TxnRef,
+              correlationId: randomUUID(),
+              incidentReference: 'VNPAY_IPN_DUPLICATE_OR_OUT_OF_ORDER',
+              beforeState: payment.status,
+              afterState: payment.status,
+              providerOutcome: payment.status === PaymentStatus.SUCCEEDED
+                ? 'DUPLICATE_IPN'
+                : 'OUT_OF_ORDER_IPN_IGNORED',
+              details: {
+                responseCode: callback.vnp_ResponseCode,
+                transactionStatus: callback.vnp_TransactionStatus,
+                transactionNo,
+                orderStatus: lockedOrder.status,
+              },
+            },
+          });
+          return 'duplicate' as const;
+        }
+
+        if (providerSucceeded) {
           const transactionNo = callback.vnp_TransactionNo || callback.vnp_BankTranNo;
           if (!transactionNo) return 'missing-transaction' as const;
           const processedAt = new Date();

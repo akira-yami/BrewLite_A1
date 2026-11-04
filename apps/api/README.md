@@ -170,12 +170,43 @@ The request is restricted to PAYMENT_OPERATOR. The server requires `VNPAY_QUERY_
 
 ### Operator runbook
 
-1. Open an incident/ticket before invoking recovery. Capture Payment ID, Order ID/number, VNPay transaction reference, amount, transaction creation timestamp, last IPN evidence and correlation ID. Never collect or paste HashSecret into the ticket or logs.
-2. Verify the operator account has PAYMENT_OPERATOR through the approved DBA access procedure. Customer and Barista accounts must receive HTTP 403.
-3. Call the recovery endpoint once with a new idempotency key and incident reference. A retry with the same key is a replay, not a new inquiry.
-4. If the result is PROCESSING/UNKNOWN, do not retry immediately and do not create a new payment attempt. Observe the backoff/circuit-breaker response and escalate to payment operations.
-5. If Payment becomes MANUAL_REVIEW, keep Order assets reserved. A second operator must review provider evidence and decide refund/reversal/compensation through the approved merchant process. This API deliberately does not issue refunds automatically.
-6. Close the incident only after provider evidence, Payment/Order consistency, coupon/inventory/loyalty state and immutable audit entries have been independently checked.
+1. Open a P1 incident/ticket before invoking recovery. Capture Payment ID, Order ID/number, VNPay transaction reference, amount, transaction creation timestamp, last IPN evidence, response codes and correlation ID. Never collect or paste HashSecret, signed payloads or credentials into the ticket or logs.
+2. Verify the operator account has PAYMENT_OPERATOR through the approved DBA access procedure. Customer and Barista accounts must receive HTTP 403. The operator must sign in again after role provisioning or revocation.
+3. Call the recovery endpoint once with a new idempotency key and incident reference. A retry with the same key is a replay, not a new inquiry. The endpoint handles one Payment per request.
+4. If the result is PROCESSING/UNKNOWN, do not retry immediately and do not create a new payment attempt. Observe the durable backoff/circuit-breaker response and escalate to payment operations.
+5. If Payment becomes MANUAL_REVIEW, preserve the Order state and inspect the immutable audit and provider evidence. A second authorized operator must independently verify the evidence and approve any refund/reversal/compensation.
+6. Refund/reversal is performed only through the approved merchant/finance procedure; this API deliberately does not issue refunds automatically. Record provider refund reference, amount, timestamp, executing operator and approving operator in the incident. Never manually force Payment to SUCCEEDED or Order to PAID to close the incident.
+7. Close the incident only after provider evidence, Payment/Order consistency, coupon/inventory/loyalty state, refund evidence where applicable and immutable audit entries have been independently checked.
+
+### Escalation SLA (operational target; requires Payment Operations ratification)
+
+- P1 suspected charge / unresolved PROCESSING: acknowledge within 15 minutes of alert creation.
+- If QueryDr remains UNKNOWN or times out: escalate to Payment Operations and gateway support within 30 minutes; provide the evidence bundle without secrets.
+- MANUAL_REVIEW: assign a second operator immediately and record a refund/reversal decision within 4 business hours, or document the external dependency and next review time.
+- While unresolved: update the incident at least every 30 minutes; never clear the alert solely because a Payment row is old or a browser Return page was visited.
+- Incident closure: require two-person evidence review and reconciliation of Payment, Order, inventory, coupon, loyalty and any provider refund reference.
+
+These are proposed operational targets for this repository, not an existing contractual SLA; the Payment Operations owner must ratify them before production.
+
+### Recovery API example
+
+```bash
+curl --fail-with-body --request POST \
+  "$API_BASE_URL/api/v1/payments/$PAYMENT_ID/recovery" \
+  --header "Authorization: Bearer $PAYMENT_OPERATOR_JWT" \
+  --header "Idempotency-Key: $RECOVERY_IDEMPOTENCY_KEY" \
+  --header "X-Correlation-Id: $CORRELATION_ID" \
+  --header "Content-Type: application/json" \
+  --data '{"incidentReference":"INC-2026-1042"}'
+```
+
+Expected behavior:
+- First request: creates a durable recovery request and audit before calling QueryDr.
+- Same key + same payload: returns the stored recovery result without another inquiry.
+- Same key + different incident reference: HTTP 409.
+- Customer/Barista/no JWT: HTTP 403/401; no recovery request is created.
+- Timeout/unknown: Payment remains PROCESSING and response reports UNKNOWN; no Order/coupon/inventory release occurs.
+- Late success: Payment becomes MANUAL_REVIEW; Order is not marked PAID and refund is not automated.
 
 ### Explicitly deferred
 

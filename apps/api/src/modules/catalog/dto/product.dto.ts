@@ -2,8 +2,8 @@ export class ProductVariantDto {
   id: string;
   size: 'S' | 'M' | 'L';
   price: number;
-  /** Số ly tối đa làm được, tính từ công thức và tồn kho nguyên liệu (không lưu trong CSDL). */
-  availableServings: number;
+  /** Có đủ nguyên liệu cho một phần theo công thức; không phải tồn riêng của size. */
+  available: boolean;
 }
 
 export class ToppingDto {

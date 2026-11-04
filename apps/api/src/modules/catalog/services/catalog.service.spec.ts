@@ -82,13 +82,13 @@ describe('getProducts', () => {
           id: 'variant-1',
           size: 'M',
           price: 35000,
-          availableServings: 10,
+          available: true,
         },
         {
           id: 'variant-2',
           size: 'S',
           price: 30000,
-          availableServings: 20,
+          available: true,
         },
       ],
       toppings: [
@@ -183,9 +183,9 @@ describe('getProducts', () => {
       expect(result.variants).toHaveLength(2);
       expect(result.variants[0].price).toBe(35000);
       expect(result.variants[1].price).toBe(30000);
-      expect(result.variants[0].availableServings).toBe(10);
-      // Nguyên liệu hạn chế nhất quyết định: min(floor(100/8), floor(500/50)) = 10.
-      expect(result.variants[1].availableServings).toBe(10);
+      expect(result.variants[0].available).toBe(true);
+      // Cả hai nguyên liệu đều đủ cho một phần theo công thức.
+      expect(result.variants[1].available).toBe(true);
       expect(result.variants[0]).not.toHaveProperty('stock');
 
       expect(result.toppings[0]).toEqual({
@@ -248,7 +248,7 @@ describe('getProducts', () => {
         service.getProductDetailById('product-khong-ton-tai'),
       ).rejects.toThrow(NotFoundException);
     });
-    it('vẫn trả về size hết nguyên liệu hoặc chưa có công thức với availableServings bằng 0', async () => {
+    it('vẫn trả về size hết nguyên liệu hoặc chưa có công thức với available=false', async () => {
       repository.findDetailById.mockResolvedValue({
         id: 'product-1',
         sku: 'COFFEE-01',
@@ -272,8 +272,8 @@ describe('getProducts', () => {
       const result = await service.getProductDetailById('product-1');
 
       expect(result.variants).toHaveLength(2);
-      expect(result.variants[0].availableServings).toBe(0);
-      expect(result.variants[1].availableServings).toBe(0);
+      expect(result.variants[0].available).toBe(false);
+      expect(result.variants[1].available).toBe(false);
     });
   }
 );

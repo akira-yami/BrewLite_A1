@@ -1,7 +1,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { OrdersRepository } from './orders.repository.js';
 import { PrismaService } from '../../../database/prisma.service.js';
+import { OrdersRepository } from './orders.repository.js';
 
 describe('OrdersRepository (Unit Test - TDD)', () => {
   let repository: OrdersRepository;
@@ -156,6 +156,44 @@ describe('OrdersRepository (Unit Test - TDD)', () => {
       },
     });
   });
+
+  it.each([
+    ['PAID', 'COMPLETED'],
+    ['PAID', 'READY'],
+    ['PREPARING', 'PAID'],
+    ['COMPLETED', 'PREPARING'],
+    ['CANCELLED', 'PENDING'],
+    ['PENDING', 'READY'],
+  ] as const)(
+    'updateStatusWithHistory - từ chối %s → %s trước khi chạm DB',
+    async (from, to) => {
+      await expect(
+        repository.updateStatusWithHistory('o-1', from, to, 'u-1', 'x', prismaMock),
+      ).rejects.toMatchObject({
+        response: { error: { code: 'INVALID_ORDER_TRANSITION' } },
+      });
+
+      expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
+      expect(prismaMock.orderStatusHistory.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['PAID', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED', 'PAYMENT_FAILED'] as const)(
+    'markAsPaid - không thể đưa đơn %s sang PAID, không cộng điểm hay consume kho',
+    async (from) => {
+      // Riêng PAYMENT_FAILED phải quay về PENDING (thử lại) rồi mới được thanh toán.
+      await expect(
+        repository.markAsPaid('o-1', from, 'u-1', 1000n, prismaMock),
+      ).rejects.toMatchObject({
+        response: { error: { code: 'INVALID_ORDER_TRANSITION' } },
+      });
+
+      expect(prismaMock.order.updateMany).not.toHaveBeenCalled();
+      expect(prismaMock.inventoryReservation.updateMany).not.toHaveBeenCalled();
+      expect(prismaMock.user.update).not.toHaveBeenCalled();
+      expect(prismaMock.loyaltyTransaction.create).not.toHaveBeenCalled();
+    },
+  );
 
   it('markAsPaid - cập nhật PAID, consume inventory/coupon và cộng điểm loyalty EARN', async () => {
     prismaMock.order.updateMany.mockResolvedValue({ count: 1 });

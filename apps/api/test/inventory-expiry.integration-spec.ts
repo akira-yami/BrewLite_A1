@@ -27,7 +27,7 @@ describe('SD-13 inventory expiry job', () => {
     adapter: new PrismaPg({ connectionString }),
   });
 
-  const inventoryRepository = new InventoryRepository();
+  const inventoryRepository = new InventoryRepository({} as never);
   const ordersRepository = new OrdersRepository(prisma as never);
   const promotionsRepository = new PromotionsService(new PromotionsRepository(prisma as never));
 

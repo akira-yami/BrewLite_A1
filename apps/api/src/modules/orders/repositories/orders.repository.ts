@@ -1,4 +1,3 @@
-import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
 import {
   ConflictException,
   Injectable,
@@ -8,6 +7,8 @@ import {
   OrderStatus,
   Prisma,
 } from '../../../generated/prisma/client.js';
+import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
+import { assertTransition } from '../state/order-state-machine.js';
 
 @Injectable()
 export class OrdersRepository {
@@ -44,6 +45,26 @@ export class OrdersRepository {
       ...(query.cursor
         ? { cursor: { id: query.cursor, userId }, skip: 1 }
         : {}),
+      include: { items: { include: { orderItemToppings: true } } },
+    });
+  }
+
+  /**
+   * Hàng đợi của barista: sắp theo thời điểm đơn vào trạng thái hiện tại
+   * (updatedAt tăng dần) để đơn chờ lâu nhất đứng đầu.
+   */
+  async findStaffQueue(statuses: OrderStatus[], limit: number) {
+    return this.prisma.order.findMany({
+      where: { status: { in: statuses } },
+      orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+      include: { items: { include: { orderItemToppings: true } } },
+    });
+  }
+
+  async findStaffOrder(id: string, tx: Prisma.TransactionClient) {
+    return tx.order.findUnique({
+      where: { id },
       include: { items: { include: { orderItemToppings: true } } },
     });
   }
@@ -92,6 +113,10 @@ async updateStatusWithHistory(
   reason: string,
   tx?: Prisma.TransactionClient,
 ) {
+  // Cổng duy nhất của máy trạng thái: chặn chuyển tiếp không có trong sơ đồ
+  // trước khi chạm DB, cho mọi luồng (thanh toán, thử lại, hết hạn, barista).
+  assertTransition(currentStatus, newStatus);
+
   // Phần xử lý cập nhật đơn và lịch sử.
   const execute = async (
     client: Prisma.TransactionClient,
@@ -143,6 +168,8 @@ async markAsPaid(
   orderTotal: bigint,
   tx: Prisma.TransactionClient,
 ) {
+  assertTransition(currentStatus, OrderStatus.PAID);
+
   // Giành quyền chuyển đơn sang PAID.
   const updated = await tx.order.updateMany({
     where: {

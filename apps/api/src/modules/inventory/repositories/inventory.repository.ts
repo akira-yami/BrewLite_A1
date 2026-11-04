@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../../database/prisma.service.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
 
 @Injectable()
 export class InventoryRepository {
+  constructor(private readonly prisma: PrismaService) {}
   // Đọc variant cùng công thức (BOM) và tồn kho/version hiện tại của từng nguyên liệu.
   async findVariantWithRecipe(tx: Prisma.TransactionClient, variantId: string) {
     return tx.productVariant.findUnique({

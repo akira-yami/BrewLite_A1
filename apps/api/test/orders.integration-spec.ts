@@ -12,6 +12,7 @@ import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
 import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
+import { PaymentRecoveryService } from '../src/modules/payments/services/payment-recovery.service.js';
 
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
@@ -34,6 +35,8 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
   let token: string;
   let otherToken: string;
   let baristaToken: string;
+  let paymentOperatorToken: string;
+  let paymentOperatorId: string;
   const previousUrl = process.env.DATABASE_URL;
   const auth = (req: request.Test, bearer = token) =>
     req.set('Authorization', `Bearer ${bearer}`);
@@ -62,7 +65,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     prisma = app.get(PrismaService);
     const jwt = app.get(JwtService);
     const users = await Promise.all(
-      (['CUSTOMER', 'CUSTOMER', 'BARISTA'] as const).map((role) =>
+      (['CUSTOMER', 'CUSTOMER', 'BARISTA', 'PAYMENT_OPERATOR'] as const).map((role) =>
         prisma.user.create({
           data: {
             username: `orders-${randomUUID()}`,
@@ -74,7 +77,8 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     );
     userId = users[0].id;
     otherUserId = users[1].id;
-    [token, otherToken, baristaToken] = users.map((user) =>
+    paymentOperatorId = users[3].id;
+    [token, otherToken, baristaToken, paymentOperatorToken] = users.map((user) =>
       jwt.sign({ sub: user.id, role: user.role, username: user.username }),
     );
   });
@@ -250,6 +254,39 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     )
       .send({ items: [] })
       .expect(403);
+  });
+
+
+  it('restricts Payment recovery to the PAYMENT_OPERATOR role', async () => {
+    const recovery = app.get(PaymentRecoveryService);
+    const recoverSpy = vi.spyOn(recovery, 'recover').mockResolvedValue({
+      recoveryRequestId: randomUUID(),
+      providerRequestId: 'operator-request-123',
+      status: 'UNKNOWN',
+      providerOutcome: 'UNKNOWN',
+      paymentStatus: 'PROCESSING',
+      errorCode: null,
+      isRetried: false,
+    } as never);
+    const paymentId = randomUUID();
+    const endpoint = () => request(app.getHttpServer())
+      .post(`/api/v1/payments/${paymentId}/recovery`)
+      .set('Idempotency-Key', 'http-recovery-key-1')
+      .send({ incidentReference: 'INC-HTTP-RECOVERY' });
+
+    await endpoint().expect(401);
+    await auth(endpoint()).expect(403);
+    await auth(endpoint(), baristaToken).expect(403);
+    const response = await auth(endpoint(), paymentOperatorToken).expect(200);
+
+    expect(response.body.data).toMatchObject({ status: 'UNKNOWN', paymentStatus: 'PROCESSING' });
+    expect(recoverSpy).toHaveBeenCalledTimes(1);
+    expect(recoverSpy).toHaveBeenCalledWith(expect.objectContaining({
+      paymentId,
+      idempotencyKey: 'http-recovery-key-1',
+      incidentReference: 'INC-HTTP-RECOVERY',
+      actorUserId: paymentOperatorId,
+    }));
   });
 
   it('rejects invalid preferences, forged prices, duplicate normalized toppings and quantities above 20', async () => {

@@ -373,7 +373,7 @@ export default function MenuPage() {
                     setEditingCartItem(null);
                     setPreviewingProduct(item);
                   }}
-                  onQuickAdd={handleQuickAdd}
+                  
                 />
               ))}
             </div>

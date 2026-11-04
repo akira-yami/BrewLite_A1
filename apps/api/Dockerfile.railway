@@ -1,0 +1,15 @@
+# Dedicated Railway image; keep the existing Docker Compose Dockerfile unchanged.
+FROM node:24-bookworm
+LABEL org.opencontainers.image.title="BrewLite API Railway"
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+ENV NODE_ENV=production
+ENV PORT=3001
+EXPOSE 3001
+CMD ["node", "dist/main.js"]

@@ -11,7 +11,7 @@
 | Vai trò PO/SM/Development Team; Planning, Daily, Review, Retro | Mục 2.1–2.2, trang 2 | [Vai trò nhóm](scrum/team-roles.md), hồ sơ Sprint và Retro |
 | Product Backlog, Sprint Backlog, Increment; kế hoạch 3 Sprint là gợi ý | Mục 2.1–2.3 và 8, trang 2, 5–6 | [Product Backlog](scrum/product-backlog.md), [Sprint 1](scrum/sprint-01.md), [Sprint 2](scrum/sprint-02.md), [Sprint 3](scrum/sprint-03.md) |
 | Theo dõi SP còn lại cuối mỗi ngày; Ideal/Actual burndown | Mục 2.4, trang 2–3 | [Burndown](scrum/burndown.md) |
-| Requirements, User Story/AC và luồng chọn món đến thanh toán | Mục 3–5 và 8, trang 3–6 | [Báo cáo dự án](../BrewLite-Report/report/build/main.pdf), [nguồn báo cáo](../BrewLite-Report/report/README.md), Product Backlog |
+| Requirements, User Story/AC và luồng chọn món đến thanh toán | Mục 3–5 và 8, trang 3–6 | [Đề bài gốc](BrewLite-CongNghePhanMem.pdf), [Product Backlog](scrum/product-backlog.md); báo cáo PDF/LaTeX giữ cục bộ ngoài Git |
 | DoD, review nhóm, validate API, UI loading/lỗi, hướng dẫn chạy | Mục 10, trang 7 | [Definition of Done](scrum/definition-of-done.md), [README dự án](../README.md), Git/PR và mã nguồn/test |
 | Unit/integration test cho chuyển trạng thái sai, idempotency và tồn kho đồng thời | Mục 9, trang 6 | Test trong `apps/api`, [audit và kết quả kiểm chứng](scrum/trello-audit-2026-11-03.md), [log kiểm thử](scrum/evidence/trello-audit-2026-11-03/) |
 | Demo E2E, Git, Docker Compose, README; Retro và phản hồi/backlog phiên bản sau | Task 9 và mục 11, trang 6–7 | [README dự án](../README.md), [Compose](../compose.yaml), [hướng dẫn E2E](../tests/e2e/README.md), Review/Retro trong hồ sơ Sprint |

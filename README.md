@@ -2,13 +2,13 @@
 
 BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt, được xây dựng cho bài tập lớn môn Công nghệ Phần mềm. Sản phẩm hướng tới luồng đặt món nhanh tại quầy: xem menu, chọn size/topping, quản lý giỏ hàng, đăng nhập, tạo đơn, thanh toán và theo dõi trạng thái.
 
-## Báo cáo Nhóm 7
+## Hồ sơ Nhóm 7
 
-- [Đọc báo cáo PDF](BrewLite-Report/report/build/main.pdf).
-- [Mã nguồn LaTeX và hướng dẫn biên dịch](BrewLite-Report/report/README.md).
+- [Đề bài gốc](docs/BrewLite-CongNghePhanMem.pdf).
+- [Mục lục tài liệu bàn giao](docs/README.md).
 - [Phân công hiện hành: 41 đầu việc](docs/scrum/phan-cong.md); [đối chiếu lịch sử Trello](docs/scrum/team-assignment-analysis-2026-11-03.md); [audit ngày 03/11/2026](docs/scrum/trello-audit-2026-11-03.md).
 
-Báo cáo được đối chiếu với dự án ngày 03/11/2026; các yêu cầu và số liệu kiểm thử trong đó cần đọc cùng hiện trạng và giới hạn được nêu trong báo cáo.
+Bộ báo cáo PDF/LaTeX trong `BrewLite-Report/` được giữ cục bộ, không theo dõi trong Git. Tài liệu bàn giao, phân công, Scrum và minh chứng được quản lý trong `docs/`; các kết quả kiểm chứng cần đọc cùng ngày chạy và giới hạn ghi trong tài liệu tương ứng.
 
 ## Công nghệ và hiện trạng
 
@@ -128,7 +128,6 @@ Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào
 
 - [Mục lục và đối chiếu yêu cầu tài liệu theo đề bài](docs/README.md)
 - [Đề bài gốc](docs/BrewLite-CongNghePhanMem.pdf)
-- [Báo cáo dự án](BrewLite-Report/report/build/main.pdf)
 - [ERD và giải thích mô hình dữ liệu](docs/architecture/erd.md)
 - [ERD PlantUML](database/BrewLite.puml) · [Ảnh ERD](database/BrewLite.png)
 - [Product Backlog](docs/scrum/product-backlog.md)

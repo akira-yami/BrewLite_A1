@@ -1,3 +1,4 @@
+# Railway API build context: /apps/api (main branch).
 # Dedicated Railway image; keep the existing Docker Compose Dockerfile unchanged.
 FROM node:24-bookworm
 LABEL org.opencontainers.image.title="BrewLite API Railway"

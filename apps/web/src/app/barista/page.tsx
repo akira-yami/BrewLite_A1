@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { authSession } from "@/features/auth/session";
 import { getMeApi } from "@/features/auth/api";
 import { useAuthSession } from "@/features/auth/use-auth-session";
 import { BaristaBoard } from "@/features/staff/components/BaristaBoard";
+import { InventoryPanel } from "@/features/staff/components/InventoryPanel";
 import { StaffIcon } from "@/features/staff/components/StaffIcon";
 
 export default function BaristaPage() {
   const { status, token, user } = useAuthSession();
+  const [tab, setTab] = useState<"orders" | "inventory">("orders");
   const isBarista =
     status === "authenticated" && !!token && user?.role === "BARISTA";
   return (
@@ -57,10 +60,12 @@ export default function BaristaPage() {
               Một ly ngon, một ngày tốt lành
             </p>
             <h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">
-              Quầy pha chế
+              {tab === "orders" ? "Quầy pha chế" : "Kho nguyên liệu"}
             </h1>
             <p className="mt-2 text-sm text-[#6D786F]">
-              Nhận đơn, chăm chút từng ly và sẵn sàng trao tay.
+              {tab === "orders"
+                ? "Nhận đơn, chăm chút từng ly và sẵn sàng trao tay."
+                : "Theo dõi nguyên liệu, chủ động cho mỗi ca làm việc."}
             </p>
           </div>
           {isBarista && (
@@ -72,7 +77,33 @@ export default function BaristaPage() {
         </div>
         {isBarista && token ? (
           <>
-            <BaristaBoard token={token} />
+            <nav
+              aria-label="Chức năng nhân viên"
+              className="mb-7 flex gap-6 border-b border-[#DDE1D8]"
+            >
+              {(
+                [
+                  { id: "orders", label: "Hàng đợi đơn", icon: "coffee" },
+                  { id: "inventory", label: "Kho nguyên liệu", icon: "box" },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-current={tab === item.id ? "page" : undefined}
+                  onClick={() => setTab(item.id)}
+                  className={`flex items-center gap-2 border-b-2 pb-4 text-sm font-semibold transition ${tab === item.id ? "border-[#234D36] text-[#234D36]" : "border-transparent text-[#788078] hover:text-[#234D36]"}`}
+                >
+                  <StaffIcon name={item.icon} width="18" height="18" />
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+            {tab === "orders" ? (
+              <BaristaBoard token={token} />
+            ) : (
+              <InventoryPanel token={token} />
+            )}
           </>
         ) : (
           <section className="rounded-2xl border border-[#DEE3D7] bg-white px-6 py-14 text-center text-sm text-[#6D786F]">

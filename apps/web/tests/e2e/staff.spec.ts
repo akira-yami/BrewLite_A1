@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 
 const api = process.env.E2E_API_URL ?? "http://localhost:3101/api/v1";
 
-test("barista processes a real paid order and enforces employee access on desktop/mobile", async ({
+test("barista processes a real paid order and views read-only inventory on desktop/mobile", async ({
   page,
   request,
 }) => {
@@ -25,10 +25,10 @@ test("barista processes a real paid order and enforces employee access on deskto
   const menu = (await (await request.get(`${api}/products`)).json()).data;
   const variant = menu
     .flatMap(
-      (p: { variants: { id: string; availableServings: number }[] }) =>
+      (p: { variants: { id: string; available: boolean }[] }) =>
         p.variants,
     )
-    .find((v: { availableServings: number }) => v.availableServings > 0);
+    .find((v: { available: boolean }) => v.available);
   expect(variant).toBeTruthy();
   const created = await request.post(`${api}/orders`, {
     headers: { Authorization: `Bearer ${customer}` },
@@ -87,6 +87,57 @@ test("barista processes a real paid order and enforces employee access on deskto
     headers: { Authorization: `Bearer ${customer}` },
   });
   expect((await detail.json()).data.status).toBe("COMPLETED");
+  await page
+    .getByRole("button", { name: "Kho nguyên liệu", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Danh sách nguyên liệu" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Cập nhật", exact: true }),
+  ).toHaveCount(0);
+  const stock = (
+    await (
+      await request.get(`${api}/staff/inventory`, {
+        headers: { Authorization: `Bearer ${staff}` },
+      })
+    ).json()
+  ).data[0];
+  const denied = await request.patch(
+    `${api}/staff/inventory/${stock.id}/stock`,
+    {
+      headers: { Authorization: `Bearer ${staff}` },
+      data: { stockQuantity: 0, version: stock.version },
+    },
+  );
+  expect(denied.status()).toBe(403);
+  await page.screenshot({
+    path: "../../.tmp/inventory-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("heading", { name: "Danh sách nguyên liệu" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "../../.tmp/inventory-mobile.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Hàng đợi đơn", exact: true }).click();
+  await page.screenshot({
+    path: "../../.tmp/barista-mobile.png",
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
   // A CUSTOMER never receives the employee interface.
   await page.evaluate(
     (token) => localStorage.setItem("brewlite_token", token),
@@ -96,4 +147,8 @@ test("barista processes a real paid order and enforces employee access on deskto
   await expect(
     page.getByRole("alert").filter({ hasText: "không có quyền" }),
   ).toContainText("không có quyền");
+  const forbidden = await request.get(`${api}/staff/inventory`, {
+    headers: { Authorization: `Bearer ${customer}` },
+  });
+  expect(forbidden.status()).toBe(403);
 });

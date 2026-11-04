@@ -157,7 +157,7 @@ describe('Sprint 1 module integration on migrated PostgreSQL', () => {
     expect(product.variants[0]).toMatchObject({
       size: 'M',
       price: 40000,
-      availableServings: 3,
+      available: true,
     });
     expect(product.variants[0]).not.toHaveProperty('stock');
   });

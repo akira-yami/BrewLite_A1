@@ -21,7 +21,7 @@ const load = (name) => {
 
 const product = {
   id: 'coffee', sku: 'COFFEE', name: 'Coffee', description: 'Fresh coffee', imageUrl: '/coffee.png', basePrice: 30000,
-  variants: [{ id: 'small', size: 'S', price: 30000, availableServings: 10 }, { id: 'medium', size: 'M', price: 40000, availableServings: 10 }],
+  variants: [{ id: 'small', size: 'S', price: 30000, available: true }, { id: 'medium', size: 'M', price: 40000, available: true }],
   toppings: [{ id: 'api-pearl-id', code: 'PEARL', name: 'Pearl from API', price: 5000, available: true }],
 };
 
@@ -70,4 +70,15 @@ test('editing standard items retains the recipe and exposes percentage and quant
   assert.match(html, /70%/);
   assert.match(html, /Số lượng/);
   assert.match(html, /60\.000 đ/);
+});
+
+test('sizes show recipe availability instead of independent finished-drink stock counts', () => {
+  const html = render({ product: { ...product, variants: [
+    { id: 'small', size: 'S', price: 30000, available: true },
+    { id: 'medium', size: 'M', price: 40000, available: false },
+  ] } });
+  assert.doesNotMatch(html, /Còn \d+/);
+  assert.match(html, /Có thể pha/);
+  assert.match(html, /Tạm hết nguyên liệu/);
+  assert.match(html, /disabled=""[^>]*>[\s\S]*?Size M/);
 });

@@ -129,3 +129,54 @@ Environment variables:
 - Enable the frontend option at build time with NEXT_PUBLIC_VNPAY_ENABLED=true.
 - When API is behind a reverse proxy, configure `TRUSTED_PROXY_CIDRS` with only the exact ingress proxy IP/CIDRs so VNPay receives the client IP rather than the proxy address; never enable blanket proxy trust.
 - A real Sandbox merchant transaction, registered HTTPS IPN URL and gateway inquiry/reconciliation process still require separate acceptance. Code tests do not prove a live merchant transaction.
+
+
+## Payment PROCESSING reconciliation (Issue #41)
+
+### Architecture and safety rules
+
+- QueryDr is an operator-triggered, single-Payment operation (bounded batch size: 1) with an 8-second provider timeout.
+- Recovery uses an `Idempotency-Key` scoped to the Payment. The provider request ID is committed before QueryDr is called; replaying the same recovery key never creates another inquiry.
+- QueryDr runs outside the database transaction. Settlement then locks the Order, re-reads Payment and Order, and commits Payment + Order + inventory/loyalty + coupon consumption + audit atomically.
+- Provider timeout, transport failure, malformed/unsigned response, amount/merchant mismatch, and unknown/pending outcomes never set Payment to FAILED. They keep Payment PROCESSING.
+- Late success or provider outcomes requiring investigation move Payment to MANUAL_REVIEW. Expiry and cancellation retain coupon/inventory reservations while Payment is PROCESSING or MANUAL_REVIEW.
+- PostgreSQL trigger rejects UPDATE and DELETE on the recovery audit table. HashSecret and signed request/response payloads are never persisted in audit.
+
+### Provisioning an operator
+
+Public registration always assigns CUSTOMER. Never add a role field to registration or trust a role sent by a client. A trusted database administrator must promote an existing, separately verified account:
+
+```sql
+UPDATE "users"
+SET "role" = 'PAYMENT_OPERATOR'
+WHERE "username" = '<approved-operator-account>';
+```
+
+The operator must sign in again to receive a JWT containing the provisioned role. Remove the role with a controlled DBA action when access is revoked.
+
+### Recovery API
+
+```http
+POST /api/v1/payments/{paymentId}/recovery
+Authorization: Bearer <operator-jwt>
+Idempotency-Key: <unique-recovery-key>
+X-Correlation-Id: <optional-correlation-id>
+Content-Type: application/json
+
+{ "incidentReference": "INC-2026-1042" }
+```
+
+The request is restricted to PAYMENT_OPERATOR. The server requires `VNPAY_QUERY_SERVER_IP` to be the trusted fixed egress IP configured by infrastructure; it must not come from a browser request. The API processes one Payment per call, serializes concurrent inquiries for one Payment, uses a durable lease and exponential backoff (30 seconds, doubling up to 15 minutes), and opens a process-local circuit breaker after five consecutive inquiry failures.
+
+### Operator runbook
+
+1. Open an incident/ticket before invoking recovery. Capture Payment ID, Order ID/number, VNPay transaction reference, amount, transaction creation timestamp, last IPN evidence and correlation ID. Never collect or paste HashSecret into the ticket or logs.
+2. Verify the operator account has PAYMENT_OPERATOR through the approved DBA access procedure. Customer and Barista accounts must receive HTTP 403.
+3. Call the recovery endpoint once with a new idempotency key and incident reference. A retry with the same key is a replay, not a new inquiry.
+4. If the result is PROCESSING/UNKNOWN, do not retry immediately and do not create a new payment attempt. Observe the backoff/circuit-breaker response and escalate to payment operations.
+5. If Payment becomes MANUAL_REVIEW, keep Order assets reserved. A second operator must review provider evidence and decide refund/reversal/compensation through the approved merchant process. This API deliberately does not issue refunds automatically.
+6. Close the incident only after provider evidence, Payment/Order consistency, coupon/inventory/loyalty state and immutable audit entries have been independently checked.
+
+### Explicitly deferred
+
+This delivery does not provide a scheduled worker, automatic refund adapter, or merchant Sandbox acceptance. QueryDr recovery is operator-triggered and one Payment at a time. The circuit breaker is process-local; multi-replica circuit coordination remains a follow-up. Merchant Sandbox evidence is deferred by project decision and is not reported as passed.

@@ -6,6 +6,7 @@ export interface VnpayConfig {
   hashSecret: string | null;
   paymentUrl: string;
   queryUrl: string;
+  queryServerIp: string | null;
   returnUrl: string | null;
   ipnUrl: string | null;
   frontendOrigin: string;
@@ -130,6 +131,7 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
       hashSecret: null,
       paymentUrl: VNPAY_SANDBOX_PAYMENT_URL,
       queryUrl: VNPAY_SANDBOX_QUERY_URL,
+      queryServerIp: null,
       returnUrl: null,
       ipnUrl: null,
       frontendOrigin,
@@ -169,6 +171,11 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
     throw new Error('VNPAY_QUERY_URL must use the official VNPay QueryDr endpoint');
   }
 
+  const queryServerIp = env.VNPAY_QUERY_SERVER_IP?.trim() || null;
+  if (queryServerIp && isIP(queryServerIp) === 0) {
+    throw new Error('VNPAY_QUERY_SERVER_IP must be a valid literal IPv4 or IPv6 address');
+  }
+
   const returnUrl = requireHttpsUrl(
     'VNPAY_RETURN_URL',
     requiredValue('VNPAY_RETURN_URL', env.VNPAY_RETURN_URL),
@@ -185,6 +192,7 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
     hashSecret,
     paymentUrl: paymentUrl.toString(),
     queryUrl: queryUrl.toString(),
+    queryServerIp,
     returnUrl: returnUrl.toString(),
     ipnUrl: ipnUrl.toString(),
     frontendOrigin: frontend.origin,

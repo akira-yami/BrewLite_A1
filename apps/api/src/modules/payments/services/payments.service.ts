@@ -6,7 +6,7 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { PaymentsRepository } from '../repositories/payments.repository.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { MockGatewayService } from './mock-gateway.service.js';
@@ -273,32 +273,70 @@ export class PaymentsService {
         if (!payment || payment.method !== PaymentMethod.VNPAY) return 'missing' as const;
         if (payment.status !== PaymentStatus.PROCESSING) return 'duplicate' as const;
         if (payment.amount * 100n !== BigInt(callback.vnp_Amount)) return 'amount-mismatch' as const;
-        if (lockedOrder.status !== OrderStatus.PENDING) return 'order-conflict' as const;
-
         if (callback.vnp_ResponseCode === '00' && callback.vnp_TransactionStatus === '00') {
           const transactionNo = callback.vnp_TransactionNo || callback.vnp_BankTranNo;
           if (!transactionNo) return 'missing-transaction' as const;
-          await this.paymentsRepository.markSucceeded(payment.id, transactionNo, new Date(), tx);
+          const processedAt = new Date();
+          if (
+            lockedOrder.status !== OrderStatus.PENDING ||
+            lockedOrder.reservationExpiresAt <= processedAt
+          ) {
+            await tx.payment.update({
+              where: { id: payment.id },
+              data: {
+                status: PaymentStatus.MANUAL_REVIEW,
+                gatewayTransactionId: transactionNo,
+                failureCode: 'LATE_SUCCESS_REQUIRES_REVIEW',
+                processedAt,
+              },
+            });
+            await tx.paymentRecoveryAudit.create({
+              data: {
+                paymentId: payment.id,
+                actorType: 'SYSTEM',
+                gatewayReference: callback.vnp_TxnRef,
+                correlationId: randomUUID(),
+                incidentReference: 'VNPAY_IPN_LATE_SUCCESS',
+                beforeState: PaymentStatus.PROCESSING,
+                afterState: PaymentStatus.MANUAL_REVIEW,
+                providerOutcome: 'LATE_SUCCESS_REQUIRES_REFUND_REVIEW',
+                details: {
+                  responseCode: callback.vnp_ResponseCode,
+                  transactionStatus: callback.vnp_TransactionStatus,
+                  transactionNo,
+                  orderStatus: lockedOrder.status,
+                  orderDeadlinePassed: lockedOrder.reservationExpiresAt <= processedAt,
+                },
+              },
+            });
+            return 'manual-review' as const;
+          }
+          await this.paymentsRepository.markSucceeded(payment.id, transactionNo, processedAt, tx);
           await this.ordersService.markOrderPaid(payment.orderId, payment.order.userId, payment.amount, tx);
           return 'success' as const;
         }
 
+        if (callback.vnp_TransactionStatus !== '02') return 'pending' as const;
         const failureCode = (
           'VNPAY_' + callback.vnp_ResponseCode + '_' + callback.vnp_TransactionStatus
         ).slice(0, 100);
         await this.paymentsRepository.markFailed(payment.id, failureCode, new Date(), tx);
-        await this.ordersService.markOrderPaymentFailed(
-          payment.orderId,
-          payment.order.userId,
-          failureCode,
-          tx,
-        );
+        if (lockedOrder.status === OrderStatus.PENDING) {
+          await this.ordersService.markOrderPaymentFailed(
+            payment.orderId,
+            payment.order.userId,
+            failureCode,
+            tx,
+          );
+        }
         return 'success' as const;
       });
 
       if (outcome === 'duplicate') return { RspCode: '02', Message: 'Transaction already confirmed' };
       if (outcome === 'missing') return { RspCode: '01', Message: 'Order not found' };
       if (outcome === 'amount-mismatch') return { RspCode: '04', Message: 'Invalid amount' };
+      if (outcome === 'pending') return { RspCode: '00', Message: 'Received; reconciliation remains required' };
+      if (outcome === 'manual-review') return { RspCode: '00', Message: 'Received; manual review required' };
       if (outcome === 'order-conflict' || outcome === 'missing-transaction') {
         this.logger.error('VNPay IPN could not settle callback. reference=' + callback.vnp_TxnRef);
         return { RspCode: '99', Message: 'Unable to confirm transaction' };

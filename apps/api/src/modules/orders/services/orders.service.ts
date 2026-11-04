@@ -698,7 +698,7 @@ export class OrdersService {
       const processingPayment = await client.payment.findFirst({
         where: {
           orderId,
-          status: 'PROCESSING',
+          status: { in: ['PROCESSING', 'MANUAL_REVIEW'] },
         },
         select: { id: true },
       });

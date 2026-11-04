@@ -10,6 +10,7 @@ datasource db {
 enum UserRole {
   CUSTOMER
   BARISTA
+  PAYMENT_OPERATOR
 }
 
 enum ProductSize {
@@ -38,6 +39,18 @@ enum PaymentStatus {
   PROCESSING
   SUCCEEDED
   FAILED
+  MANUAL_REVIEW
+}
+
+enum PaymentRecoveryRequestStatus {
+  IN_PROGRESS
+  COMPLETED
+  UNKNOWN
+}
+
+enum PaymentRecoveryActorType {
+  USER
+  SYSTEM
 }
 
 enum IngredientUnit {
@@ -88,6 +101,8 @@ model User {
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   orders                      Order[]
+  paymentRecoveryRequests     PaymentRecoveryRequest[] @relation("PaymentRecoveryActor")
+  paymentRecoveryAudits       PaymentRecoveryAudit[]   @relation("PaymentRecoveryAuditActor")
   couponRedemptions           CouponRedemption[]
   loyaltyTransactions         LoyaltyTransaction[]
   changedOrderStatusHistories OrderStatusHistory[] @relation("OrderStatusChangedBy")
@@ -290,9 +305,64 @@ model Payment {
   updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  recoveryRequests PaymentRecoveryRequest[]
+  recoveryAudits   PaymentRecoveryAudit[]
 
   @@index([orderId, createdAt(sort: Desc)])
   @@map("payments")
+}
+
+
+model PaymentRecoveryRequest {
+  id                    String                       @id @default(uuid()) @db.Uuid
+  paymentId             String                       @map("payment_id") @db.Uuid
+  idempotencyKey        String                       @map("idempotency_key") @db.VarChar(100)
+  requestHash           String                       @map("request_hash") @db.Char(64)
+  providerRequestId     String                       @unique @map("provider_request_id") @db.VarChar(32)
+  actorUserId           String                       @map("actor_user_id") @db.Uuid
+  incidentReference     String                       @map("incident_reference") @db.VarChar(120)
+  correlationId         String                       @map("correlation_id") @db.VarChar(100)
+  status                PaymentRecoveryRequestStatus @default(IN_PROGRESS)
+  providerOutcome       String?                      @map("provider_outcome") @db.VarChar(64)
+  providerResponseCode  String?                      @map("provider_response_code") @db.VarChar(10)
+  providerTransactionNo String?                      @map("provider_transaction_no") @db.VarChar(100)
+  errorCode             String?                      @map("error_code") @db.VarChar(100)
+  leaseExpiresAt        DateTime                     @map("lease_expires_at") @db.Timestamptz(6)
+  createdAt             DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  actor   User    @relation("PaymentRecoveryActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  audits  PaymentRecoveryAudit[]
+
+  @@unique([paymentId, idempotencyKey])
+  @@index([paymentId, createdAt(sort: Desc)])
+  @@index([status, leaseExpiresAt])
+  @@map("payment_recovery_requests")
+}
+
+model PaymentRecoveryAudit {
+  id                String                  @id @default(uuid()) @db.Uuid
+  recoveryRequestId String?                 @map("recovery_request_id") @db.Uuid
+  paymentId         String                  @map("payment_id") @db.Uuid
+  actorUserId       String?                 @map("actor_user_id") @db.Uuid
+  actorType         PaymentRecoveryActorType @map("actor_type")
+  gatewayReference  String?                 @map("gateway_reference") @db.VarChar(100)
+  correlationId     String                  @map("correlation_id") @db.VarChar(100)
+  incidentReference String                  @map("incident_reference") @db.VarChar(120)
+  beforeState       PaymentStatus           @map("before_state")
+  afterState        PaymentStatus           @map("after_state")
+  providerOutcome   String                  @map("provider_outcome") @db.VarChar(64)
+  details           Json?
+  createdAt         DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  recoveryRequest PaymentRecoveryRequest? @relation(fields: [recoveryRequestId], references: [id], onDelete: Restrict)
+  payment         Payment                 @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  actor           User?                   @relation("PaymentRecoveryAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId, createdAt])
+  @@index([correlationId])
+  @@map("payment_recovery_audits")
 }
 
 model OrderStatusHistory {

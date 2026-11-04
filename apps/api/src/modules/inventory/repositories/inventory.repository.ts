@@ -1,8 +1,53 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../../database/prisma.service.js';
+import {
+  STOCK_THRESHOLDS,
+  type StaffInventoryQueryDto,
+} from '../dto/staff-inventory.dto.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
 
 @Injectable()
 export class InventoryRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  listIngredients(query: StaffInventoryQueryDto) {
+    const levels: Prisma.IngredientWhereInput[] = Object.entries(
+      STOCK_THRESHOLDS,
+    ).map(([unit, threshold]) => ({
+      unit: unit as 'G' | 'ML' | 'PCS',
+      stockQuantity:
+        query.status === 'LOW_STOCK'
+          ? { gt: 0, lte: threshold }
+          : { gt: threshold },
+    }));
+    return this.prisma.ingredient.findMany({
+      where: {
+        AND: [
+          query.q
+            ? {
+                OR: [
+                  { name: { contains: query.q, mode: 'insensitive' } },
+                  { code: { contains: query.q, mode: 'insensitive' } },
+                ],
+              }
+            : {},
+          query.status === 'OUT_OF_STOCK'
+            ? { stockQuantity: 0 }
+            : query.status
+              ? { OR: levels }
+              : {},
+          query.cursor ? { id: { gt: query.cursor } } : {},
+        ],
+      },
+      orderBy: { id: 'asc' },
+      take: (query.limit ?? 50) + 1,
+    });
+  }
+
+  findIngredient(id: string, tx?: Prisma.TransactionClient) {
+    return (tx ?? this.prisma).ingredient.findUnique({ where: { id } });
+  }
+
   // Đọc variant cùng công thức (BOM) và tồn kho/version hiện tại của từng nguyên liệu.
   async findVariantWithRecipe(tx: Prisma.TransactionClient, variantId: string) {
     return tx.productVariant.findUnique({
@@ -63,7 +108,7 @@ export class InventoryRepository {
         orderId,
         productVariantId: variantId,
         quantity,
-         status: 'ACTIVE',
+        status: 'ACTIVE',
         expiresAt,
         items: { create: items },
       },

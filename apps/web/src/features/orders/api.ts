@@ -63,3 +63,7 @@ export function getMyOrdersApi(token: string) {
 export function getOrderDetailApi(token: string, orderId: string) {
   return request<OrderDetail>(`/orders/${encodeURIComponent(orderId)}`, token);
 }
+
+export function cancelOrderApi(token: string, orderId: string) {
+  return request<OrderDetail>(`/orders/${encodeURIComponent(orderId)}/cancel`, token, { method: 'POST' });
+}

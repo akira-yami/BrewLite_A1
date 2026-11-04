@@ -2,27 +2,13 @@
 
 BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt, được xây dựng cho bài tập lớn môn Công nghệ Phần mềm. Sản phẩm hướng tới luồng đặt món nhanh tại quầy: xem menu, chọn size/topping, quản lý giỏ hàng, đăng nhập, tạo đơn, thanh toán và theo dõi trạng thái.
 
-## Báo cáo Nhóm 7
+## Hồ sơ Nhóm 7
 
-- [Đọc báo cáo PDF](BrewLite-Report/report/build/main.pdf).
-- [Mã nguồn LaTeX và hướng dẫn biên dịch](BrewLite-Report/report/README.md).
-- [Phân công và hồ sơ kiểm chứng](docs/scrum/team-assignment-analysis-2026-11-03.md); [audit ngày 03/11/2026](docs/scrum/trello-audit-2026-11-03.md).
+- [Đề bài gốc](docs/BrewLite-CongNghePhanMem.pdf).
+- [Mục lục tài liệu bàn giao](docs/README.md).
+- [Phân công hiện hành: 41 đầu việc](docs/scrum/phan-cong.md); [đối chiếu lịch sử Trello](docs/scrum/team-assignment-analysis-2026-11-03.md); [audit ngày 03/11/2026](docs/scrum/trello-audit-2026-11-03.md).
 
-Báo cáo được đối chiếu với dự án ngày 03/11/2026; các yêu cầu và số liệu kiểm thử trong đó cần đọc cùng hiện trạng và giới hạn được nêu trong báo cáo.
-
-## Gói bàn giao tài liệu Assignment 2
-
-Tài liệu và sơ đồ A2 đã được chuyển vào các thư mục ở gốc theo sheet `Assignment 2` và `SO_DO` của bảng phân công. Mỗi gói có README ghi task, file gốc, tài liệu phối hợp và phần còn thiếu:
-
-- [Khang-A2](Khang-A2/README.md): yêu cầu chung, kiến trúc/ERD, Orders, Class/Activity, deployment và truy vết.
-- [Huy-A2](Huy-A2/README.md): Auth/JWT/RBAC và bảo mật.
-- [Hoang-A2](Hoang-A2/README.md): phân công Catalog/Inventory, tham chiếu dùng chung và các sơ đồ chưa có tệp độc lập.
-- [Kiet-A2](Kiet-A2/README.md): Payment/Retry/Idempotency và Coupon.
-- [Khai-A2](Khai-A2/README.md): wireflow giao diện khách hàng và phân công frontend/E2E.
-
-[Danh sách chuyển file và hash](Khang-A2/handover-manifest.json) ghi nguồn trước khi chuyển. `docs/` giữ tài liệu API thực thi, Scrum, review và bằng chứng A1; các liên kết thiết kế dùng chung trỏ tới gói người phụ trách. Đây là gói tham khảo đang được bàn giao, không xác nhận hoàn thành A2.
-
-> Cập nhật Orders tuần 3 ngày 23/10/2026: đã có `POST /orders`, `GET /orders/me`, `GET /orders/:id`, snapshot đường/đá/ghi chú, transaction giữ tồn và kiểm tra quyền sở hữu. Xem [API và cách kiểm chứng Orders](docs/api/orders-week3.md). [Bản bàn giao có commit, ngày giờ và log kiểm thử](docs/scrum/khang-week3-handoff.md). Nút đặt/thanh toán trên giao diện giỏ hàng chưa được nối vào toàn bộ luồng checkout.
+Bộ báo cáo PDF/LaTeX trong `BrewLite-Report/` được giữ cục bộ, không theo dõi trong Git. Tài liệu bàn giao, phân công, Scrum và minh chứng được quản lý trong `docs/`; các kết quả kiểm chứng cần đọc cùng ngày chạy và giới hạn ghi trong tài liệu tương ứng.
 
 ## Công nghệ và hiện trạng
 
@@ -52,6 +38,8 @@ Controller -> Service -> Repository -> Prisma -> PostgreSQL
 - **Mapper**: chuyển Prisma record sang Entity và Entity sang Response DTO.
 - **DTO**: validate hợp đồng request/response.
 - **Entity**: biểu diễn dữ liệu và enum nghiệp vụ trong module.
+
+Hướng dẫn nghiệm thu bốn phần bàn giao/nhân viên nằm tại [kiểm chứng Barista, kho và Compose](docs/testing/staff-acceptance.md).
 
 Mapper là helper thuần, không phải một tầng riêng; mapper không truy vấn database và không chứa business rule.
 
@@ -93,11 +81,6 @@ BrewLite/
 │  └─ tsconfig/
 ├─ tests/e2e/
 ├─ scripts/
-├─ Khang-A2/
-├─ Huy-A2/
-├─ Hoang-A2/
-├─ Kiet-A2/
-├─ Khai-A2/
 └─ docs/
 ```
 
@@ -116,7 +99,7 @@ BrewLite/
 
 ## Chức năng MVP
 
-Đây là phạm vi cần nghiệm thu. Trạng thái từng yêu cầu nằm trong [ma trận truy vết](Khang-A2/docs/traceability-matrix.md); danh sách này không có nghĩa mọi chức năng đã hoàn thành.
+Đây là phạm vi cần nghiệm thu. Tiêu chí chấp nhận nằm trong [Product Backlog](docs/scrum/product-backlog.md); danh sách này không có nghĩa mọi chức năng đã hoàn thành.
 
 - Hiển thị menu và chi tiết sản phẩm.
 - Chọn size, topping, mức đường và đá.
@@ -143,22 +126,16 @@ Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào
 
 ## Tài liệu
 
-- [Mục lục tài liệu](docs/README.md)
-- [Phân tích đề bài](Khang-A2/docs/phan-tich-de-bai.md)
-- [Truy vết yêu cầu A1/A2, code, test và review](Khang-A2/docs/traceability-matrix.md)
-- [Tiến độ thực tế ngày 22/10/2026](docs/scrum/progress-report.md)
-- [Kiến trúc hệ thống](Khang-A2/docs/architecture/system-architecture.md)
-- [Class Diagram](Khang-A2/docs/architecture/class-diagram.md)
-- [Deployment Diagram và khoảng trống production](Khang-A2/docs/architecture/deployment-diagram.md)
-- [ERD](docs/architecture/erd.md)
-- [Đặc tả entity](Khang-A2/docs/architecture/entities.md)
-- [Thiết kế cơ sở dữ liệu](Khang-A2/docs/architecture/database-design.md)
-- [Đặc tả REST API](Khang-A2/docs/architecture/api-spec.md)
-- [Thiết kế bảo mật](Huy-A2/docs/architecture/security.md)
-- [Các quyết định kiến trúc](Khang-A2/docs/decisions/ADR-001-project-architecture.md)
+- [Mục lục và đối chiếu yêu cầu tài liệu theo đề bài](docs/README.md)
+- [Đề bài gốc](docs/BrewLite-CongNghePhanMem.pdf)
+- [ERD và giải thích mô hình dữ liệu](docs/architecture/erd.md)
+- [ERD PlantUML](database/BrewLite.puml) · [Ảnh ERD](database/BrewLite.png)
 - [Product Backlog](docs/scrum/product-backlog.md)
-- [Kế hoạch 3 Sprint](docs/scrum/sprint-01.md)
-- [Chiến lược kiểm thử](Khang-A2/docs/testing/test-strategy.md)
+- [Sprint 1](docs/scrum/sprint-01.md) · [Sprint 2](docs/scrum/sprint-02.md) · [Sprint 3](docs/scrum/sprint-03.md)
+- [Definition of Done](docs/scrum/definition-of-done.md)
+- [Hồ sơ kiểm chứng ngày 03/11/2026](docs/scrum/trello-audit-2026-11-03.md)
+- [API Barista](docs/api/staff-orders.md)
+- [Vòng đời giữ tồn và dữ liệu demo](docs/testing/reservation-and-demo-seed.md)
 
 ## Khởi chạy dự án
 
@@ -168,10 +145,12 @@ Chạy toàn bộ stack bằng:
 cp .env.example .env
 node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
 # Điền secret vừa tạo vào JWT_SECRET trong .env trước khi chạy Compose.
-docker compose up --build
+docker compose up -d --build
+# Seed có sẵn tài khoản Customer và Barista, không cần biến mật khẩu demo.
+docker compose --profile demo run --rm seed
 ```
 
-Compose chạy service `migrate` trước backend. Kiểm tra trạng thái bằng `docker compose ps -a`; `migrate` phải exit 0, các service còn lại healthy. Frontend chạy tại `http://localhost:3000`, backend tại `http://localhost:3001/api/v1` và health endpoint là `http://localhost:3001/api/v1/health`.
+Compose chạy service `migrate` trước backend. Lệnh seed ở trên tạo catalog/công thức và tài khoản Barista, không tạo đơn giả; có sẵn Customer để đăng nhập. Có thể chạy seed lặp lại. Quầy nhân viên ở `/barista`, gồm hàng đợi đơn và quản lý kho nguyên liệu.  Kiểm tra trạng thái bằng `docker compose ps -a`; `migrate` phải exit 0, các service còn lại healthy. Frontend chạy tại `http://localhost:3000`, backend tại `http://localhost:3001/api/v1` và health endpoint là `http://localhost:3001/api/v1/health`.
 
 `JWT_SECRET` bắt buộc và không có giá trị mặc định. Compose dừng ngay nếu biến thiếu hoặc rỗng; mỗi môi trường cần secret riêng. Không commit file `.env` thật.
 
@@ -184,15 +163,15 @@ Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull requ
 - **Frontend:** lint, typecheck, test giỏ hàng và build Next.js.
 - **Backend:** generate Prisma client, lint, typecheck, unit test, API E2E test và build NestJS. Bộ API E2E hiện kiểm tra readiness và JWT/RBAC/ownership trên route Auth bằng provider mock; không phải E2E đặt hàng/thanh toán.
 - **Database migrations and integration:** PostgreSQL 18 riêng cho mỗi lần chạy; validate/generate Prisma, apply migration hai lần để kiểm tra chạy lặp, kiểm tra migration status và chạy integration test với database thật.
-- **Documentation:** kiểm tra liên kết tài liệu, nguồn/SVG/PNG qua manifest, enum Prisma và danh mục tạo phẩm A2 Task 1–3; chạy bằng `node scripts/check-docs.mjs`.
+- **Documentation:** kiểm tra liên kết tài liệu và hash nguồn ERD/SVG/PNG qua manifest; enum và danh mục A2 được kiểm tra khi bộ hồ sơ tương ứng có trong checkout; chạy bằng `node scripts/check-docs.mjs`.
 
-CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ruleset `BrewLite CI quality gate` bắt buộc cả bốn job đạt trên main, strict và không có bypass actor; xem [snapshot GitHub và run pass/fail](Khang-A2/docs/deployment/ci-quality-gates.md). Cấu hình YAML không tự thiết lập rule trên GitHub. Repo hiện có CI, chưa có workflow CD. Xem [kế hoạch bàn giao](Khang-A2/docs/deployment/release-checklist.md) và [quy trình version tài liệu](Khang-A2/docs/document-control.md).
+CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ruleset `BrewLite CI quality gate` bắt buộc cả bốn job đạt trên main, strict và không có bypass actor; cần kiểm tra trực tiếp trên GitHub khi nghiệm thu. Cấu hình YAML không tự thiết lập rule trên GitHub. Repo hiện có CI, chưa có workflow CD. Hướng dẫn chạy và kiểm chứng nằm trong [mục lục tài liệu](docs/README.md).
 
 ## Quy ước phát triển
 
 `OrderItem.note` là ghi chú món tùy chọn, tối đa 500 ký tự sau trim; thiếu/rỗng thành null. UI nhập và hiển thị ghi chú, giỏ persist và tách dòng khác ghi chú; DTO/mapper giữ cùng snapshot, không thay đổi giá. Migration bổ sung riêng giữ đơn cũ với note null.
 
-`OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo [hợp đồng API](Khang-A2/docs/architecture/api-spec.md).
+`OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo DTO/controller trong mã nguồn và [tài liệu API hiện có](docs/api/staff-orders.md).
 
 - Backend không tin giá, tổng tiền, user ID hoặc trạng thái do frontend gửi.
 - Tiền lưu bằng số nguyên theo đơn vị VND; không dùng số thực.
@@ -220,3 +199,16 @@ CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết n�
 5. Thêm payment idempotency, state machine, inventory, coupon và loyalty.
 6. Viết unit/integration/e2e test.
 7. Hoàn thiện Docker Compose, README chạy thật và demo bàn giao.
+
+## Tài khoản demo
+
+Seed luôn tạo/cập nhật hai tài khoản trong database, mật khẩu lưu dạng bcrypt:
+
+| Vai trò | Tên đăng nhập | Mật khẩu |
+|---|---|---|
+| Customer | `customer01` | `Customer@123` |
+| Barista | `barista01` | `Barista@123` |
+
+Chạy `npm run db:seed` trong `apps/api`, hoặc `node --import=tsx prisma/seed-demo.ts` để chỉ seed catalog và tài khoản, không sinh đơn giả. Không cần khai báo tài khoản demo trong `.env`. Đây là tài khoản trình diễn của đồ án.
+
+Khi phát triển trên máy, chỉ cần một container PostgreSQL `brewlite-postgres-1`; frontend/backend chạy bằng npm trên host theo README từng app. Cấu hình Compose toàn stack vẫn được giữ phục vụ yêu cầu bàn giao trong đề bài.

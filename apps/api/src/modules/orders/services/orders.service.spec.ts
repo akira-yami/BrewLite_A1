@@ -97,7 +97,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       catalog,
       new InventoryService(
         prismaMock as PrismaService,
-        new InventoryRepository(),
+        new InventoryRepository({} as never),
       ),
       new UsersService(),
     );
@@ -339,7 +339,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
           response: {
             error: {
               code: 'OUT_OF_STOCK',
-              details: [{ toppingId: 'topping-1', available: 1 }],
+              details: [{ toppingId: 'topping-1', available: false }],
             },
           },
         });
@@ -642,7 +642,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
           new CatalogService({} as any),
           new InventoryService(
             prismaMock as PrismaService,
-            new InventoryRepository(),
+            new InventoryRepository({} as never),
           ),
           new UsersService(),
         );

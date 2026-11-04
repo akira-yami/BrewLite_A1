@@ -1,12 +1,11 @@
-
-import 'dotenv/config';
-
 import { PrismaPg } from '@prisma/adapter-pg';
+import 'dotenv/config';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 
 import { seedCatalog } from './seed-catalog.js';
 import { seedMock } from './seed-mock.js';
 import { seedCoupons } from './seed-coupons.js';
+import { seedDemoUsers } from './seed-staff.js';
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
@@ -32,6 +31,9 @@ async function main() {
     await seedCoupons(prisma);
 
     console.log('Seed dữ liệu hoàn tất.');
+    console.log('Seed Mock Data hoàn tất.');
+
+    await seedDemoUsers(prisma);
   } finally {
     await prisma.$disconnect();
   }

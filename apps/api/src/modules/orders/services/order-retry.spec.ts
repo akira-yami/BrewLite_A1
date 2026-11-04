@@ -68,7 +68,7 @@ function setup() {
 
   const inventory = new InventoryService(
     prisma as any,
-    new InventoryRepository(),
+    new InventoryRepository({} as never),
   );
 
   const service = new OrdersService(
@@ -198,7 +198,7 @@ describe('Order transaction regression checks', () => {
       response: {
         error: {
           code: 'OUT_OF_STOCK',
-          details: [{ variantId: 'variant', available: 0 }],
+          details: [{ variantId: 'variant', available: false }],
         },
       },
     });

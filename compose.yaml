@@ -54,6 +54,23 @@ services:
     networks:
       - brewlite-network
 
+  seed:
+    profiles: [demo]
+    init: true
+    restart: "no"
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: migration
+    command: [node, --import=tsx, prisma/seed-demo.ts]
+    environment:
+      DATABASE_URL: ${DATABASE_URL_DOCKER:?DATABASE_URL_DOCKER must be set}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - brewlite-network
+
   backend:
     <<: *service-defaults
     build:

@@ -1,6 +1,8 @@
-import { authSession } from '../auth/session';
+import { CheckoutAPI, CheckoutApiError } from '@/services/checkout.api';
+import type { PaymentMethod, PaymentResponse } from '@/types/checkout.contract';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
+export type { PaymentMethod, PaymentResponse };
+export { CheckoutApiError as PaymentApiError };
 
 export type PaymentMethod = 'E_WALLET' | 'CARD' | 'VNPAY';
 
@@ -42,32 +44,7 @@ export async function createPaymentApi(
   input: { orderId: string; method: PaymentMethod },
   idempotencyKey: string,
 ) {
-  const response = await fetch(`${API_BASE_URL}/payments`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': idempotencyKey,
-    },
-    body: JSON.stringify(input),
-  });
-  const json = await readJson(response);
-  if (response.status === 401) authSession.invalidate(token);
-
-  if (!response.ok) {
-    const payload = json as {
-      error?: { message?: string; code?: string };
-      message?: string;
-      code?: string;
-    } | null;
-    throw new PaymentApiError(
-      payload?.error?.message ?? payload?.message ?? 'Không thể xử lý thanh toán.',
-      response.status,
-      payload?.error?.code ?? payload?.code,
-    );
-  }
-
-  return unwrap<PaymentResponse>(json);
+  return CheckoutAPI.processPayment(token, input, idempotencyKey);
 }
  
 /**

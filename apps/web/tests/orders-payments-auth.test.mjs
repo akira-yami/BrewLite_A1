@@ -29,6 +29,7 @@ function setupModule(relPath, { token = 'current-token', response = { ok: true, 
     new Function('require', 'module', 'exports', 'fetch', outputText)(
       (name) => {
         if (name.includes('session')) return { authSession };
+        if (name.includes('services/checkout.api')) return compile('../src/services/checkout.api.ts');
         if (name.includes('auth/api')) return compile('../src/features/auth/api.ts');
         if (name === '@/lib/api-client') return compile('../src/lib/api-client.ts');
         throw new Error(`Unexpected require: ${name}`);
@@ -137,7 +138,7 @@ for (const [method, payload, expected] of [
     const { mod, requests } = setupModule('../src/services/checkout.api.ts', {
       response: { ok: true, status: 200, body: { data: expected } },
     });
-    const result = await mod.CheckoutAPI[method](payload, 'idempotency-1');
+    const result = await mod.CheckoutAPI[method]('current-token', payload, 'idempotency-1');
     assert.deepEqual(result, expected);
     assert.equal(result.data, undefined);
     assert.deepEqual(JSON.parse(requests[0].init.body), payload);

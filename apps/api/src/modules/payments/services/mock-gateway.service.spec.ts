@@ -7,6 +7,8 @@ describe('MockGatewayService', () => {
     let service: MockGatewayService;
 
     beforeEach(async () => {
+        // These tests exercise random mode regardless of the caller's environment.
+        vi.stubEnv('MOCK_PAYMENT_MODE', 'random');
         // Khởi tạo một môi trường test cô lập
         const module: TestingModule = await Test.createTestingModule({
         providers: [MockGatewayService],
@@ -21,6 +23,7 @@ describe('MockGatewayService', () => {
     afterEach(() => {
         // Xóa các spy sau mỗi lần chạy để không ảnh hưởng test khác
         vi.restoreAllMocks();
+        vi.unstubAllEnvs();
         vi.useRealTimers(); // Trả lại thời gian thực sau khi test xong
     });
 

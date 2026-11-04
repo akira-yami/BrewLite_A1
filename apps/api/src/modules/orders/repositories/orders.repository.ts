@@ -195,6 +195,25 @@ async markAsPaid(
     },
   });
 
+  if (updated.count !== 1) {
+    throw new ConflictException(
+      'Order status changed; cannot mark as paid',
+    );
+  }
+
+  // Timeline là nguồn hiển thị cho customer history/detail, nên phải được
+  // ghi trong cùng transaction với payment và state transition.
+  await tx.orderStatusHistory.create({
+    data: {
+      orderId,
+      fromStatus: currentStatus,
+      toStatus: OrderStatus.PAID,
+      changedByUserId: userId,
+      reason: 'Thanh toán thành công',
+    },
+  });
+
+  // Chỉ chuyển reservation còn ACTIVE thành CONSUMED.
   await tx.inventoryReservation.updateMany({
     where: { orderId, status: 'ACTIVE' },
     data: { status: 'CONSUMED' },

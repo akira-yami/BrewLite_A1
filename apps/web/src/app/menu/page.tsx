@@ -9,7 +9,6 @@ import { ProductDetailModal } from '@/features/catalog/components/ProductDetailM
 import { useMenuProducts } from '@/features/catalog/hooks/useMenuProducts';
 import { useScrollHeader } from '@/features/catalog/hooks/useScrollHeader';
 import { Product } from '@/features/catalog/types';
-import { writeCheckoutCoupon } from '@/features/checkout/session';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -160,12 +159,6 @@ export default function MenuPage() {
               >
                 Thực đơn
               </button>
-              <Link href="#about" className="transition hover:text-[#153D2C]">
-                Về BrewLite
-              </Link>
-              <Link href="#contact" className="transition hover:text-[#153D2C]">
-                Liên hệ
-              </Link>
               <Link href="/orders" className="transition hover:text-[#153D2C]">
                 Đơn hàng
               </Link>
@@ -374,7 +367,7 @@ export default function MenuPage() {
                     setEditingCartItem(null);
                     setPreviewingProduct(item);
                   }}
-                  onQuickAdd={handleQuickAdd}
+                  
                 />
               ))}
             </div>
@@ -449,12 +442,6 @@ export default function MenuPage() {
             <button type="button" onClick={scrollToMenu} className="hover:text-[#153D2C]">
               Thực đơn
             </button>
-            <Link href="#about" className="hover:text-[#153D2C]">
-              Về BrewLite
-            </Link>
-            <Link href="#contact" className="hover:text-[#153D2C]">
-              Liên hệ
-            </Link>
             <Link href="/orders" className="hover:text-[#153D2C]">
               Đơn hàng
             </Link>
@@ -496,8 +483,7 @@ export default function MenuPage() {
           setPreviewingProduct(product);
           setIsCartOpen(false);
         }}
-        onCheckout={(coupon) => {
-          writeCheckoutCoupon(window.sessionStorage, coupon);
+        onCheckout={() => {
           setIsCartOpen(false);
           router.push('/checkout');
         }}

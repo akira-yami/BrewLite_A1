@@ -1,4 +1,4 @@
-# PR 34: reservation lifecycle and demo catalog
+# Reservation lifecycle and demo catalog
 
 ## Payment and expiry
 
@@ -26,11 +26,11 @@ After the 24 replacement demo products are seeded, the mock seed retires exactly
 MOCK-PROD-001 through MOCK-PROD-030 by setting their products and variants inactive
 in one transaction. It does not delete rows, order snapshots, reservations or
 recipes. SKUs outside that exact list are untouched. Re-running is idempotent.
-No production database cleanup has been executed as part of this PR fix.
+No production database cleanup has been executed as part of the documented seed changes.
 
-## Included UI and asset scope
+## Demo UI and assets
 
-This PR includes 30 local WebP product images under apps/web/public/products,
+The demo includes 30 local WebP product images under apps/web/public/products,
 six base catalog products plus 24 named demo products, product-card image updates,
 and menu pagination at nine products per page. Search/category changes reset the
 page; pagination clamps to available results and scrolls back to the menu.

@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "pathBase": "repository",
+  "renderer": "PlantUML 1.2026.8 / Java 27 / Arial (Windows)",
+  "jarSha256": "5e1ecfa8ecd32c90b03bbf3b1eb6f020943f98ab0fcf4032be31a0002ee2c462",
+  "sourceNormalization": "UTF-8, CRLF -> LF",
+  "entries": [
+    {
+      "source": "database/BrewLite.puml",
+      "sha256": "419a470e5d60d2b5b9564c2c30427573f43abbd3f8a92ae1ed04e4ffd9ffa1cc",
+      "outputs": {
+        "database/BrewLite.svg": "f8cb59097ac1918cd590bdecd4a5d4ce8b6b70b83032e1540c3b20d1e2b75b35",
+        "database/BrewLite.png": "9945e908ef38ef53293b15d0a059e1ab4c016dfe509c9e43dbd2c6cb95618510"
+      }
+    }
+  ]
+}

@@ -2,11 +2,10 @@ import {
   ConflictException,
   Injectable,
   Logger,
-  NotFoundException,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createHash } from 'node:crypto';
+import * as crypto from 'crypto';
 import { PaymentsRepository } from '../repositories/payments.repository.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { MockGatewayService } from './mock-gateway.service.js';
@@ -15,10 +14,12 @@ import { PrismaService } from '../../../database/prisma.service.js';
 import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
 import { PaymentMethod as DtoPaymentMethod } from '../dto/create-payment.dto.js';
 import { PaymentStatus as PaymentResponseStatus, type PaymentResponseDto } from '../dto/payment-response.dto.js';
-import * as crypto from 'crypto';
 
 @Injectable()
 export class PaymentsService {
+  getPaymentStatus(idempotencyKey: string, sub: string) {
+    throw new Error('Method not implemented.');
+  }
   private readonly logger = new Logger(PaymentsService.name);
 
   constructor(
@@ -29,118 +30,15 @@ export class PaymentsService {
     @Optional() private readonly vnpayGateway?: VnpayGatewayService,
   ) {}
 
-    async processPayment(params: {
-        idempotencyKey: string;
-        orderId: string;
-        userId: string;
-        method: PaymentMethod;
-        amount: bigint;
-    }): Promise<PaymentResponseDto> {
-        const { idempotencyKey, orderId, userId, method, amount } = params;
-
-        // 1. Tính toán chuỗi băm Request-Hash (Canonical JSON)
-        const requestHash = crypto
-                                .createHash('sha256')
-                                .update(JSON.stringify({ orderId, method, amount: amount.toString() }))
-                                .digest('hex');
-
-        // 2. Tra cứu Idempotency-Key
-        const existingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
-
-        if (existingPayment) return this.replayPayment(existingPayment, requestHash);
-
-        // Serialize payment admission with expiry, then commit PROCESSING before
-        // calling the gateway. No database lock is held across external I/O.
-        const claim = await this.prisma.$transaction(async (tx) => {
-            const order = await this.ordersService.getOrderForPayment(orderId, userId, tx);
-            const concurrent = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey, tx);
-            if (concurrent) return { kind: 'replay' as const, result: this.replayPayment(concurrent, requestHash) };
-
-            if (order.status === OrderStatus.PAID) {
-                throw new ConflictException({
-                    code: 'ORDER_ALREADY_PAID',
-                    message: 'Đơn hàng này đã được thanh toán.',
-                });
-            }
-            if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
-                throw new ConflictException({
-                    code: 'ORDER_INVALID_TRANSITION',
-                    message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
-                });
-            }
-            if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
-                throw new ConflictException({
-                    code: 'ORDER_EXPIRED',
-                    message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
-                });
-            }
-            if (await this.paymentsRepository.findProcessingByOrderId(orderId, tx)) {
-                throw new ConflictException({
-                    code: 'PAYMENT_IN_PROGRESS',
-                    message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
-                });
-            }
-            if (order.status === OrderStatus.PAYMENT_FAILED) {
-                await this.ordersService.transitionForPaymentRetry(orderId, userId, 'Customer retried payment', tx);
-            }
-            const payment = await this.paymentsRepository.createProcessingPayment({
-                orderId, idempotencyKey, requestHash, method, amount,
-            }, tx);
-            return { kind: 'created' as const, payment };
-        });
-        if (claim.kind === 'replay') return claim.result;
-        const processingPayment = claim.payment;
-
-        // 5. Gọi MockGatewayService (Call API I/O tốn thời gian, tuyệt đối KHÔNG đưa vào DB Lock)
-        const gatewayResult = await this.mockGateway.charge(Number(amount), method as unknown as DtoPaymentMethod);
-        const processedAt = new Date();
-
-        // 6. Mở DB Transaction đồng bộ trạng thái Order và Payment
-        await this.prisma.$transaction(async (tx) => {
-            if (gatewayResult.success) {
-                await this.paymentsRepository.markSucceeded(processingPayment.id, gatewayResult.gatewayTransactionId, processedAt, tx);
-                await this.ordersService.markOrderPaid(orderId, userId, amount, tx);
-            } else {
-                await this.paymentsRepository.markFailed(processingPayment.id, gatewayResult.errorCode, processedAt, tx);
-                await this.ordersService.markOrderPaymentFailed(orderId, userId, gatewayResult.errorCode ?? 'UNKNOWN_ERROR', tx,);
-            }
-        });
-
-        // 7. Trả về kết quả
-        return {
-            success: gatewayResult.success,
-            isRetried: false,
-            status: gatewayResult.success ? PaymentResponseStatus.SUCCEEDED : PaymentResponseStatus.FAILED,
-            gatewayTransactionId: gatewayResult.gatewayTransactionId,
-            errorCode: gatewayResult.errorCode,
-        };
-    }
-    private replayPayment(payment: {
-        requestHash: string;
-        status: PaymentStatus;
-        gatewayTransactionId: string | null;
-        failureCode: string | null;
-    }, requestHash: string): PaymentResponseDto {
-        if (payment.requestHash !== requestHash) {
-            throw new ConflictException({
-                code: 'IDEMPOTENCY_KEY_REUSED',
-                message: 'Idempotency Key đã được sử dụng cho một payload khác.',
-            });
-        }
-        if (payment.status === PaymentStatus.PROCESSING) {
-            throw new ConflictException({
-                code: 'PAYMENT_IN_PROGRESS',
-                message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
-            });
-        }
-        return {
-            success: payment.status === PaymentStatus.SUCCEEDED,
-            isRetried: true,
-            status: PaymentResponseStatus[payment.status],
-            gatewayTransactionId: payment.gatewayTransactionId ?? undefined,
-            errorCode: payment.failureCode ?? undefined,
-        };
-    }
+  async processPayment(params: {
+    idempotencyKey: string;
+    orderId: string;
+    userId: string;
+    method: PaymentMethod;
+    amount: bigint;
+    clientIp?: string;
+  }): Promise<PaymentResponseDto> {
+    const { idempotencyKey, orderId, userId, method, amount, clientIp } = params;
 
     if (method === PaymentMethod.VNPAY && !this.vnpayGateway?.isEnabled()) {
       throw new ServiceUnavailableException({
@@ -149,57 +47,66 @@ export class PaymentsService {
       });
     }
 
-    const processingPayment = await (async () => {
-      try {
-        return await this.prisma.$transaction(async (tx) => {
-          const order = await this.ordersService.getOrderForPaymentForUpdate(orderId, userId, tx);
-          if (order.status === OrderStatus.PAID) {
-            throw new ConflictException({
-              code: 'ORDER_ALREADY_PAID',
-              message: 'Đơn hàng này đã được thanh toán.',
-            });
-          }
-          if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
-            throw new ConflictException({
-              code: 'ORDER_INVALID_TRANSITION',
-              message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
-            });
-          }
-          if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
-            throw new ConflictException({
-              code: 'ORDER_EXPIRED',
-              message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
-            });
-          }
+    // 1. Tính toán chuỗi băm Request-Hash (Canonical JSON)
+    const requestHash = crypto
+      .createHash('sha256')
+      .update(JSON.stringify({ orderId, method, amount: amount.toString() }))
+      .digest('hex');
 
-          const activePayment = await this.paymentsRepository.findProcessingByOrderId(orderId, tx);
-          if (activePayment) {
-            throw new ConflictException({
-              code: 'PAYMENT_IN_PROGRESS',
-              message: 'Đơn hàng đã có một giao dịch thanh toán đang xử lý.',
-            });
-          }
+    // 2. Tra cứu Idempotency-Key
+    const existingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
+    if (existingPayment) {
+      return this.replayPayment(existingPayment, requestHash);
+    }
 
-          if (order.status === OrderStatus.PAYMENT_FAILED) {
-            try {
-              await this.ordersService.transitionForPaymentRetry(
-                orderId,
-                userId,
-                'Khách hàng thực hiện lại thanh toán',
-                tx,
-              );
-            } catch (error) {
-              if (error instanceof ConflictException) {
-                throw new ConflictException({
-                  code: 'PAYMENT_IN_PROGRESS',
-                  message: 'Một yêu cầu thanh toán khác đang được xử lý cho đơn hàng này.',
-                });
-              }
-              throw error;
-            }
-          }
+    // 3. Serialize admission và tạo bản ghi PROCESSING trong DB transaction
+    let claim: { kind: 'replay'; result: PaymentResponseDto } | { kind: 'created'; payment: any };
+    try {
+      claim = await this.prisma.$transaction(async (tx) => {
+        const order = await this.ordersService.getOrderForPaymentForUpdate(orderId, userId, tx);
+        const concurrent = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey, tx);
+        if (concurrent) {
+          return { kind: 'replay' as const, result: this.replayPayment(concurrent, requestHash) };
+        }
 
-          const vnpayIntent = method === PaymentMethod.VNPAY
+        if (order.status === OrderStatus.PAID) {
+          throw new ConflictException({
+            code: 'ORDER_ALREADY_PAID',
+            message: 'Đơn hàng này đã được thanh toán.',
+          });
+        }
+        if (order.status !== OrderStatus.PENDING && order.status !== OrderStatus.PAYMENT_FAILED) {
+          throw new ConflictException({
+            code: 'ORDER_INVALID_TRANSITION',
+            message: 'Trạng thái đơn hàng không hợp lệ để thanh toán.',
+          });
+        }
+        if (order.reservationExpiresAt && new Date() >= order.reservationExpiresAt) {
+          throw new ConflictException({
+            code: 'ORDER_EXPIRED',
+            message: 'Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ.',
+          });
+        }
+
+        const activePayment = await this.paymentsRepository.findProcessingByOrderId(orderId, tx);
+        if (activePayment) {
+          throw new ConflictException({
+            code: 'PAYMENT_IN_PROGRESS',
+            message: 'Đơn hàng đã có một giao dịch thanh toán đang xử lý.',
+          });
+        }
+
+        if (order.status === OrderStatus.PAYMENT_FAILED) {
+          await this.ordersService.transitionForPaymentRetry(
+            orderId,
+            userId,
+            'Customer retried payment',
+            tx,
+          );
+        }
+
+        const vnpayIntent =
+          method === PaymentMethod.VNPAY
             ? this.vnpayGateway!.createPaymentUrl({
                 amount,
                 orderNumber: order.orderNumber,
@@ -208,36 +115,43 @@ export class PaymentsService {
               })
             : undefined;
 
-          return this.paymentsRepository.createProcessingPayment(
-            {
-              orderId,
-              idempotencyKey,
-              requestHash,
-              method,
-              amount,
-              ...(vnpayIntent ?? {}),
-            },
-            tx,
-          );
-        });
-      } catch (error) {
-        if ((error as { code?: string })?.code === 'P2002') {
-          const conflictingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
-          if (conflictingPayment && conflictingPayment.requestHash !== requestHash) {
-            throw new ConflictException({
-              code: 'IDEMPOTENCY_KEY_REUSED',
-              message: 'Idempotency Key đã được sử dụng cho một payload khác.',
-            });
-          }
+        const payment = await this.paymentsRepository.createProcessingPayment(
+          {
+            orderId,
+            idempotencyKey,
+            requestHash,
+            method,
+            amount,
+            ...(vnpayIntent ?? {}),
+          },
+          tx,
+        );
+
+        return { kind: 'created' as const, payment };
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        const conflictingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
+        if (conflictingPayment && conflictingPayment.requestHash !== requestHash) {
           throw new ConflictException({
-            code: 'PAYMENT_IN_PROGRESS',
-            message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
+            code: 'IDEMPOTENCY_KEY_REUSED',
+            message: 'Idempotency Key đã được sử dụng cho một payload khác.',
           });
         }
-        throw error;
+        throw new ConflictException({
+          code: 'PAYMENT_IN_PROGRESS',
+          message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
+        });
       }
-    })();
+      throw error;
+    }
 
+    if (claim.kind === 'replay') {
+      return claim.result;
+    }
+    const processingPayment = claim.payment;
+
+    // 4. Nếu là VNPay: Trả về Payment URL để redirect
     if (method === PaymentMethod.VNPAY) {
       if (!processingPayment.paymentUrl) {
         this.logger.error('VNPay Payment was created without a payment URL. paymentId=' + processingPayment.id);
@@ -249,16 +163,19 @@ export class PaymentsService {
       return {
         success: false,
         isRetried: false,
-        status: PaymentStatus.PROCESSING,
+        status: PaymentResponseStatus.PROCESSING,
         paymentUrl: processingPayment.paymentUrl,
-      };
+      } as PaymentResponseDto;
     }
 
+    // 5. Nếu là MockGateway: Xử lý charge trực tiếp bên ngoài DB lock
     const gatewayResult = await this.mockGateway.charge(
       Number(amount),
       method as unknown as DtoPaymentMethod,
     );
     const processedAt = new Date();
+
+    // 6. Cập nhật trạng thái sau khi cổng thanh toán phản hồi
     await this.prisma.$transaction(async (tx) => {
       if (gatewayResult.success) {
         await this.paymentsRepository.markSucceeded(
@@ -287,9 +204,39 @@ export class PaymentsService {
     return {
       success: gatewayResult.success,
       isRetried: false,
-      status: gatewayResult.success ? PaymentStatus.SUCCEEDED : PaymentStatus.FAILED,
+      status: gatewayResult.success ? PaymentResponseStatus.SUCCEEDED : PaymentResponseStatus.FAILED,
       gatewayTransactionId: gatewayResult.gatewayTransactionId,
       errorCode: gatewayResult.errorCode,
+    };
+  }
+
+  private replayPayment(
+    payment: {
+      requestHash: string;
+      status: PaymentStatus;
+      gatewayTransactionId: string | null;
+      failureCode: string | null;
+    },
+    requestHash: string,
+  ): PaymentResponseDto {
+    if (payment.requestHash !== requestHash) {
+      throw new ConflictException({
+        code: 'IDEMPOTENCY_KEY_REUSED',
+        message: 'Idempotency Key đã được sử dụng cho một payload khác.',
+      });
+    }
+    if (payment.status === PaymentStatus.PROCESSING) {
+      throw new ConflictException({
+        code: 'PAYMENT_IN_PROGRESS',
+        message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
+      });
+    }
+    return {
+      success: payment.status === PaymentStatus.SUCCEEDED,
+      isRetried: true,
+      status: PaymentResponseStatus[payment.status],
+      gatewayTransactionId: payment.gatewayTransactionId ?? undefined,
+      errorCode: payment.failureCode ?? undefined,
     };
   }
 
@@ -333,9 +280,7 @@ export class PaymentsService {
           return 'success' as const;
         }
 
-        const failureCode = (
-          'VNPAY_' + callback.vnp_ResponseCode + '_' + callback.vnp_TransactionStatus
-        ).slice(0, 100);
+        const failureCode = ('VNPAY_' + callback.vnp_ResponseCode + '_' + callback.vnp_TransactionStatus).slice(0, 100);
         await this.paymentsRepository.markFailed(payment.id, failureCode, new Date(), tx);
         await this.ordersService.markOrderPaymentFailed(
           payment.orderId,
@@ -370,7 +315,6 @@ export class PaymentsService {
         message: 'VNPay is not configured.',
       });
     }
-    // The browser Return is display-only and never settles a Payment.
     if (!this.vnpayGateway.verifyCallback(query)) {
       this.logger.warn('VNPay Return has invalid signature; redirecting to read-only Checkout.');
     }

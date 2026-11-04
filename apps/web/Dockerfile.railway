@@ -1,3 +1,4 @@
+# Railway frontend build context: /apps/web (main branch).
 FROM node:24-bookworm AS build
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL

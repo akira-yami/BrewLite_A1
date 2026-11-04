@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException, TooManyRequestsException } from '@nestjs/common';
+import { ConflictException, HttpException, NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PaymentMethod, PaymentRecoveryRequestStatus, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
 import { PaymentRecoveryService } from './payment-recovery.service.js';
@@ -21,6 +21,7 @@ function setup(options: {
   staleRequests?: any[];
   paymentStatus?: PaymentStatus;
   settleError?: Error;
+  paymentStatusAfterInquiry?: PaymentStatus;
 } = {}) {
   const candidate = {
     id: PAYMENT_ID,
@@ -85,14 +86,19 @@ function setup(options: {
   const inquiry = {
     query: options.inquiryError
       ? vi.fn().mockRejectedValue(options.inquiryError)
-      : vi.fn().mockResolvedValue(options.inquiryResult ?? {
-          requestId: 'request123',
-          gatewayReference: 'vnp-ref-123',
-          status: 'UNKNOWN',
-          responseCode: '00',
-          transactionStatus: '01',
-          transactionNo: null,
-          payDate: null,
+      : vi.fn().mockImplementation(async () => {
+          if (options.paymentStatusAfterInquiry) {
+            tx.payment.findUnique.mockResolvedValue({ ...candidate, status: options.paymentStatusAfterInquiry });
+          }
+          return options.inquiryResult ?? {
+            requestId: 'request123',
+            gatewayReference: 'vnp-ref-123',
+            status: 'UNKNOWN',
+            responseCode: '00',
+            transactionStatus: '01',
+            transactionNo: null,
+            payDate: null,
+          };
         }),
   };
   const config = { vnpay: { queryServerIp: options.queryServerIp === undefined ? '203.0.113.10' : options.queryServerIp } };
@@ -186,7 +192,7 @@ describe('PaymentRecoveryService', () => {
 
   it('applies durable exponential backoff after a previous recovery attempt', async () => {
     const h = setup({ recentAttempts: 1, latestRequest: { createdAt: new Date(Date.now() - 5_000) } });
-    await expect(h.service.recover({ ...validInput, idempotencyKey: 'recovery-key-2' })).rejects.toThrow(TooManyRequestsException);
+    await expect(h.service.recover({ ...validInput, idempotencyKey: 'recovery-key-2' })).rejects.toMatchObject({ status: 429 });
     expect(h.inquiry.query).not.toHaveBeenCalled();
   });
 
@@ -285,7 +291,7 @@ describe('PaymentRecoveryService', () => {
   });
 
   it('does not double-settle when IPN wins the race while QueryDr is in flight', async () => {
-    const h = setup({ paymentStatus: PaymentStatus.SUCCEEDED, inquiryResult: {
+    const h = setup({ paymentStatusAfterInquiry: PaymentStatus.SUCCEEDED, inquiryResult: {
       requestId: 'request123', gatewayReference: 'vnp-ref-123',
       status: 'SUCCESS', responseCode: '00', transactionStatus: '00',
       transactionNo: 'gateway-txn-1', payDate: '20261104030000',

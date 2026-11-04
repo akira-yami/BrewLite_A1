@@ -3,7 +3,8 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  TooManyRequestsException,
+  HttpException,
+  HttpStatus,
   Inject,
 } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
@@ -180,11 +181,11 @@ export class PaymentRecoveryService {
         });
         const nextAllowedAt = latest ? new Date(latest.createdAt.getTime() + delay) : now;
         if (nextAllowedAt > now) {
-          throw new TooManyRequestsException({
+          throw new HttpException({
             code: 'RECOVERY_BACKOFF',
             message: 'Recovery đang trong thời gian backoff; chưa được phép truy vấn lại gateway.',
             retryAfter: nextAllowedAt.toISOString(),
-          });
+          }, HttpStatus.TOO_MANY_REQUESTS);
         }
       }
 

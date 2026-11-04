@@ -159,12 +159,6 @@ export default function MenuPage() {
               >
                 Thực đơn
               </button>
-              <Link href="#about" className="transition hover:text-[#153D2C]">
-                Về BrewLite
-              </Link>
-              <Link href="#contact" className="transition hover:text-[#153D2C]">
-                Liên hệ
-              </Link>
               <Link href="/orders" className="transition hover:text-[#153D2C]">
                 Đơn hàng
               </Link>
@@ -448,12 +442,6 @@ export default function MenuPage() {
             <button type="button" onClick={scrollToMenu} className="hover:text-[#153D2C]">
               Thực đơn
             </button>
-            <Link href="#about" className="hover:text-[#153D2C]">
-              Về BrewLite
-            </Link>
-            <Link href="#contact" className="hover:text-[#153D2C]">
-              Liên hệ
-            </Link>
             <Link href="/orders" className="hover:text-[#153D2C]">
               Đơn hàng
             </Link>

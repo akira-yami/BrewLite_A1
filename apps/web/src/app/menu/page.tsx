@@ -85,8 +85,8 @@ export default function MenuPage() {
   };
 
   const handleQuickAdd = (product: Product) => {
-    const variant = product.variants.find((item) => item.size === 'M' && item.availableServings > 0)
-      ?? product.variants.find((item) => item.availableServings > 0);
+    const variant = product.variants.find((item) => item.size === 'M' && item.available)
+      ?? product.variants.find((item) => item.available);
     if (!variant) {
       setEditingCartItem(null);
       setPreviewingProduct(product);

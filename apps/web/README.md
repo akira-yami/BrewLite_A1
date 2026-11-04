@@ -50,3 +50,9 @@ Chi tiết món có ô ghi chú tối đa 500 ký tự. Giỏ hiển thị văn 
 
 `cartStore.getOrderItems()` cung cấp payload cho checkout gồm `productVariantId`, `quantity`, `toppingIds`, `sugarLevel`, `iceLevel`, `note`, không gửi giá từ client. Luồng `/checkout` tạo order, gọi `POST /payments` với `Idempotency-Key`, chỉ xóa giỏ sau `SUCCEEDED`, rồi chuyển đến confirmation. Lịch sử/chi tiết đơn nằm ở `/orders` và `/orders/:id`; các màn có loading, empty và error/retry. `npm test` chạy test giỏ bằng Node.js 24.
 
+## Checkout và coupon
+
+Checkout dùng chung contract với backend tại `src/types/checkout.contract.ts`: `POST /coupons/validate` trả `code` và `discountAmount`; `POST /payments` trả `success`, `isRetried`, `status` và `errorCode`. Frontend đọc token `brewlite_token` và base URL đã có hậu tố `/api/v1`, không tự ghép thêm prefix lần nữa.
+
+Khách nhập mã giảm giá tại `/checkout`; UI preview số tiền giảm và tổng mới, nhưng `POST /orders` vẫn gửi `couponCode` để backend kiểm tra, khóa lượt dùng và tính lại giá cuối cùng. Nếu Card thất bại, giỏ và order được giữ lại; khách có thể đổi sang Ví để retry cùng order bằng `Idempotency-Key` mới. E2E UI chạy bằng `npm run test:e2e`; backend E2E cần `SMOKE_DATABASE_URL` như hướng dẫn trong README API.
+

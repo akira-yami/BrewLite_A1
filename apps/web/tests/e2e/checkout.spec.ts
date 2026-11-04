@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 
-const api = 'http://localhost:3101/api/v1';
+const api = process.env.E2E_API_URL ?? 'http://localhost:3101/api/v1';
 
 for (const retry of [false, true]) {
   test(retry ? 'payment thất bại → retry cùng order → confirmation' : 'menu → cart → payment → confirmation', async ({ page, request }) => {

@@ -5,6 +5,7 @@ import { MockGatewayService } from './mock-gateway.service.js';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
 import { PaymentMethod as DtoPaymentMethod } from '../dto/create-payment.dto.js';
+import { PaymentStatus as PaymentResponseStatus, type PaymentResponseDto } from '../dto/payment-response.dto.js';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -24,7 +25,7 @@ export class PaymentsService {
         userId: string;
         method: PaymentMethod;
         amount: bigint;
-    }) {
+    }): Promise<PaymentResponseDto> {
         const { idempotencyKey, orderId, userId, method, amount } = params;
 
         // 1. Tính toán chuỗi băm Request-Hash (Canonical JSON)
@@ -99,7 +100,7 @@ export class PaymentsService {
         return {
             success: gatewayResult.success,
             isRetried: false,
-            status: gatewayResult.success ? PaymentStatus.SUCCEEDED : PaymentStatus.FAILED,
+            status: gatewayResult.success ? PaymentResponseStatus.SUCCEEDED : PaymentResponseStatus.FAILED,
             gatewayTransactionId: gatewayResult.gatewayTransactionId,
             errorCode: gatewayResult.errorCode,
         };
@@ -109,7 +110,7 @@ export class PaymentsService {
         status: PaymentStatus;
         gatewayTransactionId: string | null;
         failureCode: string | null;
-    }, requestHash: string) {
+    }, requestHash: string): PaymentResponseDto {
         if (payment.requestHash !== requestHash) {
             throw new ConflictException({
                 code: 'IDEMPOTENCY_KEY_REUSED',
@@ -125,7 +126,7 @@ export class PaymentsService {
         return {
             success: payment.status === PaymentStatus.SUCCEEDED,
             isRetried: true,
-            status: payment.status,
+            status: PaymentResponseStatus[payment.status],
             gatewayTransactionId: payment.gatewayTransactionId ?? undefined,
             errorCode: payment.failureCode ?? undefined,
         };

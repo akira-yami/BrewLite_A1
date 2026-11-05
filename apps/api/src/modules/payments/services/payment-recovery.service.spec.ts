@@ -37,7 +37,9 @@ function setup(options: {
     id: ORDER_ID,
     userId: ACTOR_ID,
     status: options.orderStatus ?? OrderStatus.PENDING,
-    reservationExpiresAt: options.reservationExpiresAt ?? new Date('2026-11-04T04:00:00.000Z'),
+    // Default: 1 hour in the future from test execution time so the "settles a valid success"
+    // and "settlement rollback" cases don't accidentally fall into the late-success branch.
+    reservationExpiresAt: options.reservationExpiresAt ?? new Date(Date.now() + 60 * 60_000),
   };
   const request = {
     id: 'b1698475-3d03-4681-86af-4e68bc9b8d97',
@@ -50,6 +52,7 @@ function setup(options: {
     correlationId: 'corr-123',
     status: PaymentRecoveryRequestStatus.IN_PROGRESS,
     providerOutcome: null,
+    errorCode: null,
     leaseExpiresAt: new Date('2026-11-04T03:01:00.000Z'),
     createdAt: NOW,
   };
@@ -75,11 +78,13 @@ function setup(options: {
     },
     paymentRecoveryResolution: {
       findFirst: vi.fn().mockResolvedValue(null),
-      create: vi.fn().mockResolvedValue({
-        id: 'resolution-1', paymentId: PAYMENT_ID,
-        decision: PaymentRecoveryDecision.REFUND_CONFIRMED,
-        evidenceReference: 'VNREF-2026-001',
-      }),
+      // Mirror the actual input so toResolutionResponse derives the correct paymentStatus.
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({
+        id: 'resolution-1',
+        paymentId: PAYMENT_ID,
+        decision: data?.decision ?? PaymentRecoveryDecision.REFUND_CONFIRMED,
+        evidenceReference: data?.evidenceReference ?? 'VNREF-2026-001',
+      })),
     },
   };
   const prisma = {

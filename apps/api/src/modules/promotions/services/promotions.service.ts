@@ -4,9 +4,14 @@ import type { Coupon, Prisma } from '../../../generated/prisma/client.js';
 import type { CouponQuoteResponseDto } from '../dto/coupon-quote-response.dto.js';
 import { toCouponQuoteResponse } from '../mappers/coupon.mapper.js';
 import type { CouponQuoteEntity } from '../entities/coupon-quote.entity.js';
+import { DefaultArgs } from '@prisma/client/runtime/client';
+import { PrismaClient } from '../../../generated/prisma/internal/class.js';
 
 @Injectable()
 export class PromotionsService {
+    releaseByOrderId(orderId: string, arg1: string, arg2: Date, tx: Omit<PrismaClient<never, Prisma.GlobalOmitConfig | undefined, DefaultArgs>, "$connect" | "$disconnect" | "$on" | "$use" | "$extends">) {
+      throw new Error('Method not implemented.');
+    }
     constructor(private readonly repository: PromotionsRepository) {}
 
     // Dùng chung bộ quy tắc để Preview và tạo Order không lệch điều kiện coupon.

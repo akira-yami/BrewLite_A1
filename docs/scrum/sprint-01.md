@@ -1,5 +1,7 @@
 # Sprint 1
 
+> Hồ sơ kế hoạch và đối chiếu lịch sử ngày 22/10/2026; trạng thái kỹ thuật bên dưới không đại diện cho code hiện tại. Xem [audit 03/11/2026](trello-audit-2026-11-03.md).
+
 **Thời lượng kế hoạch:** 2 tuần, Tuần 1–2 của dự án (10 ngày làm việc dự kiến). **Đối chiếu:** 22/10/2026, baseline `7feda73`.
 
 ## Sprint Goal
@@ -15,7 +17,7 @@ Nền tảng dự án chạy được và người dùng xem/chọn được s�
 | Task 3 | Trang Menu tích hợp API | REVIEW | Menu dùng API thật; cần demo loading/empty/error và responsive |
 | Task 4 | Chi tiết sản phẩm, size/topping/đường/đá/ghi chú | REVIEW | Detail route có từ 23736aa; có UI/test option; cần demo tích hợp |
 
-AC theo [Product Backlog](product-backlog.md), [User Story](../../Khang-A2/docs/scrum/user-stories.md) và [truy vết](../../Khang-A2/docs/traceability-matrix.md). Giữ nguyên task/nội dung. Assignee, SP và lịch cam kết chính thức tiếp tục lấy từ workbook/board đã gửi nhóm; tài liệu này không tự giao lại việc. Owner domain tham chiếu [Use Case overview](../../Khang-A2/docs/architecture/use-case-overview.md).
+AC theo [Product Backlog](product-backlog.md), User Story (tài liệu A2 chưa có trong checkout) và truy vết (tài liệu A2 chưa có trong checkout). Giữ nguyên task/nội dung. Assignee, SP và lịch cam kết chính thức tiếp tục lấy từ workbook/board đã gửi nhóm; tài liệu này không tự giao lại việc. Owner domain tham chiếu Use Case overview (tài liệu A2 chưa có trong checkout).
 
 Trạng thái `TODO → IN_PROGRESS → REVIEW → DONE`: REVIEW là có sản phẩm cần kiểm chứng/review; IN_PROGRESS có thể mới ở mức thiết kế. Chưa ghi DONE khi thiếu bằng chứng [DoD](definition-of-done.md) và PO nghiệm thu.
 
@@ -24,7 +26,7 @@ Trạng thái `TODO → IN_PROGRESS → REVIEW → DONE`: REVIEW là có sản p
 - Ngày bắt đầu/kết thúc chính thức: chưa có biên bản Planning trong repo; không suy từ ngày commit.
 - Tổng SP theo ước lượng BL trong repo: **14**, chưa phải SP cam kết của workbook 33 task.
 - [Board phân công 6 tuần](https://trello.com/b/JXTjedPU); [tiến độ](progress-report.md); [burndown](burndown.md).
-- [Khang W2](khang-week-02-handover.md) ghi kết quả tại ngày 17/10. PR #19 bổ sung detail sau đó; [báo cáo 22/10](progress-report.md) ghi cập nhật, không sửa ngược kết quả kiểm chứng lịch sử.
+- PR #18 (`89ad479`) là mốc contract/DTO ngày 17/10. PR #19 bổ sung detail sau đó; [báo cáo 22/10](progress-report.md) ghi cập nhật, không sửa ngược kết quả kiểm chứng lịch sử.
 
 ## Sprint Review
 

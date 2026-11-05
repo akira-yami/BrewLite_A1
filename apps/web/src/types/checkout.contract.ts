@@ -14,7 +14,7 @@ export interface ValidateCouponResponse {
 // ==========================================
 // PAYMENT DOMAIN
 // ==========================================
-export type PaymentMethod = 'E_WALLET' | 'CARD' | 'BANK_TRANSFER';
+export type PaymentMethod = 'E_WALLET' | 'CARD';
 
 export type PaymentStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
 

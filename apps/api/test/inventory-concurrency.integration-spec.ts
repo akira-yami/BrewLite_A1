@@ -24,7 +24,7 @@ describe('SD-13 inventory concurrency on PostgreSQL', () => {
   const prisma = new PrismaClient({
     adapter: new PrismaPg({ connectionString }),
   });
-  const repository = new InventoryRepository();
+  const repository = new InventoryRepository({} as never);
   const service = new InventoryService(prisma as never, repository);
 
   let variantId: string;

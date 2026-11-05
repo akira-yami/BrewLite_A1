@@ -40,7 +40,7 @@ Build production dùng `output: "standalone"` để Docker image chỉ chứa c�
 
 Logout ở MVP là kết thúc phiên trên trình duyệt. JWT không được thu hồi ở server trước `exp`; không có endpoint logout/refresh mới trong phần này. Giải mã `exp` phía client chỉ phục vụ UX, backend vẫn xác minh JWT bằng signature/issuer/audience/expiration.
 
-Kiểm tra riêng auth: `node --test tests/auth-*.test.mjs`. [Bằng chứng bàn giao](../../docs/scrum/huy-week-02-handover.md).
+Kiểm tra riêng auth: `node --test tests/auth-*.test.mjs`. [Hồ sơ kiểm chứng](../../docs/scrum/trello-audit-2026-11-03.md).
 
 ## Tùy chọn đường/đá
 
@@ -49,4 +49,10 @@ Chi tiết món cho chọn độc lập mức đường/đá: công thức chu�
 Chi tiết món có ô ghi chú tối đa 500 ký tự. Giỏ hiển thị văn bản thuần, trim ghi chú và chuyển rỗng thành null, persist khi reload và tách dòng khác note. Giỏ cũ thiếu note được đọc với null.
 
 `cartStore.getOrderItems()` cung cấp payload cho checkout gồm `productVariantId`, `quantity`, `toppingIds`, `sugarLevel`, `iceLevel`, `note`, không gửi giá từ client. Luồng `/checkout` tạo order, gọi `POST /payments` với `Idempotency-Key`, chỉ xóa giỏ sau `SUCCEEDED`, rồi chuyển đến confirmation. Lịch sử/chi tiết đơn nằm ở `/orders` và `/orders/:id`; các màn có loading, empty và error/retry. `npm test` chạy test giỏ bằng Node.js 24.
+
+## Checkout và coupon
+
+Checkout dùng chung contract với backend tại `src/types/checkout.contract.ts`: `POST /coupons/validate` trả `code` và `discountAmount`; `POST /payments` trả `success`, `isRetried`, `status` và `errorCode`. Frontend đọc token `brewlite_token` và base URL đã có hậu tố `/api/v1`, không tự ghép thêm prefix lần nữa.
+
+Khách nhập mã giảm giá tại `/checkout`; UI preview số tiền giảm và tổng mới, nhưng `POST /orders` vẫn gửi `couponCode` để backend kiểm tra, khóa lượt dùng và tính lại giá cuối cùng. Nếu Card thất bại, giỏ và order được giữ lại; khách có thể đổi sang Ví để retry cùng order bằng `Idempotency-Key` mới. E2E UI chạy bằng `npm run test:e2e`; backend E2E cần `SMOKE_DATABASE_URL` như hướng dẫn trong README API.
 

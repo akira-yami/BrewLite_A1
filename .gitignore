@@ -42,3 +42,6 @@ tmp/
 
 # Tài liệu tham khảo cục bộ
 BrewLite-Report/tham_khao/
+.agents/
+.worktrees/
+BrewLite-Report/

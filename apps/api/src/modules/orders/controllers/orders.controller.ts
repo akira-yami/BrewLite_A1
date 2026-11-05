@@ -42,6 +42,15 @@ export class OrdersController {
     return { data };
   }
 
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancel(
+    @Param('id', ParseUUIDPipe) orderId: string,
+    @CurrentUser() user: Principal,
+  ) {
+    return { data: await this.orders.cancelOrder(orderId, user.id) };
+  }
+
   @Get('/me')
   @HttpCode(HttpStatus.OK)
   async getMyOrders(
@@ -71,8 +80,6 @@ export class OrdersController {
     await this.orders.cancelOrder(
       orderId,
       user.id,
-      'Khách hàng yêu cầu hủy đơn hàng',
-      false,
     );
     const data = await this.orders.getOrderDetail(orderId, user.id);
     return { data };

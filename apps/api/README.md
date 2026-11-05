@@ -60,7 +60,7 @@ Topping theo cùng nguyên tắc, bảng `topping_recipe_items` (công thức 1 
 
 Mỗi ly kèm một phần topping, nguyên liệu của topping được trừ cùng lúc với nguyên liệu của ly và ghi vào reservation. `toppings[].available` trong API là `true` khi topping đang hoạt động và mọi nguyên liệu đủ cho ít nhất 1 phần. Topping chưa có công thức bị coi là hết hàng (tạo đơn trả `OUT_OF_STOCK` kèm `toppingId`). Số lượng công thức là số nguyên theo đơn vị cơ sở nên chọn đơn vị (g, ml) đủ nhỏ để không cần phần thập phân. Migration `20261101100000_topping_recipe`.
 
-Số ly tối đa của một size được tính khi đọc, không lưu: `min(floor(stock_quantity / recipe_items.quantity))` trên mọi dòng công thức. Ví dụ kho 100g cà phê và công thức 10g/ly cho tối đa 10 ly. Size chưa có công thức hoặc có nguyên liệu `is_active = false` được coi là 0 ly. API menu/detail trả giá trị này ở `variants[].availableServings` (thay cho `stock`).
+API menu/detail trả `variants[].available` (boolean): công thức có đủ nguyên liệu để pha ít nhất một phần hay không. Không trả số lượng tồn của từng món/size. Các size và món có thể dùng chung nguyên liệu nên khả dụng tại lúc đọc không phải cam kết giữ hàng. Backend cộng dồn nhu cầu của toàn giỏ (gồm topping) rồi giữ nguyên liệu trong transaction; UI chỉ hiển thị “Có thể pha / Tạm hết nguyên liệu”.
 
 Khi tạo đơn, hệ thống quy đổi số ly thành nhu cầu nguyên liệu theo công thức, cộng dồn các nguyên liệu dùng chung giữa các dòng, rồi trừ kho nguyên liệu bằng `UPDATE ... WHERE version = ? AND stock_quantity >= ?` theo thứ tự ID trong transaction `Serializable`. Migration `20261101090000_ingredient_recipe_inventory` tạo ba bảng trên và xóa `product_variants.stock`/`version`. Số lượng thành phẩm cũ không được chuyển đổi; sau khi `npm run prisma:deploy`, chạy `npm run db:seed` để có nguyên liệu và công thức mẫu.
 
@@ -74,13 +74,15 @@ npm run test:e2e
 npm run build
 ```
 
+`test/checkout.e2e-spec.ts` kiểm tra HTTP/DB thật cho checkout: preview coupon, tạo đơn có giảm giá, thanh toán Wallet thành công, Card thất bại, replay idempotency key và retry bằng key mới. Test yêu cầu `SMOKE_DATABASE_URL` trỏ đến database disposable có tên bắt đầu bằng `brewlite_foundation_smoke`.
+
 Build/typecheck tự generate client; `src/generated/prisma` được bỏ qua trong Git. Docker dùng migration one-shot trước backend. Không sửa migration đã chạy trên database chia sẻ.
 
 ## Mức đường/đá của OrderItem
 
 `sugarLevel Int? @map("sugar_level")` và `iceLevel Int? @map("ice_level")` nhận phần trăm nguyên 0..100. Null hoặc không gửi dùng công thức chuẩn; 0 là không đường/đá. Migration `20261010090000_order_item_sugar_ice_levels` thêm hai cột nullable và CHECK, giữ đơn cũ với null. Cập nhật DB đang dùng bằng `npm run prisma:deploy`, rồi `npm run prisma:generate` (hoặc build/typecheck).
 
-`CreateOrderDto` validate các trường mới; `toOrderItemResponse` trả nguyên lựa chọn từ snapshot, không phụ thu. Đây là contract cho orders controller/service chưa triển khai; khi tích hợp, lưu bằng `value ?? null` để giữ 0 và tổng hợp tồn kho theo variant qua các dòng khác tùy chọn. Xem [API spec](../../Khang-A2/docs/architecture/api-spec.md).
+`CreateOrderDto` validate các trường mới; `toOrderItemResponse` trả nguyên lựa chọn từ snapshot, không phụ thu. Controller/service Orders đã có trong mã nguồn; snapshot cần giữ giá trị 0 và tổng hợp nhu cầu nguyên liệu qua các dòng khác tùy chọn. Xem [DTO tạo đơn](src/modules/orders/dto/create-order.dto.ts) và [ERD](../../docs/architecture/erd.md).
 
 ## Ghi chú của OrderItem
 
@@ -101,15 +103,7 @@ Integration kiểm tra CHECK, FK, partial unique payment/loyalty và rollback; c
 
 `test/s1.integration-spec.ts` bổ sung kiểm tra HTTP qua AppModule với PostgreSQL thật: Register → Login → JWT/profile, hash/response an toàn, whitelist, credential lỗi và Menu đọc giá từ DB. Bộ này chạy cùng `test:migration`/`test:integration` và chỉ ghi fixture vào `SMOKE_DATABASE_URL` đã được kiểm tra tên.
 
-## Hợp đồng Orders tuần 2
-
-S1-10/SD-10 được bàn giao tại [Orders contract](../../Khang-A2/docs/architecture/orders-contract.md), [UC-06](../../Khang-A2/docs/use-cases/UC-06-tao-don-hang.md), [OpenAPI](../../docs/api/orders.openapi.yaml) và [mã PlantUML riêng](../../Khang-A2/docs/architecture/diagrams/SD-10-create-order.puml). DTO request/response chuẩn bị cho S2-W3; `POST /orders` chưa được đăng ký. `couponCode` được trim, giữ nguyên hoa/thường và từ chối chuỗi trắng.
-
-
-
-## VNPay gateway (opt-in)
-
-MockGateway remains the default local/CI provider. VNPay is disabled unless a merchant explicitly enables it with real credentials and public HTTPS endpoints. Do not commit merchant secrets.
+## Hợp đồng Orders và tài liệu dữ liệu
 
 Environment variables:
 - VNPAY_ENABLED=true

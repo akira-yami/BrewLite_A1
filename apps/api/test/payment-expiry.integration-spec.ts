@@ -22,7 +22,7 @@ if (!connectionString || !new URL(connectionString).pathname.slice(1).startsWith
 describe('payment admission and reservation expiry (PostgreSQL)', () => {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
   const ordersRepo = new OrdersRepository(prisma as never);
-  const inventory = new InventoryService(prisma as never, new InventoryRepository());
+  const inventory = new InventoryService(prisma as never, new InventoryRepository({} as never));
   const promotionsRepo = new PromotionsRepository(prisma as never);
   const promotions = new PromotionsService(promotionsRepo);
   const orders = new OrdersService(ordersRepo, prisma as never, promotions, {} as never, inventory, {} as never, loadAppConfig({ NODE_ENV: 'test' }));

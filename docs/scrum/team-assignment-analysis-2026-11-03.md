@@ -1,5 +1,7 @@
 # Phân công công việc và nghiệp vụ BrewLite — đối chiếu 03/11/2026
 
+> Hồ sơ đối chiếu Trello lịch sử ngày 03/11/2026. Phân công hiện hành theo báo cáo PDF và điều chỉnh EXT của nhóm nằm tại [phan-cong.md](phan-cong.md); dùng bản đó để tra người phụ trách hiện tại.
+
 ## Phạm vi và cách đọc
 
 Nguồn chính: toàn bộ **40 thẻ hiện hành** trên [Trello BrewLite](https://trello.com/b/JXTjedPU), đọc đủ 5 danh sách, không còn trang tiếp; [vai trò nhóm](team-roles.md); tài liệu bàn giao và lịch sử source trên main `c8455e8`; diff [PR #28](https://github.com/akira-yami/BrewLite_A1/pull/28) tại `67116fb` đã kiểm tra trong cuộc trao đổi này.

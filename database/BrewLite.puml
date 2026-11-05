@@ -1,0 +1,271 @@
+@startuml BrewLite
+' Source of truth: apps/api/prisma/schema.prisma
+' Physical PostgreSQL ERD. Generated/reviewed 2026-11-04.
+!pragma layout smetana
+left to right direction
+hide circle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Arial
+skinparam defaultFontSize 13
+skinparam dpi 160
+skinparam nodesep 45
+skinparam ranksep 75
+skinparam roundcorner 8
+skinparam class {
+  BorderColor #536275
+  FontColor #182D40
+  AttributeFontColor #182D40
+  BackgroundColor #F7F9FC
+}
+title
+BrewLite | PostgreSQL ERD
+18 tables - ingredient-based inventory
+Schema: apps/api/prisma/schema.prisma | 04 Nov 2026
+end title
+
+entity "products" as Product <<Catalog>> #E6F1FF {
+  * id : uuid <<PK>>
+  * sku : varchar(50) <<UQ>>
+  * name : varchar(150)
+  description : text
+  * image_url : varchar(500)
+  * is_active : boolean
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+}
+
+entity "product_variants" as ProductVariant <<Catalog>> #E6F1FF {
+  * id : uuid <<PK>>
+  * product_id : uuid <<FK>>
+  * size : ProductSize
+  * price : bigint
+  * is_active : boolean
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+  --
+  UQ (product_id, size)
+}
+
+entity "toppings" as Topping <<Catalog>> #E6F1FF {
+  * id : uuid <<PK>>
+  * code : varchar(50) <<UQ>>
+  * name : varchar(100)
+  * type : ToppingType
+  * price : bigint
+  * is_active : boolean
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+}
+
+entity "product_toppings" as ProductTopping <<Catalog>> #E6F1FF {
+  * product_id : uuid <<PK, FK>>
+  * topping_id : uuid <<PK, FK>>
+}
+
+entity "ingredients" as Ingredient <<Ingredients and recipes>> #E4F4EA {
+  * id : uuid <<PK>>
+  * code : varchar(50) <<UQ>>
+  * name : varchar(100)
+  * unit : IngredientUnit
+  * stock_quantity : integer
+  * version : integer
+  * is_active : boolean
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+}
+
+entity "recipe_items" as RecipeItem <<Ingredients and recipes>> #E4F4EA {
+  * product_variant_id : uuid <<PK, FK>>
+  * ingredient_id : uuid <<PK, FK>>
+  * quantity : integer
+}
+
+entity "topping_recipe_items" as ToppingRecipeItem <<Ingredients and recipes>> #E4F4EA {
+  * topping_id : uuid <<PK, FK>>
+  * ingredient_id : uuid <<PK, FK>>
+  * quantity : integer
+}
+
+entity "orders" as Order <<Orders and reservations>> #FFF0DE {
+  * id : uuid <<PK>>
+  * order_number : varchar(30) <<UQ>>
+  * user_id : uuid <<FK>>
+  * status : OrderStatus
+  * subtotal : bigint
+  * discount_amount : bigint
+  * total : bigint
+  coupon_code_snapshot : varchar(50)
+  * reservation_expires_at : timestamptz(6)
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+}
+
+entity "order_items" as OrderItem <<Orders and reservations>> #FFF0DE {
+  * id : uuid <<PK>>
+  * order_id : uuid <<FK>>
+  * product_variant_id : uuid <<FK>>
+  * product_name_snapshot : varchar(150)
+  * variant_name_snapshot : varchar(50)
+  * unit_price : bigint
+  * quantity : integer
+  sugar_level : integer
+  ice_level : integer
+  note : varchar(500)
+}
+
+entity "order_item_toppings" as OrderItemTopping <<Orders and reservations>> #FFF0DE {
+  * id : uuid <<PK>>
+  * order_item_id : uuid <<FK>>
+  * topping_id : uuid <<FK>>
+  * topping_name_snapshot : varchar(100)
+  * unit_price : bigint
+  * quantity : integer
+}
+
+entity "order_status_histories" as OrderStatusHistory <<Orders and reservations>> #FFF0DE {
+  * id : uuid <<PK>>
+  * order_id : uuid <<FK>>
+  from_status : OrderStatus
+  * to_status : OrderStatus
+  changed_by_user_id : uuid <<FK>>
+  reason : varchar(255)
+  * created_at : timestamptz(6)
+}
+
+entity "inventory_reservations" as InventoryReservation <<Orders and reservations>> #FFF0DE {
+  * id : uuid <<PK>>
+  * order_id : uuid <<FK>>
+  * product_variant_id : uuid <<FK>>
+  * quantity : integer
+  * status : ReservationStatus
+  * expires_at : timestamptz(6)
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+  --
+  UQ (order_id, product_variant_id)
+}
+
+entity "inventory_reservation_items" as InventoryReservationItem <<Orders and reservations>> #FFF0DE {
+  * id : uuid <<PK>>
+  * reservation_id : uuid <<FK>>
+  * ingredient_id : uuid <<FK>>
+  * quantity : integer
+  --
+  UQ (reservation_id, ingredient_id)
+}
+
+entity "users" as User <<Payment and benefits>> #F0E9FA {
+  * id : uuid <<PK>>
+  * username : varchar(100) <<UQ>>
+  * password_hash : varchar(255)
+  * role : UserRole
+  * loyalty_balance : integer
+  * is_active : boolean
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+}
+
+entity "payments" as Payment <<Payment and benefits>> #F0E9FA {
+  * id : uuid <<PK>>
+  * order_id : uuid <<FK>>
+  * idempotency_key : varchar(100) <<UQ>>
+  * request_hash : char(64)
+  * method : PaymentMethod
+  * status : PaymentStatus
+  * amount : bigint
+  gateway_transaction_id : varchar(100) <<UQ>>
+  failure_code : varchar(100)
+  processed_at : timestamptz(6)
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+}
+
+entity "coupons" as Coupon <<Payment and benefits>> #F0E9FA {
+  * id : uuid <<PK>>
+  * code : varchar(50) <<UQ>>
+  * discount_type : DiscountType
+  * discount_value : bigint
+  max_discount : bigint
+  * min_order_value : bigint
+  usage_limit : integer
+  * per_user_limit : integer
+  * starts_at : timestamptz(6)
+  * ends_at : timestamptz(6)
+  * is_active : boolean
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+}
+
+entity "coupon_redemptions" as CouponRedemption <<Payment and benefits>> #F0E9FA {
+  * id : uuid <<PK>>
+  * coupon_id : uuid <<FK>>
+  * user_id : uuid <<FK>>
+  * order_id : uuid <<FK, UQ>>
+  * discount_amount : bigint
+  * status : CouponRedemptionStatus
+  * expires_at : timestamptz(6)
+  consumed_at : timestamptz(6)
+  released_at : timestamptz(6)
+  * created_at : timestamptz(6)
+  * updated_at : timestamptz(6)
+}
+
+entity "loyalty_transactions" as LoyaltyTransaction <<Payment and benefits>> #F0E9FA {
+  * id : uuid <<PK>>
+  * user_id : uuid <<FK>>
+  order_id : uuid <<FK>>
+  * type : LoyaltyTransactionType
+  * points : integer
+  * balance_after : integer
+  * reason : varchar(255)
+  * created_at : timestamptz(6)
+}
+
+Product ||--o{ ProductVariant : product_id
+Product ||--o{ ProductTopping : product_id
+Topping ||--o{ ProductTopping : topping_id
+ProductVariant ||--o{ RecipeItem : product_variant_id
+Ingredient ||--o{ RecipeItem : ingredient_id
+Topping ||--o{ ToppingRecipeItem : topping_id
+Ingredient ||--o{ ToppingRecipeItem : ingredient_id
+User ||--o{ Order : user_id
+Order ||--o{ OrderItem : order_id
+ProductVariant ||--o{ OrderItem : product_variant_id
+OrderItem ||--o{ OrderItemTopping : order_item_id
+Topping ||--o{ OrderItemTopping : topping_id
+Order ||--o{ OrderStatusHistory : order_id
+User |o--o{ OrderStatusHistory : changed_by_user_id
+Order ||--o{ InventoryReservation : order_id
+ProductVariant ||--o{ InventoryReservation : product_variant_id
+InventoryReservation ||--o{ InventoryReservationItem : reservation_id
+Ingredient ||--o{ InventoryReservationItem : ingredient_id
+Order ||--o{ Payment : order_id
+Coupon ||--o{ CouponRedemption : coupon_id
+User ||--o{ CouponRedemption : user_id
+Order ||--o| CouponRedemption : order_id
+User ||--o{ LoyaltyTransaction : user_id
+Order |o--o{ LoyaltyTransaction : order_id
+
+legend bottom left
+  * = NOT NULL | PK = primary key | FK = foreign key | UQ = unique key
+  || = exactly one | |o / o| = zero or one | o{ = zero or many
+  Cardinalities describe database FK constraints; minimum child counts are not enforced.
+  All foreign keys use ON DELETE RESTRICT. Prices and amounts are bigint VND.
+  Stock and optimistic version belong to ingredients, never finished drinks.
+  SQL CHECK constraints and partial unique indexes are documented separately.
+  Enums:
+  UserRole: CUSTOMER | BARISTA
+  ProductSize: S | M | L
+  OrderStatus: PENDING | PAYMENT_FAILED | PAID | PREPARING | READY | COMPLETED | CANCELLED
+  PaymentMethod: E_WALLET | CARD
+  PaymentStatus: PROCESSING | SUCCEEDED | FAILED
+  IngredientUnit: G | ML | PCS
+  ToppingType: PREPACKAGED | PREPARED
+  ReservationStatus: ACTIVE | CONSUMED | RELEASED | EXPIRED
+  DiscountType: PERCENTAGE | FIXED_AMOUNT
+  CouponRedemptionStatus: RESERVED | CONSUMED | RELEASED | EXPIRED
+  LoyaltyTransactionType: EARN | REDEEM | ADJUSTMENT | REVERSAL
+endlegend
+@enduml

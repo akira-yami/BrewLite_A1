@@ -2,6 +2,8 @@ export enum PaymentStatus {
   PROCESSING = 'PROCESSING',
   SUCCEEDED = 'SUCCEEDED',
   FAILED = 'FAILED',
+  MANUAL_REVIEW = 'MANUAL_REVIEW',
+  REFUNDED = 'REFUNDED',
 }
 
 /** HTTP response body inside the standard `{ data }` envelope from POST /payments. */

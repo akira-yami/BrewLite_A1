@@ -12,7 +12,8 @@ describe('PaymentsController (Unit Test - TDD)', () => {
     beforeEach(() => {
         paymentsServiceMock = { processPayment: vi.fn(), getPaymentStatus: vi.fn() };
         ordersServiceMock = { getOrderForPayment: vi.fn() };
-        controller = new PaymentsController(paymentsServiceMock as unknown as PaymentsService, ordersServiceMock as unknown as OrdersService);
+        const recoveryServiceMock = {} as any;
+        controller = new PaymentsController(paymentsServiceMock as unknown as PaymentsService, ordersServiceMock as unknown as OrdersService, recoveryServiceMock);
     });
 
     it('ném BadRequestException nếu thiếu Idempotency-Key trong header', async () => {

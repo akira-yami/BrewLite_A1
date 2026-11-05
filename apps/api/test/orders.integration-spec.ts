@@ -302,8 +302,8 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     await resolveEndpoint().expect(401);
     await auth(resolveEndpoint()).expect(403);
     await auth(resolveEndpoint(), baristaToken).expect(403);
-    const response = await auth(resolveEndpoint(), paymentOperatorToken).expect(200);
-    expect(response.body.data).toMatchObject({ decision: 'REFUND_CONFIRMED', paymentStatus: 'REFUNDED' });
+    const resolveResponse = await auth(resolveEndpoint(), paymentOperatorToken).expect(200);
+    expect(resolveResponse.body.data).toMatchObject({ decision: 'REFUND_CONFIRMED', paymentStatus: 'REFUNDED' });
     expect(resolveSpy).toHaveBeenCalledWith(expect.objectContaining({
       paymentId, idempotencyKey: 'http-resolution-key-1', decision: 'REFUND_CONFIRMED',
       evidenceReference: 'VN-REFUND-HTTP-1', incidentReference: 'INC-HTTP-RESOLUTION', actorUserId: paymentOperatorId,

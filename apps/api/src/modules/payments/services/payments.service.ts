@@ -152,7 +152,7 @@ export class PaymentsService {
               })
             : undefined;
 
-          return this.paymentsRepository.createProcessingPayment(
+          const payment = await this.paymentsRepository.createProcessingPayment(
             {
               orderId,
               idempotencyKey,
@@ -163,9 +163,10 @@ export class PaymentsService {
             },
             tx,
           );
+          return { kind: 'created' as const, payment };
         });
-      } catch (error) {
-        if ((error as { code?: string })?.code === 'P2002') {
+      } catch (error: any) {
+        if (error?.code === 'P2002') {
           const conflictingPayment = await this.paymentsRepository.findByIdempotencyKey(idempotencyKey);
           if (conflictingPayment && conflictingPayment.requestHash !== requestHash) {
             throw new ConflictException({
@@ -174,17 +175,12 @@ export class PaymentsService {
             });
           }
           throw new ConflictException({
-            code: 'IDEMPOTENCY_KEY_REUSED',
-            message: 'Idempotency Key đã được sử dụng cho một payload khác.',
+            code: 'PAYMENT_IN_PROGRESS',
+            message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
           });
         }
-        throw new ConflictException({
-          code: 'PAYMENT_IN_PROGRESS',
-          message: 'Đơn hàng đang có giao dịch thanh toán được xử lý.',
-        });
+        throw error;
       }
-      throw error;
-    }
 
     if (claim.kind === 'replay') {
       return claim.result;

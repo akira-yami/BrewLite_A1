@@ -80,8 +80,6 @@ export class OrdersController {
     await this.orders.cancelOrder(
       orderId,
       user.id,
-      'Khách hàng yêu cầu hủy đơn hàng',
-      false,
     );
     const data = await this.orders.getOrderDetail(orderId, user.id);
     return { data };

@@ -5,6 +5,7 @@ export interface VnpayConfig {
   tmnCode: string | null;
   hashSecret: string | null;
   paymentUrl: string;
+  queryUrl: string;
   returnUrl: string | null;
   ipnUrl: string | null;
   frontendOrigin: string;
@@ -26,6 +27,8 @@ const MAX_JWT_TTL_SECONDS = 7 * 24 * 60 * 60;
 const MAX_ORDER_RESERVATION_TTL_MINUTES = 7 * 24 * 60;
 export const VNPAY_SANDBOX_PAYMENT_URL =
   'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
+export const VNPAY_SANDBOX_QUERY_URL =
+  'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction';
 
 function parseJwtExpiresIn(value: string | undefined): number {
   const normalized = value?.trim() || '15m';
@@ -126,6 +129,7 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
       tmnCode: null,
       hashSecret: null,
       paymentUrl: VNPAY_SANDBOX_PAYMENT_URL,
+      queryUrl: VNPAY_SANDBOX_QUERY_URL,
       returnUrl: null,
       ipnUrl: null,
       frontendOrigin,
@@ -153,6 +157,18 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
     throw new Error('VNPAY_PAYMENT_URL must use the official VNPay sandbox or production endpoint');
   }
 
+  const queryUrl = requireHttpsUrl(
+    'VNPAY_QUERY_URL',
+    env.VNPAY_QUERY_URL?.trim() || VNPAY_SANDBOX_QUERY_URL,
+  );
+  if (
+    !['sandbox.vnpayment.vn', 'merchant.vnpay.vn'].includes(queryUrl.hostname.toLowerCase()) ||
+    queryUrl.search ||
+    queryUrl.pathname !== '/merchant_webapi/api/transaction'
+  ) {
+    throw new Error('VNPAY_QUERY_URL must use the official VNPay QueryDr endpoint');
+  }
+
   const returnUrl = requireHttpsUrl(
     'VNPAY_RETURN_URL',
     requiredValue('VNPAY_RETURN_URL', env.VNPAY_RETURN_URL),
@@ -168,6 +184,7 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
     tmnCode,
     hashSecret,
     paymentUrl: paymentUrl.toString(),
+    queryUrl: queryUrl.toString(),
     returnUrl: returnUrl.toString(),
     ipnUrl: ipnUrl.toString(),
     frontendOrigin: frontend.origin,

@@ -2,14 +2,17 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { isIP } from 'node:net';
 import { PaymentsRepository } from '../repositories/payments.repository.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { MockGatewayService } from './mock-gateway.service.js';
 import { VnpayGatewayService } from './vnpay.gateway.js';
+import { VnpayInquiryService, VnpayInquiryError } from './vnpay-inquiry.service.js';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
 import { PaymentMethod as DtoPaymentMethod } from '../dto/create-payment.dto.js';
@@ -17,8 +20,29 @@ import { PaymentStatus as PaymentResponseStatus, type PaymentResponseDto } from 
 
 @Injectable()
 export class PaymentsService {
-  getPaymentStatus(idempotencyKey: string, sub: string) {
-    throw new Error('Method not implemented.');
+  /**
+   * Tra cứu trạng thái payment theo idempotency key của khách hàng.
+   * Chỉ trả kết quả của order thuộc về userId (bảo vệ cross-user access).
+   */
+  async getPaymentStatus(idempotencyKey: string, userId: string): Promise<PaymentResponseDto> {
+    const payment = await this.paymentsRepository.findStatusByIdempotencyKeyForUser(
+      idempotencyKey,
+      userId,
+    );
+    if (!payment) {
+      throw new NotFoundException({
+        code: 'PAYMENT_NOT_FOUND',
+        message: 'Không tìm thấy giao dịch thanh toán.',
+      });
+    }
+    return {
+      success: payment.status === PaymentStatus.SUCCEEDED,
+      isRetried: true,
+      status: PaymentResponseStatus[payment.status],
+      gatewayTransactionId: payment.gatewayTransactionId ?? undefined,
+      errorCode: payment.failureCode ?? undefined,
+      paymentUrl: payment.paymentUrl ?? undefined,
+    };
   }
   private readonly logger = new Logger(PaymentsService.name);
 
@@ -28,6 +52,7 @@ export class PaymentsService {
     private readonly mockGateway: MockGatewayService,
     private readonly prisma: PrismaService,
     @Optional() private readonly vnpayGateway?: VnpayGatewayService,
+    @Optional() private readonly vnpayInquiry?: VnpayInquiryService,
   ) {}
 
   async processPayment(params: {
@@ -97,12 +122,23 @@ export class PaymentsService {
         }
 
         if (order.status === OrderStatus.PAYMENT_FAILED) {
-          await this.ordersService.transitionForPaymentRetry(
-            orderId,
-            userId,
-            'Customer retried payment',
-            tx,
-          );
+          try {
+            await this.ordersService.transitionForPaymentRetry(
+              orderId,
+              userId,
+              'Khách hàng thực hiện lại thanh toán',
+              tx,
+            );
+          } catch (retryErr: any) {
+            // Nếu order bị tranh quyền retry đồng thời, map thành PAYMENT_IN_PROGRESS
+            if (retryErr?.status === 409) {
+              throw new ConflictException({
+                code: 'PAYMENT_IN_PROGRESS',
+                message: 'Một yêu cầu thanh toán khác đang được xử lý cho đơn hàng này.',
+              });
+            }
+            throw retryErr;
+          }
         }
 
         const vnpayIntent =
@@ -216,6 +252,7 @@ export class PaymentsService {
       status: PaymentStatus;
       gatewayTransactionId: string | null;
       failureCode: string | null;
+      paymentUrl?: string | null;
     },
     requestHash: string,
   ): PaymentResponseDto {
@@ -226,6 +263,15 @@ export class PaymentsService {
       });
     }
     if (payment.status === PaymentStatus.PROCESSING) {
+      // VNPay PROCESSING: trả lại URL để frontend tiếp tục redirect
+      if (payment.paymentUrl) {
+        return {
+          success: false,
+          isRetried: true,
+          status: PaymentResponseStatus.PROCESSING,
+          paymentUrl: payment.paymentUrl,
+        } as PaymentResponseDto;
+      }
       throw new ConflictException({
         code: 'PAYMENT_IN_PROGRESS',
         message: 'Giao dịch đang được xử lý, vui lòng không thử lại.',
@@ -238,6 +284,188 @@ export class PaymentsService {
       gatewayTransactionId: payment.gatewayTransactionId ?? undefined,
       errorCode: payment.failureCode ?? undefined,
     };
+  }
+
+  /**
+   * Reconciliation / Recovery cho Issue #41.
+   *
+   * Dùng khi một VNPay payment ở trạng thái PROCESSING quá lâu
+   * (timeout, mất IPN, mạng gián đoạn).  Flow:
+   *
+   * 1. Kiểm tra payment còn PROCESSING với method VNPAY.
+   * 2. Gọi VNPay QueryDr để lấy trạng thái thực tế.
+   * 3. Nếu SUCCESS  → settle thành công (markSucceeded + markOrderPaid).
+   * 4. Nếu DEFINITIVE_FAILURE → mark failed + markOrderPaymentFailed.
+   * 5. Nếu PENDING / MANUAL_REVIEW / UNKNOWN → không làm gì,
+   *    trả về outcome để caller quyết định (schedule retry sau).
+   *
+   * @throws {NotFoundException}          khi không tìm thấy payment.
+   * @throws {ConflictException}          khi payment không đủ điều
+   *                                      kiện recover (đã settled, sai
+   *                                      method, thiếu dữ liệu).
+   * @throws {ServiceUnavailableException} khi VNPay Inquiry chưa cấu
+   *                                      hình.
+   * @throws {VnpayInquiryError}          khi QueryDr thất bại — outcome
+   *                                      = 'UNKNOWN', idempotent để retry.
+   */
+  async recoverStuckPayment(params: {
+    paymentId: string;
+    /** IP của server (dùng để ký QueryDr request). */
+    serverIp: string;
+  }): Promise<{
+    outcome: 'SETTLED_SUCCESS' | 'SETTLED_FAILURE' | 'STILL_PROCESSING' | 'MANUAL_REVIEW';
+    paymentId: string;
+  }> {
+    const { paymentId, serverIp } = params;
+
+    if (isIP(serverIp) === 0) {
+      throw new ConflictException({
+        code: 'INVALID_SERVER_IP',
+        message: 'serverIp không hợp lệ.',
+      });
+    }
+
+    if (!this.vnpayInquiry || !this.vnpayGateway?.isEnabled()) {
+      throw new ServiceUnavailableException({
+        code: 'VNPAY_INQUIRY_NOT_CONFIGURED',
+        message: 'VNPay Inquiry chưa được cấu hình.',
+      });
+    }
+
+    // 1. Lấy payment và lock
+    const payment = await this.paymentsRepository.findByGatewayReference(
+      // findByGatewayReference yêu cầu gateway reference, nhưng chúng ta
+      // có paymentId — dùng prisma trực tiếp để tìm theo ID
+      await this.prisma.payment
+        .findUniqueOrThrow({ where: { id: paymentId }, select: { gatewayReference: true } })
+        .then((r) => r.gatewayReference!)
+        .catch(() => {
+          throw new NotFoundException({
+            code: 'PAYMENT_NOT_FOUND',
+            message: 'Không tìm thấy payment.',
+          });
+        }),
+    );
+
+    if (!payment) {
+      throw new NotFoundException({
+        code: 'PAYMENT_NOT_FOUND',
+        message: 'Không tìm thấy payment.',
+      });
+    }
+
+    if (payment.method !== PaymentMethod.VNPAY) {
+      throw new ConflictException({
+        code: 'RECOVERY_NOT_APPLICABLE',
+        message: 'Recovery chỉ áp dụng cho giao dịch VNPay.',
+      });
+    }
+
+    if (payment.status !== PaymentStatus.PROCESSING) {
+      throw new ConflictException({
+        code: 'PAYMENT_ALREADY_SETTLED',
+        message: 'Giao dịch đã được xử lý xong, không cần recovery.',
+      });
+    }
+
+    if (!payment.gatewayReference) {
+      throw new ConflictException({
+        code: 'MISSING_GATEWAY_REFERENCE',
+        message: 'Payment thiếu gatewayReference để truy vấn VNPay.',
+      });
+    }
+
+    // 2. Cần createdAt để build transactionDate cho QueryDr
+    const fullPayment = await this.prisma.payment.findUniqueOrThrow({
+      where: { id: payment.id },
+      select: { createdAt: true, amount: true, orderId: true, order: { select: { userId: true, orderNumber: true } } },
+    });
+
+    const transactionDate = formatVnpayDate(fullPayment.createdAt);
+    const orderInfo = 'BrewLite order ' + fullPayment.order.orderNumber;
+
+    // 3. Gọi VNPay QueryDr
+    let inquiryResult: Awaited<ReturnType<VnpayInquiryService['query']>>;
+    try {
+      inquiryResult = await this.vnpayInquiry.query({
+        gatewayReference: payment.gatewayReference,
+        amount: fullPayment.amount,
+        transactionDate,
+        orderInfo: normalizeOrderInfo(orderInfo),
+        serverIp,
+      });
+    } catch (err) {
+      if (err instanceof VnpayInquiryError) {
+        this.logger.warn(
+          'VNPay QueryDr outcome unknown for paymentId=' + paymentId + ': ' + err.message,
+        );
+        throw err; // rethrow — caller có thể schedule retry
+      }
+      throw err;
+    }
+
+    // 4. Settle dựa trên kết quả QueryDr
+    if (inquiryResult.status === 'SUCCESS') {
+      const transactionNo = inquiryResult.transactionNo;
+      if (!transactionNo) {
+        // Response thành công nhưng không có transactionNo — an toàn nhất là không settle
+        this.logger.error(
+          'VNPay QueryDr returned SUCCESS without transactionNo. paymentId=' + paymentId,
+        );
+        return { outcome: 'MANUAL_REVIEW', paymentId };
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        const lockedPayment = await tx.payment.findUnique({ where: { id: payment.id } });
+        if (!lockedPayment || lockedPayment.status !== PaymentStatus.PROCESSING) return; // đã settle bởi IPN
+
+        await this.paymentsRepository.markSucceeded(payment.id, transactionNo, new Date(), tx);
+        await this.ordersService.markOrderPaid(
+          fullPayment.orderId,
+          fullPayment.order.userId,
+          fullPayment.amount,
+          tx,
+        );
+      });
+
+      this.logger.log('Recovery: settled SUCCESS for paymentId=' + paymentId);
+      return { outcome: 'SETTLED_SUCCESS', paymentId };
+    }
+
+    if (inquiryResult.status === 'DEFINITIVE_FAILURE') {
+      await this.prisma.$transaction(async (tx) => {
+        const lockedPayment = await tx.payment.findUnique({ where: { id: payment.id } });
+        if (!lockedPayment || lockedPayment.status !== PaymentStatus.PROCESSING) return;
+
+        const failureCode = (
+          'VNPAY_RECOVERY_' +
+          inquiryResult.responseCode +
+          '_' +
+          inquiryResult.transactionStatus
+        ).slice(0, 100);
+        await this.paymentsRepository.markFailed(payment.id, failureCode, new Date(), tx);
+        await this.ordersService.markOrderPaymentFailed(
+          fullPayment.orderId,
+          fullPayment.order.userId,
+          failureCode,
+          tx,
+        );
+      });
+
+      this.logger.log('Recovery: settled DEFINITIVE_FAILURE for paymentId=' + paymentId);
+      return { outcome: 'SETTLED_FAILURE', paymentId };
+    }
+
+    if (inquiryResult.status === 'MANUAL_REVIEW') {
+      this.logger.warn('Recovery: VNPay QueryDr requires MANUAL_REVIEW for paymentId=' + paymentId);
+      return { outcome: 'MANUAL_REVIEW', paymentId };
+    }
+
+    // PENDING hoặc UNKNOWN — chưa kết luận được, caller schedule retry
+    this.logger.warn(
+      'Recovery: paymentId=' + paymentId + ' still processing (status=' + inquiryResult.status + ')',
+    );
+    return { outcome: 'STILL_PROCESSING', paymentId };
   }
 
   async handleVnpayIpn(query: unknown): Promise<{ RspCode: string; Message: string }> {
@@ -320,4 +548,35 @@ export class PaymentsService {
     }
     return this.vnpayGateway.frontendReturnUrl();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers dùng nội bộ trong payments.service.ts
+// ---------------------------------------------------------------------------
+
+function normalizeOrderInfo(value: string): string {
+  return value
+    .replaceAll('đ', 'd')
+    .replaceAll('Đ', 'D')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);
+}
+
+function formatVnpayDate(value: Date): string {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(value);
+  const fields = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return fields.year + fields.month + fields.day + fields.hour + fields.minute + fields.second;
 }

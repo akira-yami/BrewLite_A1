@@ -11,4 +11,6 @@ export class PaymentResponseDto {
     status: PaymentStatus;
     gatewayTransactionId?: string;
     errorCode?: string;
+    /** URL redirect cho VNPay — chỉ có khi status = PROCESSING và method = VNPAY */
+    paymentUrl?: string;
 }

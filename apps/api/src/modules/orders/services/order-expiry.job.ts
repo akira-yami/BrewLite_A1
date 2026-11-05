@@ -52,7 +52,7 @@ export class OrderExpiryJob {
           },
           payments: {
             none: {
-              status: PaymentStatus.PROCESSING,
+              status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] },
             },
           },
         },
@@ -81,7 +81,7 @@ export class OrderExpiryJob {
             const processingPayment = await tx.payment.findFirst({
               where: {
                 orderId: order.id,
-                status: PaymentStatus.PROCESSING,
+                status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] },
               },
               select: { id: true },
             });

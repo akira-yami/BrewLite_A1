@@ -10,6 +10,7 @@ import { OrdersService } from '../src/modules/orders/services/orders.service.js'
 import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
 import { PaymentsRepository } from '../src/modules/payments/repositories/payments.repository.js';
 import { PaymentsService } from '../src/modules/payments/services/payments.service.js';
+import { PaymentRecoveryService } from '../src/modules/payments/services/payment-recovery.service.js';
 import { PromotionsRepository } from '../src/modules/promotions/repositories/promotions.repository.js';
 import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
 
@@ -178,6 +179,201 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
     expect(first.reservation.status).toBe('EXPIRED');
     expect(first.stock.stockQuantity).toBe(20);
     expect(first.coupon.status).toBe('EXPIRED');
+  });
+
+
+  async function createVnpayPayment(orderId: string, amount: bigint) {
+    return prisma.payment.create({
+      data: {
+        orderId,
+        idempotencyKey: randomUUID(),
+        requestHash: 'a'.repeat(64),
+        method: 'VNPAY',
+        status: 'PROCESSING',
+        amount,
+        gatewayReference: randomUUID().replaceAll('-', ''),
+      },
+    });
+  }
+
+  function recoveryService(query: ReturnType<typeof vi.fn>) {
+    return new PaymentRecoveryService(
+      prisma as never,
+      orders,
+      { query } as never,
+      { vnpay: { queryServerIp: '203.0.113.10' } } as never,
+    );
+  }
+
+  const successfulInquiry = (gatewayReference: string) => ({
+    requestId: 'query-recovery-123',
+    gatewayReference,
+    status: 'SUCCESS',
+    responseCode: '00',
+    transactionStatus: '00',
+    transactionNo: randomUUID().replaceAll('-', ''),
+    payDate: '20261104030000',
+  });
+
+  it('does not release inventory or coupon when an expired Order still has an UNKNOWN PROCESSING Payment', async () => {
+    const f = await fixture();
+    const payment = await createVnpayPayment(f.order.id, f.params.amount);
+    await f.expire();
+
+    const inquiry = vi.fn().mockRejectedValue(new Error('provider timeout after possible charge'));
+    const result = await recoveryService(inquiry).recover({
+      paymentId: payment.id,
+      idempotencyKey: 'recovery-unknown-1',
+      incidentReference: 'INC-UNKNOWN-1',
+      actorUserId: f.user.id,
+    });
+
+    expect(result).toMatchObject({ status: 'UNKNOWN', paymentStatus: 'PROCESSING' });
+    await job().handleExpiredOrders();
+    const state = await f.state();
+    expect(state.order.status).toBe('PENDING');
+    expect(state.reservation.status).toBe('ACTIVE');
+    expect(state.coupon.status).toBe('RESERVED');
+    expect(state.stock.stockQuantity).toBe(10);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('PROCESSING');
+  });
+
+  it('serializes concurrent operator recovery and settles a provider transaction exactly once', async () => {
+    const f = await fixture();
+    const payment = await createVnpayPayment(f.order.id, f.params.amount);
+    let signalEntered!: () => void;
+    let releaseQuery!: (value: ReturnType<typeof successfulInquiry>) => void;
+    const entered = new Promise<void>(resolve => { signalEntered = resolve; });
+    const pendingResult = new Promise<ReturnType<typeof successfulInquiry>>(resolve => { releaseQuery = resolve; });
+    const inquiry = vi.fn(async () => {
+      signalEntered();
+      return pendingResult;
+    });
+    const service = recoveryService(inquiry);
+
+    const first = service.recover({
+      paymentId: payment.id,
+      idempotencyKey: 'recovery-concurrent-1',
+      incidentReference: 'INC-CONCURRENT-1',
+      actorUserId: f.user.id,
+    });
+    await entered;
+
+    await expect(service.recover({
+      paymentId: payment.id,
+      idempotencyKey: 'recovery-concurrent-2',
+      incidentReference: 'INC-CONCURRENT-1',
+      actorUserId: f.user.id,
+    })).rejects.toMatchObject({ status: 409 });
+
+    releaseQuery(successfulInquiry(payment.gatewayReference!));
+    const result = await first;
+    expect(result).toMatchObject({ status: 'COMPLETED', paymentStatus: 'SUCCEEDED' });
+    expect(inquiry).toHaveBeenCalledTimes(1);
+    const state = await f.state();
+    expect(state.order.status).toBe('PAID');
+    expect(state.reservation.status).toBe('CONSUMED');
+    expect(state.coupon.status).toBe('CONSUMED');
+    expect(state.stock.stockQuantity).toBe(10);
+    expect(await prisma.paymentRecoveryAudit.count({ where: { paymentId: payment.id } })).toBe(2);
+  });
+
+  it('moves late provider SUCCESS to MANUAL_REVIEW and retains expired Order assets', async () => {
+    const f = await fixture();
+    const payment = await createVnpayPayment(f.order.id, f.params.amount);
+    await f.expire();
+    const inquiry = vi.fn().mockResolvedValue(successfulInquiry(payment.gatewayReference!));
+
+    const result = await recoveryService(inquiry).recover({
+      paymentId: payment.id,
+      idempotencyKey: 'recovery-late-success',
+      incidentReference: 'INC-LATE-1',
+      actorUserId: f.user.id,
+    });
+
+    expect(result).toMatchObject({ status: 'COMPLETED', paymentStatus: 'MANUAL_REVIEW' });
+    await job().handleExpiredOrders();
+    const state = await f.state();
+    expect(state.order.status).toBe('PENDING');
+    expect(state.reservation.status).toBe('ACTIVE');
+    expect(state.coupon.status).toBe('RESERVED');
+    expect(state.stock.stockQuantity).toBe(10);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('MANUAL_REVIEW');
+  });
+
+  it('persists audit after a rolled-back settlement and rejects audit UPDATE/DELETE in PostgreSQL', async () => {
+    const f = await fixture();
+    const payment = await createVnpayPayment(f.order.id, f.params.amount);
+    vi.spyOn(orders, 'markOrderPaid').mockRejectedValueOnce(new Error('force transaction rollback'));
+    const inquiry = vi.fn().mockResolvedValue(successfulInquiry(payment.gatewayReference!));
+
+    const result = await recoveryService(inquiry).recover({
+      paymentId: payment.id,
+      idempotencyKey: 'recovery-rollback-audit',
+      incidentReference: 'INC-ROLLBACK-1',
+      actorUserId: f.user.id,
+    });
+
+    expect(result).toMatchObject({ status: 'UNKNOWN', errorCode: 'SETTLEMENT_ROLLED_BACK' });
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('PROCESSING');
+    const audits = await prisma.paymentRecoveryAudit.findMany({
+      where: { paymentId: payment.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(audits.map(row => row.providerOutcome)).toEqual(['RECOVERY_REQUESTED', 'SETTLEMENT_ROLLED_BACK']);
+    await expect(prisma.paymentRecoveryAudit.update({
+      where: { id: audits[0].id },
+      data: { providerOutcome: 'FORGED' },
+    })).rejects.toThrow(/append-only/);
+    await expect(prisma.paymentRecoveryAudit.delete({
+      where: { id: audits[0].id },
+    })).rejects.toThrow(/append-only/);
+    expect(await prisma.paymentRecoveryAudit.count({ where: { paymentId: payment.id } })).toBe(2);
+  });
+
+
+
+  it('requires a second operator to confirm refund, persists resolution and releases expired resources once', async () => {
+    const f = await fixture();
+    const operator = await prisma.user.create({
+      data: { username: `operator-${randomUUID()}`, passwordHash: 'test-only', role: 'PAYMENT_OPERATOR' },
+    });
+    const payment = await createVnpayPayment(f.order.id, f.params.amount);
+    await f.expire();
+    const inquiry = vi.fn().mockResolvedValue(successfulInquiry(payment.gatewayReference!));
+    const service = recoveryService(inquiry);
+    const review = await service.recover({
+      paymentId: payment.id, idempotencyKey: 'recovery-refund-review',
+      incidentReference: 'INC-REFUND-2026', actorUserId: f.user.id,
+    });
+    expect(review.paymentStatus).toBe('MANUAL_REVIEW');
+    const resolutionInput = {
+      paymentId: payment.id, idempotencyKey: 'resolution-refund-confirmed',
+      decision: 'REFUND_CONFIRMED' as const,
+      evidenceReference: 'VN-REFUND-2026-0001', incidentReference: 'INC-REFUND-2026',
+    };
+    await expect(service.resolveManualReview({ ...resolutionInput, actorUserId: f.user.id }))
+      .rejects.toMatchObject({ response: { code: 'SECOND_OPERATOR_REQUIRED' } });
+    const resolved = await service.resolveManualReview({ ...resolutionInput, actorUserId: operator.id });
+    expect(resolved).toMatchObject({ paymentStatus: 'REFUNDED', decision: 'REFUND_CONFIRMED', isRetried: false });
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('REFUNDED');
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: f.order.id } })).status).toBe('PAYMENT_FAILED');
+    const replay = await service.resolveManualReview({ ...resolutionInput, actorUserId: operator.id });
+    expect(replay).toMatchObject({ resolutionId: resolved.resolutionId, isRetried: true });
+    expect(await prisma.paymentRecoveryResolution.count({ where: { paymentId: payment.id } })).toBe(1);
+    await job().handleExpiredOrders();
+    const state = await f.state();
+    expect(state.order.status).toBe('CANCELLED');
+    expect(state.reservation.status).toBe('EXPIRED');
+    expect(state.coupon.status).toBe('EXPIRED');
+    expect(state.stock.stockQuantity).toBe(20);
+    const resolution = await prisma.paymentRecoveryResolution.findFirstOrThrow({ where: { paymentId: payment.id } });
+    await expect(prisma.paymentRecoveryResolution.update({
+      where: { id: resolution.id }, data: { evidenceReference: 'FORGED' },
+    })).rejects.toThrow(/append-only/);
+    await expect(prisma.paymentRecoveryResolution.delete({
+      where: { id: resolution.id },
+    })).rejects.toThrow(/append-only/);
   });
 
 });

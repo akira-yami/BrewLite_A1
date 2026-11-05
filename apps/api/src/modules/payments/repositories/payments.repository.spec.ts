@@ -43,14 +43,14 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
         expect(prismaMock.payment.findUnique).not.toHaveBeenCalled();
     });
 
-    it('findProcessingByOrderId - chỉ tìm payment PROCESSING trong transaction', async () => {
+    it('findProcessingByOrderId - giữ cả PROCESSING và MANUAL_REVIEW trong transaction', async () => {
         const activePayment = { id: 'p-active', status: PaymentStatus.PROCESSING };
         const txMock = { payment: { findFirst: vi.fn().mockResolvedValue(activePayment) } };
 
         const result = await repository.findProcessingByOrderId('order-1', txMock as any);
 
         expect(txMock.payment.findFirst).toHaveBeenCalledWith({
-            where: { orderId: 'order-1', status: PaymentStatus.PROCESSING },
+            where: { orderId: 'order-1', status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] } },
             orderBy: { createdAt: 'asc' },
         });
         expect(result).toEqual(activePayment);

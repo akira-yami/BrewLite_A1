@@ -32,7 +32,11 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             markOrderPaymentFailed: vi.fn(),
         };
         gatewayMock = {charge: vi.fn(),};
-        prismaMock = {$transaction: vi.fn((callback) => callback(prismaMock)),};
+        prismaMock = {
+            $transaction: vi.fn((callback) => callback(prismaMock)),
+            payment: { update: vi.fn() },
+            paymentRecoveryAudit: { create: vi.fn() },
+        };
         vnpayGatewayMock = {
             isEnabled: vi.fn().mockReturnValue(true),
             createPaymentUrl: vi.fn().mockReturnValue({ gatewayReference: 'vnp-ref-1', paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1' }),
@@ -578,6 +582,51 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             expect(paymentsRepoMock.markSucceeded).toHaveBeenCalledTimes(1);
         });
 
+        it('moves a late SUCCESS IPN after definitive FAILED into MANUAL_REVIEW without marking Order PAID', async () => {
+            const callback = {
+                vnp_TxnRef: 'vnp-ref-1',
+                vnp_Amount: (amount * 100n).toString(),
+                vnp_TmnCode: 'DEMO1234',
+                vnp_ResponseCode: '00',
+                vnp_TransactionStatus: '00',
+                vnp_TransactionNo: 'vnp-transaction-late-success',
+            };
+            vnpayGatewayMock.verifyCallback.mockReturnValue(callback);
+            paymentsRepoMock.findByGatewayReference.mockResolvedValue({
+                id: 'p-vnpay',
+                orderId,
+                amount,
+                method: PaymentMethod.VNPAY,
+                status: PaymentStatus.FAILED,
+                order: { userId },
+            });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PAYMENT_FAILED,
+                reservationExpiresAt: new Date(Date.now() - 1000),
+            });
+
+            const result = await service.handleVnpayIpn(callback);
+
+            expect(result).toEqual({ RspCode: '00', Message: 'Received; manual review required' });
+            expect(prismaMock.payment.update).toHaveBeenCalledWith({
+                where: { id: 'p-vnpay' },
+                data: expect.objectContaining({
+                    status: PaymentStatus.MANUAL_REVIEW,
+                    gatewayTransactionId: 'vnp-transaction-late-success',
+                    failureCode: 'LATE_SUCCESS_AFTER_FAILURE_REQUIRES_REVIEW',
+                }),
+            });
+            expect(prismaMock.paymentRecoveryAudit.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    beforeState: PaymentStatus.FAILED,
+                    afterState: PaymentStatus.MANUAL_REVIEW,
+                    providerOutcome: 'LATE_SUCCESS_AFTER_FAILURE_REQUIRES_REFUND_REVIEW',
+                }),
+            });
+            expect(ordersServiceMock.markOrderPaid).not.toHaveBeenCalled();
+            expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
+        });
+
         it('rejects invalid VNPay signatures and amount mismatches without settlement', async () => {
             vnpayGatewayMock.verifyCallback.mockReturnValueOnce(null);
             expect(await service.handleVnpayIpn({})).toEqual({
@@ -603,6 +652,13 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             });
             expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
             expect(paymentsRepoMock.markFailed).not.toHaveBeenCalled();
+            expect(prismaMock.paymentRecoveryAudit.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    providerOutcome: 'IPN_AMOUNT_MISMATCH_REJECTED',
+                    beforeState: PaymentStatus.PROCESSING,
+                    afterState: PaymentStatus.PROCESSING,
+                }),
+            });
         });
 
         it('Return redirect never settles a Payment', async () => {

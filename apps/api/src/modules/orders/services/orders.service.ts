@@ -821,4 +821,102 @@ export class OrdersService {
       tx,
     );
   }
+
+  // =====================================================================
+  // 4. HỦY ĐƠN HÀNG VÀ GIẢI PHÓNG TÀI NGUYÊN (UC-06 / CRONJOB)
+  // =====================================================================
+  async cancelOrder(
+    orderId: string,
+    userId: string,
+    reason: string,
+    isExpired: boolean,
+    tx?: Prisma.TransactionClient,
+  ) {
+    // Khóa Order trong transaction để đồng bộ thao tác hủy với Payment và Cron expiry.
+    const execute = async (client: Prisma.TransactionClient) => {
+      const order = await this.repository.findByIdAndUserIdForUpdate(
+        orderId,
+        userId,
+        client,
+      );
+
+      if (!order) {
+        throw new NotFoundException({
+          error: {
+            code: 'ORDER_NOT_FOUND',
+            message: 'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập.',
+          },
+        });
+      }
+
+      // Không cho hủy đơn đã thanh toán; luồng hoàn tiền cần được xử lý riêng.
+      if (
+        order.status !== OrderStatus.PENDING &&
+        order.status !== OrderStatus.PAYMENT_FAILED
+      ) {
+        throw new ConflictException({
+          code: 'ORDER_INVALID_TRANSITION',
+          message: 'Trạng thái đơn hàng không cho phép hủy.',
+        });
+      }
+
+      // Payment đang PROCESSING phải hoàn tất trước khi Order được phép hủy.
+      const processingPayment = await client.payment.findFirst({
+        where: {
+          orderId,
+          status: { in: ['PROCESSING', 'MANUAL_REVIEW'] },
+        },
+        select: { id: true },
+      });
+      if (processingPayment) {
+        throw new ConflictException({
+          code: 'PAYMENT_IN_PROGRESS',
+          message: 'Đơn hàng đang được thanh toán, không thể hủy lúc này.',
+        });
+      }
+
+      // Lấy reservation còn ACTIVE để giải phóng kho trong cùng transaction.
+      const reservations = await client.inventoryReservation.findMany({
+        where: { orderId, status: 'ACTIVE' },
+        select: { id: true, expiresAt: true },
+      });
+      const now = new Date();
+      const couponExpired = isExpired || order.reservationExpiresAt <= now;
+
+      await this.repository.updateStatusWithHistory(
+        orderId,
+        order.status,
+        OrderStatus.CANCELLED,
+        userId,
+        reason,
+        client,
+      );
+
+      // Coupon được RELEASED khi hủy chủ động, hoặc EXPIRED nếu đã quá deadline.
+      await this.promotionsService.releaseRedemption(
+        client,
+        orderId,
+        couponExpired,
+      );
+
+      // Chỉ reservation còn ACTIVE mới được release/restore stock đúng một lần.
+      for (const reservation of reservations) {
+        const reservationExpired =
+          isExpired ||
+          order.reservationExpiresAt <= now ||
+          reservation.expiresAt <= now;
+        await this.inventory.releaseInTransaction(
+          client,
+          reservation.id,
+          reservationExpired,
+        );
+      }
+    };
+
+    // Tôn trọng transaction từ caller; nếu không có thì tự tạo transaction nguyên tử.
+    if (tx) {
+      return execute(tx);
+    }
+    return this.prisma.$transaction(execute);
+  }
 }

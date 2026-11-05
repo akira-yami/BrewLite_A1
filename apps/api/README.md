@@ -105,8 +105,130 @@ Integration kiểm tra CHECK, FK, partial unique payment/loyalty và rollback; c
 
 ## Hợp đồng Orders và tài liệu dữ liệu
 
-Đối chiếu hợp đồng đang triển khai tại [Orders controller](src/modules/orders/controllers/orders.controller.ts), [DTO tạo đơn](src/modules/orders/dto/create-order.dto.ts) và [Orders service](src/modules/orders/services/orders.service.ts). Các gói contract/OpenAPI của A2 cũ không có trong checkout này.
+Environment variables:
+- VNPAY_ENABLED=true
+- VNPAY_TMN_CODE=8-character-merchant-code
+- VNPAY_HASH_SECRET=merchant-hash-secret
+- VNPAY_PAYMENT_URL=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+- VNPAY_QUERY_URL=https://sandbox.vnpayment.vn/merchant_webapi/api/transaction (QueryDr; official sandbox endpoint by default)
+- VNPAY_RETURN_URL=https://api.example.com/api/v1/payments/vnpay/return
+- VNPAY_IPN_URL=https://api.example.com/api/v1/payments/vnpay/ipn
+- WEB_ORIGIN=https://brew.example
 
-- [ERD và ràng buộc dữ liệu](../../docs/architecture/erd.md) · [nguồn PlantUML](../../database/BrewLite.puml) · [ảnh ERD](../../database/BrewLite.png).
-- [API Barista](../../docs/api/staff-orders.md).
-- [Reservation lifecycle và seed demo](../../docs/testing/reservation-and-demo-seed.md).
+- POST /api/v1/payments with method VNPAY stores a PROCESSING Payment, a unique merchant reference and signed payment URL before returning the redirect URL.
+- Replaying the same Idempotency-Key returns the persisted URL; it does not create a second merchant transaction.
+- GET /api/v1/payments/status includes the saved payment URL for the authenticated Order owner.
+- GET /api/v1/payments/vnpay/ipn is the only settlement path. It validates HMAC-SHA512, merchant code, exact amount and processes Payment/Order transition in one transaction.
+- GET /api/v1/payments/vnpay/return redirects to Checkout only. Browser Return parameters never settle Payment.
+- Enable the frontend option at build time with NEXT_PUBLIC_VNPAY_ENABLED=true.
+- When API is behind a reverse proxy, configure `TRUSTED_PROXY_CIDRS` with only the exact ingress proxy IP/CIDRs so VNPay receives the client IP rather than the proxy address; never enable blanket proxy trust.
+- A real Sandbox merchant transaction, registered HTTPS IPN URL and gateway inquiry/reconciliation process still require separate acceptance. Code tests do not prove a live merchant transaction.
+
+
+## Payment PROCESSING reconciliation (Issue #41)
+
+### Architecture and safety rules
+
+- QueryDr is an operator-triggered, single-Payment operation (bounded batch size: 1) with an 8-second provider timeout.
+- Recovery uses an `Idempotency-Key` scoped to the Payment. The provider request ID is committed before QueryDr is called; replaying the same recovery key never creates another inquiry.
+- QueryDr runs outside the database transaction. Settlement then locks the Order, re-reads Payment and Order, and commits Payment + Order + inventory/loyalty + coupon consumption + audit atomically.
+- Provider timeout, transport failure, malformed/unsigned response, amount/merchant mismatch, and unknown/pending outcomes never set Payment to FAILED. They keep Payment PROCESSING.
+- Late success or provider outcomes requiring investigation move Payment to MANUAL_REVIEW. Expiry and cancellation retain coupon/inventory reservations while Payment is PROCESSING or MANUAL_REVIEW.
+- PostgreSQL trigger rejects UPDATE and DELETE on the recovery audit table. HashSecret and signed request/response payloads are never persisted in audit.
+
+### Provisioning an operator
+
+Public registration always assigns CUSTOMER. Never add a role field to registration or trust a role sent by a client. A trusted database administrator must promote an existing, separately verified account:
+
+```sql
+UPDATE "users"
+SET "role" = 'PAYMENT_OPERATOR'
+WHERE "username" = '<approved-operator-account>';
+```
+
+The operator must sign in again to receive a JWT containing the provisioned role. Remove the role with a controlled DBA action when access is revoked.
+
+### Recovery API
+
+```http
+POST /api/v1/payments/{paymentId}/recovery
+Authorization: Bearer <operator-jwt>
+Idempotency-Key: <unique-recovery-key>
+X-Correlation-Id: <optional-correlation-id>
+Content-Type: application/json
+
+{ "incidentReference": "INC-2026-1042" }
+```
+
+The request is restricted to PAYMENT_OPERATOR. The server requires `VNPAY_QUERY_SERVER_IP` to be the trusted fixed egress IP configured by infrastructure; it must not come from a browser request. The API processes one Payment per call, serializes concurrent inquiries for one Payment, uses a durable lease and exponential backoff (30 seconds, doubling up to 15 minutes), and opens a process-local circuit breaker after five consecutive inquiry failures.
+
+### Operator runbook
+
+1. Open a P1 incident/ticket before invoking recovery. Capture Payment ID, Order ID/number, VNPay transaction reference, amount, transaction creation timestamp, last IPN evidence, response codes and correlation ID. Never collect or paste HashSecret, signed payloads or credentials into the ticket or logs.
+2. Verify the operator account has PAYMENT_OPERATOR through the approved DBA access procedure. Customer and Barista accounts must receive HTTP 403. The operator must sign in again after role provisioning or revocation.
+3. Call the recovery endpoint once with a new idempotency key and incident reference. A retry with the same key is a replay, not a new inquiry. The endpoint handles one Payment per request.
+4. If the result is PROCESSING/UNKNOWN, do not retry immediately and do not create a new payment attempt. Observe the durable backoff/circuit-breaker response and escalate to payment operations.
+5. If Payment becomes MANUAL_REVIEW, preserve the Order state and inspect the immutable audit and provider evidence. A second authorized operator must independently verify the evidence and approve any refund/reversal/compensation.
+6. Refund/reversal is performed only through the approved merchant/finance procedure; this API deliberately does not issue refunds automatically. Record provider refund reference, amount, timestamp, executing operator and approving operator in the incident. Never manually force Payment to SUCCEEDED or Order to PAID to close the incident.
+7. Close the incident only after provider evidence, Payment/Order consistency, coupon/inventory/loyalty state, refund evidence where applicable and immutable audit entries have been independently checked.
+
+### Escalation SLA (operational target; requires Payment Operations ratification)
+
+- P1 suspected charge / unresolved PROCESSING: acknowledge within 15 minutes of alert creation.
+- If QueryDr remains UNKNOWN or times out: escalate to Payment Operations and gateway support within 30 minutes; provide the evidence bundle without secrets.
+- MANUAL_REVIEW: assign a second operator immediately and record a refund/reversal decision within 4 business hours, or document the external dependency and next review time.
+- While unresolved: update the incident at least every 30 minutes; never clear the alert solely because a Payment row is old or a browser Return page was visited.
+- Incident closure: require two-person evidence review and reconciliation of Payment, Order, inventory, coupon, loyalty and any provider refund reference.
+
+These are proposed operational targets for this repository, not an existing contractual SLA; the Payment Operations owner must ratify them before production.
+
+### Recovery API example
+
+```bash
+curl --fail-with-body --request POST \
+  "$API_BASE_URL/api/v1/payments/$PAYMENT_ID/recovery" \
+  --header "Authorization: Bearer $PAYMENT_OPERATOR_JWT" \
+  --header "Idempotency-Key: $RECOVERY_IDEMPOTENCY_KEY" \
+  --header "X-Correlation-Id: $CORRELATION_ID" \
+  --header "Content-Type: application/json" \
+  --data '{"incidentReference":"INC-2026-1042"}'
+```
+
+Expected behavior:
+- First request: creates a durable recovery request and audit before calling QueryDr.
+- Same key + same payload: returns the stored recovery result without another inquiry.
+- Same key + different incident reference: HTTP 409.
+- Customer/Barista/no JWT: HTTP 403/401; no recovery request is created.
+- Timeout/unknown: Payment remains PROCESSING and response reports UNKNOWN; no Order/coupon/inventory release occurs.
+- Late success: Payment becomes MANUAL_REVIEW; Order is not marked PAID and refund is not automated.
+
+### Explicitly deferred
+
+This delivery does not provide a scheduled worker, automatic refund adapter, or merchant Sandbox acceptance. QueryDr recovery is operator-triggered and one Payment at a time. The circuit breaker is process-local; multi-replica circuit coordination remains a follow-up. Merchant Sandbox evidence is deferred by project decision and is not reported as passed.
+
+
+### Manual-review disposition API
+
+A second operator records externally verified evidence; this endpoint never sends a refund to VNPay:
+
+```http
+POST /api/v1/payments/{paymentId}/recovery/resolve
+Authorization: Bearer <different-operator-jwt>
+Idempotency-Key: <unique-resolution-key>
+X-Correlation-Id: <optional-correlation-id>
+Content-Type: application/json
+
+{
+  "decision": "REFUND_CONFIRMED",
+  "evidenceReference": "VN-REFUND-2026-0001",
+  "incidentReference": "INC-2026-1042"
+}
+```
+
+- `REFUND_CONFIRMED`: use only after the approved merchant/finance process confirms the refund or reversal. Payment becomes REFUNDED.
+- `NO_CHARGE_CONFIRMED`: use only with provider evidence proving no charge occurred. Payment becomes FAILED; retry is only possible while the Order remains eligible.
+- Both decisions require a stable external evidence reference, a unique idempotency key, and a different operator from the one who initiated the human recovery that moved Payment to MANUAL_REVIEW.
+- Decision, evidence reference, actor, correlation/incident and before/after state are stored in append-only resolution and audit tables in the same transaction as the Payment/Order transition.
+- If Order is PENDING, it moves to PAYMENT_FAILED. Expired reservations are released once by the existing expiry job; a cancelled Order remains cancelled. This endpoint never sets Order PAID.
+- Replays return the saved resolution; reusing a key with another decision/evidence returns HTTP 409.
+- The operator must execute and verify the actual refund/reversal through the approved merchant/finance channel before selecting REFUND_CONFIRMED; the application does not issue or simulate a refund.

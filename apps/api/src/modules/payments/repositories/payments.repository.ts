@@ -19,7 +19,7 @@ export class PaymentsRepository {
 
   async findProcessingByOrderId(orderId: string, tx?: Prisma.TransactionClient) {
     return (tx ?? this.prisma).payment.findFirst({
-      where: { orderId, status: PaymentStatus.PROCESSING },
+      where: { orderId, status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] } },
       orderBy: { createdAt: 'asc' },
     });
   }

@@ -59,7 +59,7 @@ describe('OrderExpiryJob', () => {
       where: {
         status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] },
         reservationExpiresAt: { lte: expect.any(Date) },
-        payments: { none: { status: PaymentStatus.PROCESSING } },
+        payments: { none: { status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] } } },
       },
       select: { id: true, userId: true, status: true },
     });
@@ -116,7 +116,7 @@ describe('OrderExpiryJob', () => {
     expect(tx.payment.findFirst).toHaveBeenCalledWith({
       where: {
         orderId: order.id,
-        status: PaymentStatus.PROCESSING,
+        status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] },
       },
       select: { id: true },
     });

@@ -10,6 +10,7 @@ import { PaymentsRepository } from './repositories/payments.repository.js';
 import { MockGatewayService } from './services/mock-gateway.service.js';
 import { VnpayGatewayService } from './services/vnpay.gateway.js';
 import { VnpayInquiryService } from './services/vnpay-inquiry.service.js';
+import { PaymentRecoveryService } from './services/payment-recovery.service.js';
 
 @Module({
   imports: [AppConfigModule, PrismaModule, AuthModule, OrdersModule],
@@ -20,6 +21,7 @@ import { VnpayInquiryService } from './services/vnpay-inquiry.service.js';
     MockGatewayService,
     VnpayGatewayService,
     VnpayInquiryService,
+    PaymentRecoveryService,
   ],
   exports: [PaymentsService],
 })

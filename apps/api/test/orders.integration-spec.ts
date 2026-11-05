@@ -452,6 +452,22 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     ).toBe(0);
   });
 
+  it('different sizes share ingredient stock: mixed basket cannot reserve independent size quantities', async () => {
+    const medium = await product(3); // 30g total, M uses 10g.
+    const small = await prisma.productVariant.create({ data: { productId: medium.productId, size: 'S', price: 30000n,
+      recipeItems: { create: { ingredientId: medium.ingredientId, quantity: 5 } } } });
+    const large = await prisma.productVariant.create({ data: { productId: medium.productId, size: 'L', price: 50000n,
+      recipeItems: { create: { ingredientId: medium.ingredientId, quantity: 20 } } } });
+    // Each size is individually available, but 2 M + 1 L needs 40g, not 30g.
+    await post([{ productVariantId: medium.id, quantity: 2 }, { productVariantId: large.id, quantity: 1 }]).expect(409);
+    expect((await ingredientOf(medium.ingredientId)).stockQuantity).toBe(30);
+    await post([{ productVariantId: small.id, quantity: 2 }, { productVariantId: large.id, quantity: 1 }]).expect(201);
+    expect((await ingredientOf(medium.ingredientId)).stockQuantity).toBe(0);
+    const detail = await request(app.getHttpServer()).get(`/api/v1/products/${medium.productId}`).expect(200);
+    expect(detail.body.data.variants.every((v: { available: boolean }) => v.available === false)).toBe(true);
+    expect(detail.body.data.variants.every((v: object) => !('availableServings' in v) && !('stock' in v))).toBe(true);
+  });
+
   it('allows exactly one of two concurrent buyers to reserve the last drink', async () => {
     const variant = await product(1);
     const results = await Promise.all([

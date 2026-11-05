@@ -40,7 +40,7 @@ Build production dùng `output: "standalone"` để Docker image chỉ chứa c�
 
 Logout ở MVP là kết thúc phiên trên trình duyệt. JWT không được thu hồi ở server trước `exp`; không có endpoint logout/refresh mới trong phần này. Giải mã `exp` phía client chỉ phục vụ UX, backend vẫn xác minh JWT bằng signature/issuer/audience/expiration.
 
-Kiểm tra riêng auth: `node --test tests/auth-*.test.mjs`. [Bằng chứng bàn giao](../../docs/scrum/huy-week-02-handover.md).
+Kiểm tra riêng auth: `node --test tests/auth-*.test.mjs`. [Hồ sơ kiểm chứng](../../docs/scrum/trello-audit-2026-11-03.md).
 
 ## Tùy chọn đường/đá
 

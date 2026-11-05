@@ -28,7 +28,7 @@ describe('SD-13 order-owned expiry lifecycle', () => {
     adapter: new PrismaPg({ connectionString }),
   });
 
-  const inventoryRepository = new InventoryRepository();
+  const inventoryRepository = new InventoryRepository({} as never);
   const ordersRepository = new OrdersRepository(prisma as never);
 
   const inventoryService = new InventoryService(

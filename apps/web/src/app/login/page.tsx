@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { loginApi } from "../../features/auth/api";
-import { authSession } from "../../features/auth/session";
 import { SessionNotice } from "../../features/auth/AuthControls";
+import { authSession } from "../../features/auth/session";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       const data = await loginApi({ username, password });
       authSession.establish(data);
-      router.replace("/menu");
+      router.replace(data.user?.role === "BARISTA" ? "/barista" : "/menu");
     } catch (err: unknown) {
       if (err instanceof Error) {
         setErrorMessage(err.message);

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { maxServings } from '../../../common/utils/recipe-capacity.js';
+import { canPrepare } from '../../../common/utils/recipe-capacity.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
 import { ProductResponseDto } from '../dto/product.dto.js';
 import { CatalogRepository } from '../repositories/catalog.repository.js';
@@ -50,7 +50,7 @@ export class CatalogService {
           id: v.id,
           size: v.size as any,
           price: Number(v.price), // Ép kiểu BigInt -> number cho JSON
-          availableServings: maxServings(v.recipeItems),
+          available: canPrepare(v.recipeItems),
         })),
         toppings: p.productToppings.map((pt) => ({
           id: pt.topping.id,
@@ -59,7 +59,7 @@ export class CatalogService {
           price: Number(pt.topping.price), // Ép kiểu BigInt -> number cho JSON
           // Còn bán được khi đang hoạt động và còn nguyên liệu cho ít nhất 1 phần.
           available:
-            pt.topping.isActive && maxServings(pt.topping.recipeItems) > 0,
+            pt.topping.isActive && canPrepare(pt.topping.recipeItems),
         })),
       };
     });
@@ -86,7 +86,7 @@ export class CatalogService {
         id: v.id,
         size: v.size as any,
         price: Number(v.price),
-        availableServings: maxServings(v.recipeItems),
+        available: canPrepare(v.recipeItems),
       })),
       toppings: p.productToppings.map((pt) => ({
         id: pt.topping.id,
@@ -94,7 +94,7 @@ export class CatalogService {
         name: pt.topping.name,
         price: Number(pt.topping.price),
         available:
-          pt.topping.isActive && maxServings(pt.topping.recipeItems) > 0,
+          pt.topping.isActive && canPrepare(pt.topping.recipeItems),
       })),
     };
   }

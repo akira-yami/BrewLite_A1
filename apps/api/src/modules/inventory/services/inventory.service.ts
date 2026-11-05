@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
+import { UsersService } from '../../users/users.service.js';
+import {
+  stockStatus,
+  type StaffInventoryQueryDto,
+} from '../dto/staff-inventory.dto.js';
 import { InventoryRepository } from '../repositories/inventory.repository.js';
 
 // Lỗi riêng khi version tồn kho đã thay đổi.
@@ -27,7 +32,56 @@ export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly repository: InventoryRepository,
+    private readonly users: UsersService = new UsersService(),
   ) {}
+
+  async listIngredients(userId: string, query: StaffInventoryQueryDto) {
+    await this.users.assertActiveBarista(this.prisma, userId);
+    const rows = await this.repository.listIngredients(query);
+    const limit = query.limit ?? 50;
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit);
+    return {
+      data: page.map((row) => this.ingredientResponse(row)),
+      meta: { nextCursor: hasMore ? page.at(-1)!.id : null },
+    };
+  }
+
+  async getIngredient(userId: string, id: string) {
+    await this.users.assertActiveBarista(this.prisma, userId);
+    const row = await this.repository.findIngredient(id);
+    if (!row)
+      throw new NotFoundException({
+        error: {
+          code: 'INGREDIENT_NOT_FOUND',
+          message: 'Nguyên liệu không tồn tại.',
+        },
+      });
+    return this.ingredientResponse(row);
+  }
+
+  private ingredientResponse(row: {
+    id: string;
+    code: string;
+    name: string;
+    unit: 'G' | 'ML' | 'PCS';
+    stockQuantity: number;
+    version: number;
+    isActive: boolean;
+    updatedAt: Date;
+  }) {
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      unit: row.unit,
+      stockQuantity: row.stockQuantity,
+      version: row.version,
+      isActive: row.isActive,
+      status: stockStatus(row.stockQuantity, row.unit),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
 
   /**
    * Giữ hàng cho đơn hàng.

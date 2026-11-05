@@ -47,7 +47,7 @@ describe('Orders -> Inventory integration', () => {
   const usersService = new UsersService();
 
   // Sử dụng InventoryService mới với Prisma và InventoryRepository.
-  const inventoryRepository = new InventoryRepository();
+  const inventoryRepository = new InventoryRepository({} as never);
 
   const inventoryService = new InventoryService(
     prisma as never,
@@ -167,7 +167,7 @@ describe('Orders -> Inventory integration', () => {
     const { user, variant, ingredient } = await createFixture(3);
 
     // Tạo repository riêng để chủ động gây lỗi khi tạo reservation.
-    const failingInventoryRepository = new InventoryRepository();
+    const failingInventoryRepository = new InventoryRepository({} as never);
 
     failingInventoryRepository.createReservation = async () => {
       throw new Error('Injected reservation creation failure');

@@ -17,16 +17,13 @@ const walk = (dir) => {
 // A2 delivery packages are optional in this checkout. Only scan folders that
 // are actually present, so removing a package cannot crash the quality gate.
 const ownerFolders = ['Khang-A2', 'Huy-A2', 'Hoang-A2', 'Kiet-A2', 'Khai-A2'];
-const documentationRoots = ['docs', ...ownerFolders].filter(exists);
+const documentationRoots = ['docs', 'database', ...ownerFolders].filter(exists);
 const markdown = [
   ...['README.md', 'apps/api/README.md', 'apps/web/README.md'].filter(exists).map((path) => resolve(root, path)),
   ...documentationRoots.flatMap((directory) => walk(resolve(root, directory)).filter((file) => file.endsWith('.md'))),
 ];
 
 let links = 0;
-const optionalLegacyLink = (href) =>
-  /(?:^|\/)(?:Khang-A2|Huy-A2|Hoang-A2|Kiet-A2|Khai-A2)(?:\/|$)/.test(href) ||
-  /(?:^|\/)orders\.openapi\.yaml$/.test(href);
 for (const file of [...new Set(markdown)]) {
   const text = readFileSync(file, 'utf8');
   const withoutCode = text.replace(/```[^\n]*\n[\s\S]*?```/g, '');
@@ -36,7 +33,7 @@ for (const file of [...new Set(markdown)]) {
     if (/^(?:[a-z][a-z0-9+.-]*:|#)/i.test(href)) continue;
     const target = decodeURIComponent(href.split('#')[0].split('?')[0]);
     links++;
-    if (target && !existsSync(resolve(dirname(file), target)) && !optionalLegacyLink(target)) {
+    if (target && !existsSync(resolve(dirname(file), target))) {
       errors.push(`${relative(root, file)}: missing ${href}`);
     }
   }
@@ -46,7 +43,7 @@ let sourceCount = 0;
 let enumCount = 0;
 const manifestPath = ownerFolders
   .map((owner) => `${owner}/docs/architecture/diagrams/manifest.json`)
-  .concat('docs/architecture/diagrams/manifest.json')
+  .concat('docs/architecture/diagrams/manifest.json', 'database/manifest.json')
   .find(exists);
 
 if (manifestPath) {
@@ -56,7 +53,7 @@ if (manifestPath) {
   if (manifest.version === 2 && !repositoryRelative) errors.push('Diagram manifest v2 must use repository-relative paths');
 
   const sources = documentationRoots.flatMap((directory) =>
-    walk(resolve(root, directory, 'architecture/diagrams'))
+    walk(resolve(root, directory === 'database' ? directory : `${directory}/architecture/diagrams`))
       .filter((file) => file.endsWith('.puml'))
       .map((file) => relative(root, file).replaceAll('\\', '/'))).sort();
   sourceCount = sources.length;
@@ -102,7 +99,7 @@ if (manifestPath) {
       for (const value of expected) if (!new RegExp(`\\b${value}\\b`).test(domain)) errors.push(`CD-01 missing ${name}.${value}`);
     }
   }
-} else if (walk(resolve(root, 'docs')).some((file) => file.endsWith('.puml'))) {
+} else if (documentationRoots.some((directory) => walk(resolve(root, directory)).some((file) => file.endsWith('.puml')))) {
   errors.push('Diagram sources exist but no manifest.json was found');
 }
 

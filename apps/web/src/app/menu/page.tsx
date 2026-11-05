@@ -9,7 +9,7 @@ import { ProductDetailModal } from '@/features/catalog/components/ProductDetailM
 import { useMenuProducts } from '@/features/catalog/hooks/useMenuProducts';
 import { useScrollHeader } from '@/features/catalog/hooks/useScrollHeader';
 import { Product } from '@/features/catalog/types';
-import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import { CartItem, formatVnd, useCartStore } from '@/stores/cart-store';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -84,26 +84,6 @@ export default function MenuPage() {
     menuSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleQuickAdd = (product: Product) => {
-    const variant = product.variants.find((item) => item.size === 'M' && item.available)
-      ?? product.variants.find((item) => item.available);
-    if (!variant) {
-      setEditingCartItem(null);
-      setPreviewingProduct(product);
-      return;
-    }
-
-    cartStore.addItem({
-      product,
-      variantId: variant.id,
-      size: variant.size,
-      unitPrice: Number(variant.price),
-      quantity: 1,
-      sugarLevel: null,
-      iceLevel: null,
-      toppings: [],
-    });
-  };
 
   const scrollToMenu = () => {
     menuSectionRef.current?.scrollIntoView({ behavior: 'smooth' });

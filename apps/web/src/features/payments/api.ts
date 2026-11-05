@@ -1,27 +1,11 @@
 import { CheckoutAPI, CheckoutApiError } from '@/services/checkout.api';
 import type { PaymentMethod, PaymentResponse } from '@/types/checkout.contract';
 
+// Re-export canonical types from the shared contract so callers have one import.
 export type { PaymentMethod, PaymentResponse };
 export { CheckoutApiError as PaymentApiError };
 
-export type PaymentMethod = 'E_WALLET' | 'CARD' | 'VNPAY';
-
-export interface PaymentResponse {
-  success: boolean;
-  isRetried: boolean;
-  status: 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
-  gatewayTransactionId?: string | null;
-  paymentUrl?: string | null;
-  errorCode?: string | null;
-  message?: string;
-}
-
-export class PaymentApiError extends Error {
-  constructor(message: string, readonly status: number, readonly code?: string) {
-    super(message);
-    this.name = 'PaymentApiError';
-  }
-}
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
 
 async function readJson(response: Response) {
   try {
@@ -35,7 +19,6 @@ function unwrap<T>(json: unknown): T {
   if (json && typeof json === 'object' && 'data' in json) {
     return (json as { data: T }).data;
   }
-
   return json as T;
 }
 
@@ -46,7 +29,7 @@ export async function createPaymentApi(
 ) {
   return CheckoutAPI.processPayment(token, input, idempotencyKey);
 }
- 
+
 /**
  * Reads the persisted attempt owned by the authenticated customer.
  * This request is read-only; it never starts or retries a gateway charge.
@@ -71,7 +54,7 @@ export async function getPaymentStatusApi(
       message?: string;
       code?: string;
     } | null;
-    throw new PaymentApiError(
+    throw new CheckoutApiError(
       payload?.error?.message ?? payload?.message ?? 'Không thể tra cứu trạng thái thanh toán.',
       response.status,
       payload?.error?.code ?? payload?.code,

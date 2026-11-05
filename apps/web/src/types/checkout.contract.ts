@@ -14,7 +14,7 @@ export interface ValidateCouponResponse {
 // ==========================================
 // PAYMENT DOMAIN
 // ==========================================
-export type PaymentMethod = 'E_WALLET' | 'CARD';
+export type PaymentMethod = 'E_WALLET' | 'CARD' | 'VNPAY';
 
 export type PaymentStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
 
@@ -27,6 +27,8 @@ export interface PaymentResponse {
     success: boolean;
     isRetried: boolean;
     status: PaymentStatus;
-    gatewayTransactionId?: string;
-    errorCode?: string;
+    gatewayTransactionId?: string | null;
+    paymentUrl?: string | null;
+    errorCode?: string | null;
+    message?: string;
 }

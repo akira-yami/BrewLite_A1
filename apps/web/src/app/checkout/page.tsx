@@ -11,6 +11,7 @@ import {
   PaymentApiError,
   type PaymentMethod,
 } from '@/features/payments/api';
+import { VnpayPendingScreen } from '@/features/payments/components/VnpayPendingScreen';
 import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 import {
   readCheckoutCoupon,
@@ -69,6 +70,9 @@ export default function CheckoutPage() {
   const [couponQuote, setCouponQuote] = useState<CheckoutCouponQuote | null>(null);
   const [orderSummary, setOrderSummary] = useState<OrderDetail | null>(null);
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState | null>(null);
+  // When user returns from VNPay with ?paymentReturn=1 and payment is still PROCESSING,
+  // show the full-screen waiting UI with countdown instead of the checkout form.
+  const [showVnpayPending, setShowVnpayPending] = useState(false);
   const isVnpayReturn = useSyncExternalStore(
     subscribeVnpayReturn,
     getVnpayReturnSnapshot,
@@ -109,8 +113,7 @@ export default function CheckoutPage() {
             .catch(() => {
               // The same idempotency key remains available if this read-only refresh fails.
             });
-        }
-      }
+        }      }
 
       setIsRestoring(false);
     });
@@ -227,6 +230,12 @@ export default function CheckoutPage() {
         return;
       }
 
+      // User returned from VNPay and payment is still PROCESSING — show countdown screen.
+      if (returnedFromVnpay && payment.status === 'PROCESSING') {
+        setShowVnpayPending(true);
+        return;
+      }
+
       const resolution = payment.status === 'SUCCEEDED' && payment.success === true
         ? 'SUCCEEDED'
         : payment.status === 'FAILED'
@@ -249,10 +258,15 @@ export default function CheckoutPage() {
       }
 
       // PROCESSING or an inconsistent response is not a confirmed failure.
-      // The state transition deliberately retains the same order and key for replay.
-      setError(returnedFromVnpay
-        ? 'Đã quay lại từ VNPay. BrewLite đang chờ IPN xác nhận; hãy kiểm tra lại bằng cùng khóa thanh toán.'
-        : 'Giao dịch đang được xử lý hoặc chưa có kết quả xác nhận. Hãy kiểm tra lại bằng cùng khóa thanh toán; không tạo đơn mới.');
+      // If the user was on VNPay and returned, show the countdown pending screen.
+      // Otherwise retain the idempotency key and show a warning.
+      if (returnedFromVnpay) {
+        setShowVnpayPending(true);
+        return;
+      }
+      setError(
+        'Giao dịch đang được xử lý hoặc chưa có kết quả xác nhận. Hãy kiểm tra lại bằng cùng khóa thanh toán; không tạo đơn mới.',
+      );
     } catch (reason) {
       if (reason instanceof OrdersApiError) {
         if (reason.status === 401) {
@@ -300,6 +314,60 @@ export default function CheckoutPage() {
     );
   }
 
+  // Show VNPay waiting screen with countdown when user returned from VNPay
+  // and payment is still PROCESSING (IPN not yet received).
+  const pendingKey = pendingCheckout?.idempotencyKey;
+  const pendingExpiresAt = orderSummary?.reservationExpiresAt;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('brewlite_token') : null;
+
+  if (showVnpayPending && pendingKey && pendingExpiresAt && token) {
+    return (
+      <main className="min-h-screen bg-[#FBF8F3] px-4 py-8 text-[#1A1612] sm:py-16">
+        <section className="mx-auto max-w-md rounded-3xl border border-[#E5DCD2] bg-white p-6 shadow-sm sm:p-8">
+          <VnpayPendingScreen
+            reservationExpiresAt={pendingExpiresAt}
+            idempotencyKey={pendingKey}
+            token={token}
+            displayTotal={formatVnd(displayedTotal)}
+            onSucceeded={() => {
+              persistPendingCheckout(null);
+              cartStore.clearCart();
+              writeCheckoutCoupon(window.sessionStorage, null);
+              router.replace(
+                `/orders/confirmation?orderId=${encodeURIComponent(pendingCheckout?.orderId ?? '')}`,
+              );
+            }}
+            onFailed={(errorCode) => {
+              setShowVnpayPending(false);
+              setError(paymentFailureMessage(errorCode));
+            }}
+            onReservationExpired={() => {
+              setShowVnpayPending(false);
+              setError(
+                'Đơn hàng đã hết thời gian giữ chỗ trong khi chờ VNPay xác nhận. Vui lòng đặt lại đơn mới.',
+              );
+              persistPendingCheckout(null);
+              setOrderSummary(null);
+            }}
+          />
+          {/* Safety escape hatch — lets user dismiss without data loss */}
+          <button
+            type="button"
+            onClick={() => {
+              setShowVnpayPending(false);
+              setError(
+                'Đã quay lại từ VNPay. Đơn hàng và khóa giao dịch vẫn còn hiệu lực — nhấn "Kiểm tra trạng thái" bên dưới để tra cứu.',
+              );
+            }}
+            className="mt-4 w-full text-center text-xs text-[#9E9189] underline underline-offset-2 hover:text-[#756A63]"
+          >
+            Quay về trang thanh toán
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#FBF8F3] px-4 py-8 text-[#1A1612] sm:py-12">
       <section className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1.1fr_.9fr]">
@@ -342,7 +410,7 @@ export default function CheckoutPage() {
             })}
           </div>
 
-          {isVnpayReturn && (
+          {isVnpayReturn && !showVnpayPending && (
             <div role="status" className="mt-5 rounded-2xl border border-[#D8CCBA] bg-[#FCFAF7] px-4 py-3 text-sm leading-6 text-[#163E2B]">
               Bạn đã quay lại từ VNPay. Trạng thái chỉ được xác nhận khi IPN của VNPay cập nhật trên máy chủ BrewLite.
             </div>

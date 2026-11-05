@@ -1,8 +1,23 @@
 # Runbook — Payment bị treo ở trạng thái `PROCESSING`
 
-**Phạm vi:** Payment/Order trong BrewLite; `MockGatewayService` là provider mặc định cho local/CI, `VnpayGatewayService` là provider opt-in và chỉ được bật khi cấu hình merchant/HTTPS hợp lệ.  
+**Phạm vi:** Payment/Order trong BrewLite; VNPay là gateway bất đồng bộ được triển khai từ Issue #41.  
 **Mục tiêu:** khôi phục trạng thái nhất quán mà không tạo double-charge, trả kho sớm hoặc làm mất dấu vết đối soát.  
-**Phân loại:** tài liệu vận hành và quy trình ứng cứu; **không phải** một recovery endpoint/script đã được triển khai.
+**Phân loại:** tài liệu vận hành và quy trình ứng cứu; recovery API đã được triển khai tại `POST /api/v1/payments/:paymentId/recovery` (yêu cầu role `PAYMENT_OPERATOR`).
+
+> **Trạng thái triển khai (cập nhật 2026-11-05):**
+> Recovery operator API (`POST /payments/:paymentId/recovery`), VNPay QueryDr adapter, durable audit, circuit-breaker, backoff và MANUAL_REVIEW workflow **đã được triển khai** trong nhánh `Kiet-Payment-Idempotency-PaymentUI` (PR #28 + Issue #41).
+> Điều kiện chưa hoàn thành trước production go-live: (1) merchant Sandbox TmnCode/HashSecret thật và E2E test; (2) SLA time-to-resolve phải được Payment Operations ratify theo bảng bên dưới.
+
+## 0. SLA mục tiêu (chờ Payment Operations ratification)
+
+| Mốc | Mục tiêu tạm thời | Trạng thái |
+|---|---|---|
+| Phát hiện Payment `PROCESSING` nghi vấn | ≤ 15 phút kể từ khi cảnh báo | ⏳ Chờ ratify |
+| Escalate cho PAYMENT_OPERATOR | ≤ 30 phút sau phát hiện | ⏳ Chờ ratify |
+| Hoàn tất QueryDr và ghi kết quả | ≤ 60 phút sau escalation | ⏳ Chờ ratify |
+| Đóng incident (bao gồm refund nếu có) | ≤ 24 giờ sau phát hiện | ⏳ Chờ ratify |
+
+**Lưu ý:** Các mốc trên chỉ là đề xuất kỹ thuật; phải được Payment Operations và PO ký duyệt trước production go-live. Không sử dụng mốc của MockGateway (5 phút) cho VNPay.
 
 ## 1. Nguyên tắc an toàn bắt buộc
 
@@ -91,7 +106,44 @@ Endpoint chỉ trả trạng thái Payment có cùng Idempotency-Key và thuộc
 | Gateway không thể xác định kết quả | Tiếp tục giữ `PROCESSING`; không tạo Payment mới, không hủy Order, không giải phóng kho/coupon. Escalate để gateway/operator đối soát. |
 | Có dấu hiệu charge trùng hoặc charge thành công sau khi Order hết hạn/đã hủy | Không cố ép Order sang `PAID` hoặc đánh dấu `FAILED` để che dấu. Giữ evidence, chuyển quy trình refund/compensation có phê duyệt và đối soát tồn kho/coupon/loyalty. |
 
-**Giới hạn triển khai hiện tại:** PR #35 chưa có admin recovery command/API, gateway status inquiry, refund API hoặc durable audit record cho thao tác phục hồi. Vì vậy runbook này hướng dẫn triage/escalation; không cho phép DBA tự viết `UPDATE` trực tiếp để hoàn tất các trạng thái nêu trên. Cần một work item riêng để triển khai recovery operation có authorization, idempotency, audit log và integration tests trước khi tự động hóa.
+**Trạng thái triển khai (cập nhật 2026-11-05):** Recovery API (`POST /api/v1/payments/:paymentId/recovery`) và MANUAL_REVIEW resolution workflow (`POST /api/v1/payments/:paymentId/recovery/resolve`) **đã được triển khai** và kiểm thử (Issue #41). Operator có role `PAYMENT_OPERATOR` có thể gọi API trực tiếp theo quy trình dưới đây thay vì chờ DBA can thiệp thủ công.
+
+## 5.1. Quy trình phê duyệt kép cho MANUAL_REVIEW
+
+Khi QueryDr trả về `SUCCESS` nhưng Order đã hết hạn hoặc đã hủy, Payment chuyển sang `MANUAL_REVIEW`. Quy trình giải quyết bắt buộc có phê duyệt kép:
+
+**Điều kiện bắt buộc:**
+- Operator **khởi tạo** recovery và operator **xác nhận** kết quả phải là **hai người khác nhau** (system enforce bằng `SECOND_OPERATOR_REQUIRED` error code).
+- Evidence reference (mã đối chiếu bên ngoài từ VNPay portal hoặc ngân hàng) là bắt buộc.
+
+**Bước 1 — Operator 1** (người chạy QueryDr ban đầu):
+```http
+POST /api/v1/payments/:paymentId/recovery
+Authorization: Bearer <PAYMENT_OPERATOR-token>
+Idempotency-Key: <unique-recovery-key>
+
+{ "incidentReference": "INC-2026-XXXX" }
+```
+→ Kết quả: `paymentStatus: "MANUAL_REVIEW"`
+
+**Bước 2 — Operator 2** (người khác, xác minh bằng chứng refund từ VNPay):
+```http
+POST /api/v1/payments/:paymentId/recovery/resolve
+Authorization: Bearer <different-PAYMENT_OPERATOR-token>
+Idempotency-Key: <unique-resolution-key>
+
+{
+  "decision": "REFUND_CONFIRMED",       // hoặc "NO_CHARGE_CONFIRMED"
+  "evidenceReference": "VN-REFUND-2026-XXXX",
+  "incidentReference": "INC-2026-XXXX"
+}
+```
+→ Kết quả: `paymentStatus: "REFUNDED"` (nếu refund) hoặc `"FAILED"` (nếu no-charge).
+
+**Lưu ý bảo mật:**
+- Không bao giờ dùng cùng một JWT token cho cả hai bước.
+- `evidenceReference` phải là mã đối chiếu từ hệ thống VNPay hoặc ngân hàng, không phải nội bộ tự đặt.
+- Sau khi giải quyết, audit record là **append-only** tại database level và không thể sửa xóa.
 
 ## 6. Ảnh hưởng của expiry jobs
 
@@ -101,11 +153,22 @@ Endpoint chỉ trả trạng thái Payment có cùng Idempotency-Key và thuộc
 - `OrdersService.cancelOrder()` từ chối hủy nếu Order còn Payment `PROCESSING`.
 - Sau khi Payment được đối soát và hoàn tất bằng recovery operation được phê duyệt, Order expiry có thể tiếp tục theo trạng thái và deadline. Không chạy cron thủ công để “dọn” dữ liệu.
 
-## 7. Ranh giới MockGateway và VNPay
+## 7. Ranh giới triển khai VNPay hiện tại
 
-- `PaymentsModule` hiện chỉ đăng ký `MockGatewayService`; chưa có VNPay adapter, payment URL, IPN signature validation, Return URL, provider status inquiry, refund, late-success handler hoặc Sandbox E2E.
-- Schema hiện tại có `gatewayTransactionId` nhưng chưa có provider name/provider order reference/payload audit fields đủ cho quy trình VNPay reconciliation. Không dùng MockGateway evidence để kết luận giao dịch merchant thực tế đã thành công/thất bại.
-- Trước VNPay go-live cần thiết kế riêng: stable `vnp_TxnRef` gắn với Payment, chữ ký IPN, xác minh TmnCode/amount/order, chống replay callback, idempotent state transition, Return URL chỉ hiển thị trạng thái, status inquiry, xử lý late success, refund và daily settlement reconciliation. Cần sandbox credentials và kết quả E2E từ merchant sandbox; không đưa credentials vào repo.
+**Đã triển khai (Issue #41):**
+- `VnpayInquiryService` — QueryDr adapter với HMAC-SHA512, timeout 8 giây, ánh xạ outcome → trạng thái nội bộ.
+- `PaymentRecoveryService` — operator-triggered recovery API, durable backoff, circuit-breaker, MANUAL_REVIEW, second-operator approval.
+- `PaymentRecoveryAudit` — append-only audit trail với beforeState/afterState/correlationId/incidentReference.
+- `POST /payments/:paymentId/recovery` và `/recovery/resolve` — HTTP endpoints với PAYMENT_OPERATOR guard.
+
+**Chưa triển khai (production blocker):**
+- Merchant Sandbox TmnCode/HashSecret thật và kết quả E2E thực tế qua VNPay Sandbox.
+- Automated inquiry / scheduled reconciliation job (ngoài phạm vi PR #28).
+- Refund API gọi VNPay refund endpoint (hiện chỉ ghi `REFUNDED` trên DB; merchant phải tự thao tác refund trên VNPay portal với evidence reference từ Operator 2).
+- QR Code dynamic payment với `VNPAYQR` — cần `vnp_BankCode=VNPAYQR` và Sandbox credentials.
+- Frontend QR countdown timer — cần task riêng.
+
+Không dùng MockGateway evidence để kết luận giao dịch merchant thực tế đã thành công/thất bại.
 
 ## 8. Điều kiện đóng incident
 
@@ -129,6 +192,16 @@ Endpoint chỉ trả trạng thái Payment có cùng Idempotency-Key và thuộc
 6. Automated inquiry, late-success recovery, refund and operator-approved reconciliation are not included in the current implementation; they remain required production operations work.
 
 
-### 8.1. Tracked implementation work item
+### 8.1. Trạng thái triển khai Issue #41
 
-The missing gateway inquiry/reconciliation and authorized recovery operation is tracked as [Issue #41](https://github.com/akira-yami/BrewLite_A1/issues/41), assigned to `htk2k6-hash`. This remains a production-readiness blocker for asynchronous gateway deployments; do not treat the signed IPN implementation or this manual runbook as a substitute for inquiry, audit and late-success compensation.
+Recovery operator API đã được triển khai trong `Kiet-Payment-Idempotency-PaymentUI` (PR #28). Các điều kiện còn lại trước production go-live được theo dõi tại [Issue #41](https://github.com/akira-yami/BrewLite_A1/issues/41):
+
+- ✅ VNPay QueryDr adapter, HMAC-SHA512, timeout 8 giây
+- ✅ Operator-triggered recovery API với PAYMENT_OPERATOR guard
+- ✅ Durable backoff, circuit-breaker, lease management
+- ✅ MANUAL_REVIEW + second-operator resolution workflow
+- ✅ Append-only audit (DB-level immutability verified)
+- ✅ PostgreSQL integration tests (5 kịch bản)
+- ❌ Merchant Sandbox E2E (production blocker — chờ TmnCode/HashSecret thật)
+- ❌ SLA target ratified bởi Payment Operations
+- ❌ Automated scheduled reconciliation job

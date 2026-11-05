@@ -98,6 +98,35 @@ describe('VnpayInquiryService', () => {
     }
   });
 
+  it('rejects a response whose vnp_Amount does not match the queried amount (amount mismatch)', async () => {
+    // VNPay returns amount * 100 as string; any deviation must be treated as UNKNOWN, not settled.
+    const tamperedAmount = (125000n * 100n + 1n).toString(); // 12500001 — off by 1 VND
+    const fields = { ...BASE, vnp_Amount: tamperedAmount };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      ...fields, vnp_SecureHash: signResponse(fields),
+    }), { status: 200 })));
+    await expect(createService().query(input)).rejects.toThrow(VnpayInquiryError);
+  });
+
+  it('rejects a response whose vnp_TmnCode does not match this merchant (merchant mismatch)', async () => {
+    // A response signed with a different merchant's secret should be rejected to prevent
+    // cross-merchant confusion attacks.
+    const fields = { ...BASE, vnp_TmnCode: 'EVIL9999' };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      ...fields, vnp_SecureHash: signResponse(fields),
+    }), { status: 200 })));
+    await expect(createService().query(input)).rejects.toThrow(VnpayInquiryError);
+  });
+
+  it('rejects a response whose vnp_TxnRef does not match the queried gateway reference (reference mismatch)', async () => {
+    // Ensures out-of-order or swapped responses from VNPay are never applied to the wrong Payment.
+    const fields = { ...BASE, vnp_TxnRef: 'completely-different-ref' };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      ...fields, vnp_SecureHash: signResponse(fields),
+    }), { status: 200 })));
+    await expect(createService().query(input)).rejects.toThrow(VnpayInquiryError);
+  });
+
   it('never maps transport, HTTP or JSON failures to definitive payment failure', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network timeout')));
     await expect(createService().query(input)).rejects.toMatchObject({ outcome: 'UNKNOWN' });

@@ -145,20 +145,6 @@ jobs:
     defaults:
       run:
         working-directory: apps/api
-    services:
-      postgres:
-        image: postgres:18.4-alpine3.23
-        env:
-          POSTGRES_USER: brewlite
-          POSTGRES_PASSWORD: ci_only_password
-          POSTGRES_DB: brewlite_foundation_smoke_ci
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U brewlite -d brewlite_foundation_smoke_ci"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     env:
       DATABASE_URL: postgresql://brewlite:ci_only_password@localhost:5432/brewlite_foundation_smoke_ci?schema=public
       SMOKE_DATABASE_URL: postgresql://brewlite:ci_only_password@localhost:5432/brewlite_foundation_smoke_ci?schema=public

@@ -107,10 +107,8 @@ test.describe('VNPAY Timeout Recovery', () => {
       transactionStatus: '02',
     });
 
-    await page.waitForTimeout(2000);
-
-    const errorAlert = page.getByRole('alert');
-    await expect(errorAlert).toBeVisible({ timeout: 10000 });
+    const errorAlert = page.getByRole('main').getByRole('alert');
+    await expect(errorAlert).toContainText('Thanh toán chưa thành công', { timeout: 15000 });
   });
 
   test('countdown persists after page reload', async ({

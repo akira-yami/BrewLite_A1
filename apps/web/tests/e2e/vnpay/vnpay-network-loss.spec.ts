@@ -51,7 +51,7 @@ test.describe('VNPAY Network Loss Recovery', () => {
     expect(orderData.data.status).toBe('PAID');
   });
 
-  test('PROCESSING state persists across sessions', async ({
+  test('PROCESSING state persists when returning to checkout', async ({
     page,
     testUser,
   }) => {
@@ -65,19 +65,29 @@ test.describe('VNPAY Network Loss Recovery', () => {
         response.request().method() === 'POST',
     );
     await page.getByRole('button', { name: /^Thanh toán / }).click();
-    await paymentPromise;
-
-    await page.waitForTimeout(1000);
-
+    const paymentResponse = await paymentPromise;
+    const idempotencyKey = paymentResponse.request().headers()['idempotency-key'];
+    await page.waitForURL(/\/checkout\?paymentReturn=1/, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: 'Đang chờ xác nhận thanh toán' })).toBeVisible();
     const currentUrl = page.url();
 
     await page.goto('/menu');
+
+    let replayPosts = 0;
+    page.on('request', (request) => {
+      if (request.url().endsWith('/payments') && request.method() === 'POST') replayPosts += 1;
+    });
+    const restoredStatusPromise = page.waitForResponse((response) =>
+      response.url().includes('/payments/status') &&
+      response.request().headers()['idempotency-key'] === idempotencyKey,
+    );
     await page.goto(currentUrl);
 
-    const recoveryButton = page.getByRole('button', {
-      name: /Kiểm tra/,
-    });
-    await expect(recoveryButton).toBeVisible({ timeout: 10000 });
+    const restoredStatus = await restoredStatusPromise;
+    expect(restoredStatus.ok()).toBeTruthy();
+    expect((await restoredStatus.json()).data.status).toBe('PROCESSING');
+    await expect(page.getByRole('heading', { name: 'Đang chờ xác nhận thanh toán' })).toBeVisible();
+    expect(replayPosts, 'Restoring checkout must reuse the existing payment').toBe(0);
   });
 
   test('inquiry discovers delayed success correctly', async ({

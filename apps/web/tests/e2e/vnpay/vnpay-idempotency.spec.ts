@@ -35,20 +35,24 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     });
     expect(failIpn.RspCode).toBe('00');
 
-    await page.waitForTimeout(2000);
+    // Wait for the signed failure to reach the UI through status polling.
+    const retryButton = page.getByRole('button', { name: /^Thử thanh toán lại / });
+    await expect(retryButton).toBeVisible({ timeout: 15000 });
 
     const retryPaymentPromise = page.waitForResponse(
       (response) =>
         response.url().includes('/payments') &&
         response.request().method() === 'POST',
     );
-    await page.getByRole('button', { name: /^Thanh toán / }).click();
+    await retryButton.click();
 
     const retryPaymentResponse = await retryPaymentPromise;
     const retryPaymentData = enrichVnpayPaymentResponse(undefined, retryPaymentResponse);
     const { gatewayReference: ref2 } = retryPaymentData.data;
     const retryKey = retryPaymentResponse.request().headers()['idempotency-key'];
 
+    expect(retryPaymentResponse.ok()).toBeTruthy();
+    expect(retryPaymentData.data.orderId).toBe(orderId);
     expect(retryKey).not.toBe(firstKey);
     expect(ref2).not.toBe(ref1);
 
@@ -100,7 +104,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
 
     expect(retryResponse.status()).toBe(409);
     const errorData = await retryResponse.json();
-    expect(errorData.error.code).toBe('PAYMENT_IN_PROGRESS');
+    expect(errorData.code).toBe('PAYMENT_IN_PROGRESS');
   });
 
   test('multiple keys for same order allowed after FAILED', async ({

@@ -11,13 +11,6 @@ test.describe('VNPAY Polling Behavior', () => {
     await proceedToCheckout(page);
     await page.getByRole('button', { name: /vnpay/i }).click();
 
-    const statusRequests: number[] = [];
-    page.on('response', (response) => {
-      if (response.url().includes('/payments/status')) {
-        statusRequests.push(Date.now());
-      }
-    });
-
     const paymentPromise = page.waitForResponse(
       (response) =>
         response.url().includes('/payments') &&
@@ -26,15 +19,17 @@ test.describe('VNPAY Polling Behavior', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
     await paymentPromise;
 
-    await page.waitForTimeout(12000);
-
-    expect(statusRequests.length).toBeGreaterThanOrEqual(2);
-
-    if (statusRequests.length >= 2) {
-      const interval = statusRequests[1] - statusRequests[0];
-      expect(interval).toBeGreaterThan(4000);
-      expect(interval).toBeLessThan(6000);
-    }
+    await expect(page.getByRole('heading', { name: 'Đang chờ xác nhận thanh toán' })).toBeVisible();
+    // The Return page restores status, then the pending screen polls immediately.
+    // Measure recurring requests after startup, without response latency skew.
+    const statusRequests: number[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/payments/status')) statusRequests.push(Date.now());
+    });
+    await expect.poll(() => statusRequests.length, { timeout: 20000 }).toBeGreaterThanOrEqual(3);
+    const interval = statusRequests.at(-1)! - statusRequests.at(-2)!;
+    expect(interval).toBeGreaterThan(4000);
+    expect(interval).toBeLessThan(6000);
   });
 
   test('polling stops on SUCCEEDED', async ({
@@ -109,10 +104,16 @@ test.describe('VNPAY Polling Behavior', () => {
       transactionStatus: '02',
     });
 
-    await page.waitForTimeout(10000);
+    const errorAlert = page.getByRole('main').getByRole('alert');
+    await expect(errorAlert).toContainText('Thanh toán chưa thành công', { timeout: 15000 });
 
-    const errorAlert = page.getByRole('alert');
-    await expect(errorAlert).toBeVisible();
+    let statusRequestsAfterFailure = 0;
+    page.on('request', (request) => {
+      if (request.url().includes('/payments/status')) statusRequestsAfterFailure += 1;
+    });
+    // Observe more than one polling interval after the terminal state.
+    await page.waitForTimeout(6000);
+    expect(statusRequestsAfterFailure).toBe(0);
   });
 
   test('polling includes correct Idempotency-Key header', async ({

@@ -1,4 +1,5 @@
-﻿import { test, expect } from '../fixtures/vnpay-fixtures.js';
+import { enrichVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
+import { test, expect } from '../fixtures/vnpay-fixtures.js';
 import { setupCartWithProduct, proceedToCheckout } from '../helpers/cart-helper.js';
 
 test('VNPAY happy path: checkout → payment → confirmation', async ({
@@ -14,7 +15,7 @@ test('VNPAY happy path: checkout → payment → confirmation', async ({
 
   // Step 3: Select VNPAY payment method
   await expect(page).toHaveURL(/\/checkout/);
-  await page.getByRole('button', { name: /VNPAY/ }).click();
+  await page.getByRole('button', { name: /vnpay/i }).click();
 
   // Step 4: Click thanh toán and capture POST /payments response
   const paymentPromise = page.waitForResponse(
@@ -28,7 +29,7 @@ test('VNPAY happy path: checkout → payment → confirmation', async ({
   const paymentResponse = await paymentPromise;
   expect(paymentResponse.ok()).toBeTruthy();
 
-  const paymentData = await paymentResponse.json();
+  const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
   const { gatewayReference, orderId, amount } = paymentData.data;
 
   // Step 5: Verify payment URL has valid signature

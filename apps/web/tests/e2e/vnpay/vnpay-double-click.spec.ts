@@ -1,4 +1,5 @@
-﻿import { test, expect } from '../fixtures/vnpay-fixtures.js';
+import { enrichVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
+import { test, expect } from '../fixtures/vnpay-fixtures.js';
 import { setupCartWithProduct, proceedToCheckout } from '../helpers/cart-helper.js';
 
 test.describe('VNPAY Double-Click Protection', () => {
@@ -8,7 +9,7 @@ test.describe('VNPAY Double-Click Protection', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     let postCount = 0;
     page.on('response', (response) => {
@@ -39,7 +40,7 @@ test.describe('VNPAY Double-Click Protection', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -49,7 +50,7 @@ test.describe('VNPAY Double-Click Protection', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = await paymentResponse.json();
+    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
     const idempotencyKey = paymentResponse.request().headers()['idempotency-key'];
 
     await page.waitForTimeout(1000);
@@ -82,7 +83,7 @@ test.describe('VNPAY Double-Click Protection', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -92,7 +93,7 @@ test.describe('VNPAY Double-Click Protection', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = await paymentResponse.json();
+    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
     const { orderId } = paymentData.data;
 
     const concurrentResponse = await request.post(apiUrl + '/payments', {

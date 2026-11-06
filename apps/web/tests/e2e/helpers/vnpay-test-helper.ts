@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext, Response as PlaywrightResponse } from '@playwright/test';
 
 export interface VnpayIpnParams {
   gatewayReference: string;
@@ -106,4 +106,40 @@ export class VnpayTestHelper {
       values.second
     );
   }
+}
+
+/**
+ * POST /payments returns a signed VNPay URL rather than internal IDs.
+ * Derive the reference and amount from that URL for isolated E2E assertions;
+ * this helper never alters the real API contract.
+ */
+export function enrichVnpayPaymentResponse(
+  body: { data: { paymentUrl?: string; [key: string]: unknown } },
+  response: PlaywrightResponse,
+) {
+  const paymentUrl = body?.data?.paymentUrl;
+  if (!paymentUrl) {
+    throw new Error('Expected a signed VNPay payment URL in POST /payments response');
+  }
+  const url = new URL(paymentUrl);
+  const gatewayReference = url.searchParams.get('vnp_TxnRef');
+  const rawAmount = url.searchParams.get('vnp_Amount');
+  const requestBody: unknown = response.request().postDataJSON();
+  const orderId =
+    typeof requestBody === 'object' && requestBody !== null && 'orderId' in requestBody
+      ? (requestBody as { orderId: unknown }).orderId
+      : undefined;
+
+  if (!gatewayReference || !rawAmount || !/^[0-9]+$/.test(rawAmount) || typeof orderId !== 'string') {
+    throw new Error('Signed VNPay URL or payment request is missing required transaction data');
+  }
+  const amount = BigInt(rawAmount) / 100n;
+  if (BigInt(rawAmount) % 100n !== 0n || amount > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error('VNPay amount is invalid or exceeds the safe integer range');
+  }
+
+  return {
+    ...body,
+    data: { ...body.data, paymentUrl, gatewayReference, amount: Number(amount), orderId },
+  };
 }

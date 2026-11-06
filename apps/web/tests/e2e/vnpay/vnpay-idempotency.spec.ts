@@ -1,4 +1,5 @@
-﻿import { test, expect } from '../fixtures/vnpay-fixtures.js';
+import { enrichVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
+import { test, expect } from '../fixtures/vnpay-fixtures.js';
 import { setupCartWithProduct, proceedToCheckout } from '../helpers/cart-helper.js';
 import { randomUUID } from 'node:crypto';
 
@@ -12,7 +13,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const firstPaymentPromise = page.waitForResponse(
       (response) =>
@@ -22,7 +23,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const firstPaymentResponse = await firstPaymentPromise;
-    const firstPaymentData = await firstPaymentResponse.json();
+    const firstPaymentData = enrichVnpayPaymentResponse(await firstPaymentResponse.json(), firstPaymentResponse);
     const { gatewayReference: ref1, orderId, amount } = firstPaymentData.data;
     const firstKey = firstPaymentResponse.request().headers()['idempotency-key'];
 
@@ -44,7 +45,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const retryPaymentResponse = await retryPaymentPromise;
-    const retryPaymentData = await retryPaymentResponse.json();
+    const retryPaymentData = enrichVnpayPaymentResponse(await retryPaymentResponse.json(), retryPaymentResponse);
     const { gatewayReference: ref2 } = retryPaymentData.data;
     const retryKey = retryPaymentResponse.request().headers()['idempotency-key'];
 
@@ -76,7 +77,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const firstPaymentPromise = page.waitForResponse(
       (response) =>
@@ -86,7 +87,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const firstPaymentResponse = await firstPaymentPromise;
-    const firstPaymentData = await firstPaymentResponse.json();
+    const firstPaymentData = enrichVnpayPaymentResponse(await firstPaymentResponse.json(), firstPaymentResponse);
     const { orderId } = firstPaymentData.data;
 
     const retryResponse = await request.post(apiUrl + '/payments', {
@@ -111,7 +112,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const firstPaymentPromise = page.waitForResponse(
       (response) =>
@@ -121,7 +122,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const firstPaymentResponse = await firstPaymentPromise;
-    const firstPaymentData = await firstPaymentResponse.json();
+    const firstPaymentData = enrichVnpayPaymentResponse(await firstPaymentResponse.json(), firstPaymentResponse);
     const { gatewayReference: ref1, orderId, amount } = firstPaymentData.data;
 
     await vnpayHelper.simulateIpn(request, {
@@ -143,7 +144,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     });
 
     expect(secondPaymentResponse.ok()).toBeTruthy();
-    const secondPaymentData = await secondPaymentResponse.json();
+    const secondPaymentData = enrichVnpayPaymentResponse(await secondPaymentResponse.json(), secondPaymentResponse);
     expect(secondPaymentData.data.status).toBe('PROCESSING');
   });
 });

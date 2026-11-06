@@ -1,4 +1,5 @@
-﻿import { test, expect } from '../fixtures/vnpay-fixtures.js';
+import { enrichVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
+import { test, expect } from '../fixtures/vnpay-fixtures.js';
 import { setupCartWithProduct, proceedToCheckout } from '../helpers/cart-helper.js';
 
 test.describe('VNPAY IPN Race Conditions', () => {
@@ -11,7 +12,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -21,7 +22,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = await paymentResponse.json();
+    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
     const { gatewayReference, orderId, amount } = paymentData.data;
 
     const ipnResponse = await vnpayHelper.simulateIpn(request, {
@@ -55,7 +56,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -65,7 +66,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = await paymentResponse.json();
+    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
     const { gatewayReference, amount } = paymentData.data;
 
     const firstIpn = await vnpayHelper.simulateIpn(request, {
@@ -97,7 +98,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -107,7 +108,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = await paymentResponse.json();
+    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
     const { gatewayReference, amount } = paymentData.data;
     const idempotencyKey = paymentResponse.request().headers()['idempotency-key'];
 

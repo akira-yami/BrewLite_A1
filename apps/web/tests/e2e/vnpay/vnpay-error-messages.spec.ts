@@ -1,4 +1,5 @@
-﻿import { test, expect } from '../fixtures/vnpay-fixtures.js';
+import { enrichVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
+import { test, expect } from '../fixtures/vnpay-fixtures.js';
 import { setupCartWithProduct, proceedToCheckout } from '../helpers/cart-helper.js';
 
 test.describe('Vietnamese Error Messages', () => {
@@ -10,7 +11,7 @@ test.describe('Vietnamese Error Messages', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -20,7 +21,7 @@ test.describe('Vietnamese Error Messages', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = await paymentResponse.json();
+    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
     const { gatewayReference, amount } = paymentData.data;
 
     await vnpayHelper.simulateIpn(request, {
@@ -42,7 +43,7 @@ test.describe('Vietnamese Error Messages', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -80,7 +81,7 @@ test.describe('Vietnamese Error Messages', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /VNPAY/ }).click();
+    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -102,7 +103,7 @@ test.describe('Vietnamese Error Messages', () => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
 
-    const vnpayButton = page.getByRole('button', { name: /VNPAY/ });
+    const vnpayButton = page.getByRole('button', { name: /vnpay/i });
     await expect(vnpayButton).toBeVisible();
 
     await vnpayButton.click();

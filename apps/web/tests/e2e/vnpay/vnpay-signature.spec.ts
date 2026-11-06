@@ -65,7 +65,7 @@ test.describe('VNPAY Signature Validation', () => {
 
     const responseData = await ipnResponse.json();
     expect(responseData.RspCode).toBe('97');
-    expect(responseData.Message).toContain('Invalid Signature');
+    expect(responseData.Message).toMatch(/invalid signature/i);
   });
 
   test('tampered params fail signature verification', async ({

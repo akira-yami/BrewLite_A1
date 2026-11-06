@@ -39,7 +39,7 @@ export async function createTestUser(
   // Extract accessToken and userId from response
   const body = await response.json();
   const accessToken = body.data?.accessToken;
-  const userId = body.data?.userId;
+  const userId = body.data?.user?.id;
 
   if (!accessToken || !userId) {
     throw new Error('Registration response missing accessToken or userId');

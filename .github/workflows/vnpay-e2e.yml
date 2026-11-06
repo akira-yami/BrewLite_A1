@@ -85,7 +85,8 @@ jobs:
         working-directory: apps/web
 
       - name: Run VNPAY E2E tests
-        run: npm run test:e2e:vnpay --prefix apps/web
+        # Fail quickly on regressions instead of waiting 60 s for every broken browser test.
+        run: npm run test:e2e:vnpay --prefix apps/web -- --max-failures=2
 
       - name: Upload test report
         if: always()

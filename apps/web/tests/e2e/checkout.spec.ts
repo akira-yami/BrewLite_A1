@@ -104,8 +104,17 @@ test('double click and reload query payment status, replaying POST only when the
   await page.goto('/menu');
   await page.evaluate(token => localStorage.setItem('brewlite_token', token), accessToken);
   await page.reload();
-  await page.getByRole('button', { name: '+ Thêm', exact: true }).first().click();
-  await page.getByRole('button', { name: /món trong giỏ/ }).click();
+  // ProductCard now opens ProductDetailModal through the "Tùy chọn" action;
+  // the legacy "+ Thêm" button no longer exists on the menu cards.
+  await page.locator('button:not(:disabled)')
+    .filter({ hasText: 'Tùy chọn' })
+    .first()
+    .click();
+
+  const addToCartButton = page.getByRole('button', { name: /Thêm vào giỏ/ });
+  await expect(addToCartButton).toBeVisible();
+  await expect(addToCartButton).toBeEnabled();
+  await addToCartButton.click(); // onAddedToCart opens CartDrawer.
   await page.getByRole('button', { name: 'Tiến hành đặt & thanh toán' }).click();
   await expect(page).toHaveURL(/checkout/);
 

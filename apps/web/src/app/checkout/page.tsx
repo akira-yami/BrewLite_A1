@@ -123,6 +123,47 @@ export default function CheckoutPage() {
     };
   }, []);
 
+  // Returning from the gateway must resume the stored payment attempt
+  // automatically. The browser Return URL never settles a payment; only
+  // the signed IPN can do that on the server.
+  useEffect(() => {
+    if (isRestoring || !isVnpayReturn) return;
+    const checkout = pendingCheckoutRef.current;
+    if (!checkout?.idempotencyKey || checkout.method !== 'VNPAY') return;
+
+    const token = window.localStorage.getItem('brewlite_token');
+    if (!token) return;
+    let active = true;
+    void getPaymentStatusApi(token, checkout.idempotencyKey).then((payment) => {
+      if (!active) return;
+      if (payment.status === 'SUCCEEDED' && payment.success === true) {
+        pendingCheckoutRef.current = null;
+        setPendingCheckout(null);
+        writePendingCheckout(window.sessionStorage, null);
+        cartStore.clearCart();
+        writeCheckoutCoupon(window.sessionStorage, null);
+        router.replace('/orders/confirmation?orderId=' + encodeURIComponent(checkout.orderId));
+      } else if (payment.status === 'FAILED') {
+        const reset = transitionPaymentAttempt({
+          ...checkout,
+          idempotencyKey: checkout.idempotencyKey!,
+          method: 'VNPAY',
+        }, 'FAILED');
+        pendingCheckoutRef.current = reset;
+        setPendingCheckout(reset);
+        writePendingCheckout(window.sessionStorage, reset);
+        setError(paymentFailureMessage(payment.errorCode, payment.message));
+      } else {
+        setShowVnpayPending(true);
+      }
+    }).catch(() => {
+      // An unknown response is not a failure; keep polling with the same key.
+      if (active) setShowVnpayPending(true);
+    });
+
+    return () => { active = false; };
+  }, [isRestoring, isVnpayReturn, router]);
+
   const hasUnresolvedPayment = Boolean(pendingCheckout?.idempotencyKey);
   const cartFingerprint = JSON.stringify(cartStore.getOrderItems());
   const pendingCartChanged = Boolean(
@@ -339,6 +380,14 @@ export default function CheckoutPage() {
             }}
             onFailed={(errorCode) => {
               setShowVnpayPending(false);
+              const checkout = pendingCheckoutRef.current;
+              if (checkout?.idempotencyKey && checkout.method === 'VNPAY') {
+                persistPendingCheckout(transitionPaymentAttempt({
+                  ...checkout,
+                  idempotencyKey: checkout.idempotencyKey,
+                  method: checkout.method,
+                }, 'FAILED'));
+              }
               setError(paymentFailureMessage(errorCode));
             }}
             onReservationExpired={() => {

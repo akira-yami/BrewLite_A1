@@ -184,7 +184,13 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
     'VNPAY_IPN_URL',
     requiredValue('VNPAY_IPN_URL', env.VNPAY_IPN_URL),
   );
-  const frontend = requireHttpsUrl('WEB_ORIGIN', frontendOrigin);
+  // Only isolated test runners may use a loopback HTTP frontend.
+  // Production and development gateways still require HTTPS for WEB_ORIGIN.
+  const frontend =
+    env.NODE_ENV === 'test' &&
+    /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/?$/.test(frontendOrigin)
+      ? new URL(frontendOrigin)
+      : requireHttpsUrl('WEB_ORIGIN', frontendOrigin);
 
   return {
     enabled: true,

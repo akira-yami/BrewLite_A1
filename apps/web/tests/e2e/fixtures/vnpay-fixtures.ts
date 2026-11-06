@@ -9,6 +9,22 @@ interface VnpayFixtures {
 }
 
 export const test = base.extend<VnpayFixtures>({
+  // Simulate the hosted payment gateway's browser round-trip. IPN is sent
+  // separately through the signed test-only callback endpoint. Never navigate
+  // to an external merchant in deterministic CI tests.
+  page: async ({ page }, use) => {
+    if (!process.env.E2E_EXTERNAL_BASE_URL) {
+      const baseUrl = 'http://localhost:' + (process.env.E2E_WEB_PORT ?? '3100');
+      await page.route(/^https:\/\/sandbox\.vnpayment\.vn\/paymentv2\/vpcpay\.html(?:\?.*)?$/, async (route) => {
+        await route.fulfill({
+          status: 302,
+          headers: { location: new URL('/checkout?paymentReturn=1', baseUrl).toString() },
+          body: '',
+        });
+      });
+    }
+    await use(page);
+  },
   apiUrl: async ({}, use) => {
     const url = process.env.E2E_API_URL ?? 'http://localhost:3101/api/v1';
     await use(url);

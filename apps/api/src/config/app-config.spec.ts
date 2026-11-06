@@ -199,6 +199,26 @@ describe('app-config and AuthModule dynamic configuration (TDD)', () => {
     });
   });
 
+  it('allows loopback HTTP frontend only in isolated VNPay tests, never production', () => {
+    const values = {
+      WEB_ORIGIN: 'http://localhost:3100',
+      VNPAY_ENABLED: 'true',
+      VNPAY_TMN_CODE: 'TEST0001',
+      VNPAY_HASH_SECRET: '0123456789abcdef0123456789abcdef',
+      VNPAY_RETURN_URL: 'https://e2e.invalid/api/v1/payments/vnpay/return',
+      VNPAY_IPN_URL: 'https://e2e.invalid/api/v1/payments/vnpay/ipn',
+    };
+
+    expect(loadAppConfig({ ...values, NODE_ENV: 'test' }).vnpay.frontendOrigin)
+      .toBe('http://localhost:3100');
+    for (const nodeEnv of ['production', 'development']) {
+      expect(() => loadAppConfig({ ...values, NODE_ENV: nodeEnv, JWT_SECRET: TEST_SECRET }))
+        .toThrow(/WEB_ORIGIN must be a valid HTTPS URL/);
+    }
+    expect(() => loadAppConfig({ ...values, NODE_ENV: 'test', WEB_ORIGIN: 'http://example.com' }))
+      .toThrow(/WEB_ORIGIN must be a valid HTTPS URL/);
+  });
+
   it('keeps AuthModule JwtService signOptions synchronized with AuthService expiresIn when env changes after module import', async () => {
     const prevExpires = process.env.JWT_EXPIRES_IN;
     const prevNodeEnv = process.env.NODE_ENV;

@@ -91,9 +91,15 @@ test.describe('Vietnamese Error Messages', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
     await paymentPromise;
 
-    const vietnameseInstructions = page.getByText(/quét|thanh toán|mã QR/i);
-    const count = await vietnameseInstructions.count();
-    expect(count).toBeGreaterThan(0);
+    // The payment POST redirects the browser; assertions must wait for the
+    // Vietnamese waiting screen rather than inspecting the outgoing page.
+    await page.waitForURL(/\/checkout\?paymentReturn=1/, { timeout: 15000 });
+    await expect(
+      page.getByRole('heading', { name: 'Đang chờ xác nhận thanh toán' }),
+    ).toBeVisible({ timeout: 15000 });
+    await expect(
+      page.getByText(/Nếu bạn đã thanh toán thành công trên VNPay/i),
+    ).toBeVisible();
   });
 
   test('all buttons labeled in Vietnamese', async ({

@@ -66,7 +66,10 @@ test.describe('VNPAY Double-Click Protection', () => {
       }
     });
 
-    await page.reload();
+    // The payment POST initiates a browser redirect. Wait for the callback
+    // landing page before reloading, otherwise Chromium can abort navigation.
+    await page.waitForURL(/\/checkout\?paymentReturn=1/, { timeout: 15000, waitUntil: 'domcontentloaded' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect.poll(() => observedStatusKeys.length, { timeout: 15000 }).toBeGreaterThan(0);
     expect(observedStatusKeys).toContain(idempotencyKey);
     expect(replayPosts, 'Reload should not create another payment attempt').toBe(0);

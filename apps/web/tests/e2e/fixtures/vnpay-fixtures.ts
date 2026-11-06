@@ -19,11 +19,10 @@ export const test = base.extend<VnpayFixtures>({
     const hashSecret = process.env.VNPAY_HASH_SECRET;
     const tmnCode = process.env.VNPAY_TMN_CODE;
 
-    // Validate required env vars
+    // Skip tests gracefully when sandbox credentials are not configured
     if (!hashSecret || !tmnCode) {
-      throw new Error(
-        'Missing required VNPAY credentials: VNPAY_HASH_SECRET and VNPAY_TMN_CODE must be set',
-      );
+      test.skip(true, 'VNPAY credentials not configured — set VNPAY_TMN_CODE and VNPAY_HASH_SECRET secrets');
+      return;
     }
 
     // Create helper instance

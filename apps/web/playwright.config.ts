@@ -13,7 +13,18 @@ export default defineConfig({
   timeout: 60000,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: { baseURL: process.env.E2E_EXTERNAL_BASE_URL ?? webUrl, trace: 'retain-on-failure' },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } } }],
+  projects: [
+    {
+      name: 'chromium',
+      testIgnore: ['vnpay/**'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } },
+    },
+    {
+      name: 'vnpay',
+      testMatch: ['vnpay/**'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 } },
+    },
+  ],
   webServer: process.env.E2E_EXTERNAL_BASE_URL ? undefined : [
     {
       command: 'npm --prefix ../api run start:dev',

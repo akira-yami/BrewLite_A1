@@ -27,7 +27,7 @@ test.describe('Vietnamese Error Messages', () => {
     await vnpayHelper.simulateIpn(request, {
       gatewayReference,
       amount: BigInt(amount),
-      responseCode: '07',
+      responseCode: '51',
       transactionStatus: '02',
     });
 

@@ -49,7 +49,7 @@ function newIdempotencyKey() {
 }
 
 function paymentFailureMessage(failureCode?: string | null, message?: string) {
-  if (failureCode === 'INSUFFICIENT_FUNDS') {
+  if (failureCode === 'INSUFFICIENT_FUNDS' || failureCode === 'VNPAY_51_02' || failureCode === 'VNPAY_65_02') {
     return 'Số dư hoặc hạn mức thanh toán không đủ. Giỏ hàng của bạn vẫn được giữ nguyên.';
   }
   if (failureCode === 'PAYMENT_DECLINED') {

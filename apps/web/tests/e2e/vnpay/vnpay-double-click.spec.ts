@@ -50,29 +50,26 @@ test.describe('VNPAY Double-Click Protection', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const idempotencyKey = paymentResponse.request().headers()['idempotency-key'];
 
-    await page.waitForTimeout(1000);
-    await page.reload();
-
-    const checkButton = page.getByRole('button', {
-      name: /Kiểm tra trạng thái/,
+    // After returning from VNPay, checkout automatically checks the existing
+    // payment. A visible button is transient and must not be clicked after
+    // the UI switches into its polling screen.
+    const observedStatusKeys: string[] = [];
+    let replayPosts = 0;
+    page.on('request', (request) => {
+      if (request.url().includes('/payments/status') && request.method() === 'GET') {
+        observedStatusKeys.push(request.headers()['idempotency-key']);
+      }
+      if (request.url().endsWith('/payments') && request.method() === 'POST') {
+        replayPosts += 1;
+      }
     });
 
-    if (await checkButton.isVisible({ timeout: 5000 })) {
-      let statusRequests = 0;
-      page.on('response', (response) => {
-        if (response.url().includes('/payments/status')) {
-          statusRequests++;
-        }
-      });
-
-      await checkButton.click();
-      await page.waitForTimeout(1000);
-
-      expect(statusRequests).toBeGreaterThan(0);
-    }
+    await page.reload();
+    await expect.poll(() => observedStatusKeys.length, { timeout: 15000 }).toBeGreaterThan(0);
+    expect(observedStatusKeys).toContain(idempotencyKey);
+    expect(replayPosts, 'Reload should not create another payment attempt').toBe(0);
   });
 
   test('concurrent payment attempts return 409', async ({

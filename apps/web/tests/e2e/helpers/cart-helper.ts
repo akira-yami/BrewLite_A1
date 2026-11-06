@@ -33,11 +33,9 @@ export async function setupCartWithProduct(
     .filter({ hasText: 'Tùy chọn' })
     .first();
 
-  // Check if product exists
-  const count = await productButton.count();
-  if (count === 0) {
-    throw new Error('No available products found on menu page');
-  }
+  // The menu fetches its catalog asynchronously. Wait for an enabled product
+  // instead of checking count immediately after reload (a CI race condition).
+  await productButton.waitFor({ state: 'visible', timeout: 15000 });
 
   // Click to open product detail modal
   await productButton.click();

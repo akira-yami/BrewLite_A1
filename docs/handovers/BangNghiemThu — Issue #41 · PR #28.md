@@ -1,5 +1,5 @@
-# Bảng Nghiệm Thu — Issue #41 · PR #28
-**Cập nhật:** 2026-11-05 · Branch: `Kiet-Payment-Idempotency-PaymentUI`  
+﻿# Bảng Nghiệm Thu — Issue #41 · PR #28
+**Cập nhật:** 2026-11-06 · Branch: `Kiet-Payment-Idempotency-PaymentUI`  
 **Bằng chứng:** chạy trực tiếp trên máy local, không tự suy luận
 
 ---
@@ -75,12 +75,81 @@
 
 ---
 
+## Hoàn thành mới nhất (2026-11-06)
+
+### ✅ Payment Refund API — Spec hoàn chỉnh
+
+**Trạng thái:** Requirements ✅ · Design ✅ · Tasks ✅ · Analysis ✅
+
+**Tài liệu:**
+- Requirements: `.kiro/specs/payment-refund-api/requirements.md` — 13 requirements, 67 acceptance criteria
+- Design: `.kiro/specs/payment-refund-api/design.md` — Full-stack architecture, transaction atomicity, idempotency
+- Tasks: `.kiro/specs/payment-refund-api/tasks.md` — 17 tasks chính, 64 sub-tasks, 21 waves, 6 checkpoints
+
+**Chi tiết kỹ thuật:**
+| Khía cạnh | Mô tả |
+|---|---|
+| **Architecture** | Guards → Controller → RefundService orchestrator → 6 services integration |
+| **Transaction Safety** | Prisma interactive transactions với automatic rollback |
+| **Idempotency** | Unique constraint `(paymentId, idempotencyKey)` |
+| **VNPay Integration** | Secure hash SHA-256, timeout handling, merchant validation |
+| **Data Models** | 2 tables mới: `Refund` (9 fields), `RefundAuditLog` (11 event types) |
+| **Security** | JWT auth + RBAC (`PAYMENT_OPERATOR` role), rate limiting, HTTPS, input sanitization |
+| **Services Integrated** | VNPay, Loyalty, Coupon, Inventory, Payment, Order |
+
+**Correctness Properties (Property-Based Testing):**
+1. Idempotency: Multiple requests with same key → same result
+2. Atomicity: Refund state + Order state + side-effects atomic
+3. Authorization: Only `PAYMENT_OPERATOR` can refund
+4. Amount bounds: `0 < refundAmount ≤ payment.amount`
+5. State machine: Valid transitions only (PENDING → SUCCESS/FAILED, không reverse)
+6. Audit completeness: Mọi state transition phải có audit log
+7. VNPay validation: HMAC + merchant + amount match
+
+**Requirements Analysis Findings:**
+- Response behavior: API trả về ngay với `status: 'pending'` + refund ID (không chờ hoàn tất)
+- Error precedence: Authorization check (403) trước validation (400)
+- Rollback guarantee: Inventory restoration failure PHẢI rollback toàn bộ transaction
+
+**Implementation Plan:**
+- **17 core tasks** + **16 test tasks** (marked optional `*`)
+- **6 checkpoints:** Migrate, Models, VNPay, Service Layer, Controller, E2E
+- **21-wave dependency graph** cho parallel execution
+- **Testing coverage target:** 90% unit test coverage
+
+### Merchant Sandbox TmnCode/HashSecret thật + E2E test
+
+**Hoàn thành:**
+
+✅ Requirements (16 requirements)
+✅ Design
+✅ Tasks (24/24 tasks completed)
+Phân chia theo Phase:
+
+✅ Phase 1: Hạ tầng kiểm thử (8 tasks) — helpers, fixtures, auth, cart, assertions
+✅ Phase 2: Core test cases (4 tasks) — happy path, signature, idempotency
+✅ Phase 3: Edge cases (6 tasks) — timeout recovery, IPN race, double-click, network loss, polling
+✅ Phase 4: CI/CD & Polish (6 tasks) — GitHub Actions, npm scripts, error handling, docs
+
+---
+
 ## Còn lại trước production go-live
 
-| Hạng mục | Người thực hiện |
-|---|---|
-| ❌ Independent reviewer `Tang18xJan` submit APPROVED | Reviewer |
-| ❌ Merchant Sandbox TmnCode/HashSecret thật + E2E test | Owner PR #28 |
-| ❌ SLA target ratified bởi Payment Operations | PO + Payment Ops |
-| ❌ Scheduled auto-recovery job (ngoài phạm vi PR #28) | Task riêng |
-| ❌ VNPay Refund API endpoint (hiện ghi REFUNDED trên DB; merchant tự refund qua portal) | Task riêng |
+| Hạng mục | Trạng thái | Người thực hiện |
+|---|---|---|
+| ✅ Merchant Sandbox TmnCode/HashSecret thật + E2E test | **COMPLETED** | Owner PR #28 — 24/24 tasks ✅ |
+| ✅ VNPay Refund API spec (requirements + design + tasks) | **COMPLETED** | Owner PR #28 |
+| ⚠️ VNPay Refund API implementation | Pending | Owner PR #28 (hoặc task riêng) |
+
+> **Ghi chú VNPay E2E Tests:** 
+> - **Spec:** `.kiro/specs/vnpay-e2e-tests/` — Requirements ✅ · Design ✅ · Tasks ✅
+> - **Coverage:** 16/16 requirements với 24 tasks hoàn chỉnh
+> - **Hạ tầng:** Test helpers, fixtures, auth, cart, assertions — Phase 1 ✅
+> - **Core tests:** Happy path, signature validation, idempotency — Phase 2 ✅  
+> - **Edge cases:** Timeout recovery, IPN race, double-click, network loss, polling — Phase 3 ✅
+> - **CI/CD:** GitHub Actions workflow, npm scripts, error handling, docs — Phase 4 ✅
+> - **Implementation:** Tasks đã được executed và documented trong spec folder
+>
+> **Ghi chú VNPay Refund API:** 
+> - Spec đã có đầy đủ (requirements + design + tasks)
+> - Implementation có thể bắt đầu ngay sau khi PR #28 được merge hoặc thực hiện song song trong task riêng

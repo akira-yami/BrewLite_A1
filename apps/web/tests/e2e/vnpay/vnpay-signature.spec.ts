@@ -22,7 +22,7 @@ test.describe('VNPAY Signature Validation', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const { gatewayReference, paymentUrl, amount } = paymentData.data;
 
     expect(paymentUrl).toContain('sandbox.vnpayment.vn');
@@ -87,7 +87,7 @@ test.describe('VNPAY Signature Validation', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const paymentUrl = paymentData.data.paymentUrl;
 
     const url = new URL(paymentUrl);

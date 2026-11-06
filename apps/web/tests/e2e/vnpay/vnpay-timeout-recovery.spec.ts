@@ -48,7 +48,7 @@ test.describe('VNPAY Timeout Recovery', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const { gatewayReference, orderId, amount } = paymentData.data;
 
     await page.waitForTimeout(3000);
@@ -97,7 +97,7 @@ test.describe('VNPAY Timeout Recovery', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const { gatewayReference, amount } = paymentData.data;
 
     await vnpayHelper.simulateIpn(request, {

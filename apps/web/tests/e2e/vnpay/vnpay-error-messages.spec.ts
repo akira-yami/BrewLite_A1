@@ -21,7 +21,7 @@ test.describe('Vietnamese Error Messages', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const { gatewayReference, amount } = paymentData.data;
 
     await vnpayHelper.simulateIpn(request, {

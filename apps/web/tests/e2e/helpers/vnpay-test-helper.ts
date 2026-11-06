@@ -113,11 +113,30 @@ export class VnpayTestHelper {
  * Derive the reference and amount from that URL for isolated E2E assertions;
  * this helper never alters the real API contract.
  */
+type CapturedPaymentBody = {
+  data: { paymentUrl?: string; status?: string; [key: string]: unknown };
+};
+
+// Capture the actual backend response BEFORE the browser navigates away from
+// the payment request. The cache is local to this Playwright worker.
+const capturedPayments = new Map<string, CapturedPaymentBody>();
+
+export function captureVnpayPaymentResponse(idempotencyKey: string | undefined, payload: unknown): void {
+  if (!idempotencyKey || !payload || typeof payload !== 'object') return;
+  const body = payload as { data?: unknown };
+  if (!body.data || typeof body.data !== 'object') return;
+  capturedPayments.set(idempotencyKey, payload as CapturedPaymentBody);
+}
+
 export function enrichVnpayPaymentResponse(
-  body: { data: { paymentUrl?: string; status?: string; [key: string]: unknown } },
+  body: CapturedPaymentBody | undefined,
   response: PlaywrightResponse,
 ) {
-  const paymentUrl = body?.data?.paymentUrl;
+  const actualBody = body ?? capturedPayments.get(response.request().headers()['idempotency-key']);
+  if (!actualBody) {
+    throw new Error('Payment response was not captured before browser navigation');
+  }
+  const paymentUrl = actualBody.data.paymentUrl;
   if (!paymentUrl) {
     throw new Error('Expected a signed VNPay payment URL in POST /payments response');
   }
@@ -139,7 +158,7 @@ export function enrichVnpayPaymentResponse(
   }
 
   return {
-    ...body,
-    data: { ...body.data, status: body.data.status, paymentUrl, gatewayReference, amount: Number(amount), orderId },
+    ...actualBody,
+    data: { ...actualBody.data, status: actualBody.data.status, paymentUrl, gatewayReference, amount: Number(amount), orderId },
   };
 }

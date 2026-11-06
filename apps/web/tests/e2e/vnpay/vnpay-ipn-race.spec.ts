@@ -22,7 +22,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const { gatewayReference, orderId, amount } = paymentData.data;
 
     const ipnResponse = await vnpayHelper.simulateIpn(request, {
@@ -66,7 +66,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const { gatewayReference, amount } = paymentData.data;
 
     const firstIpn = await vnpayHelper.simulateIpn(request, {
@@ -108,7 +108,7 @@ test.describe('VNPAY IPN Race Conditions', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const { gatewayReference, amount } = paymentData.data;
     const idempotencyKey = paymentResponse.request().headers()['idempotency-key'];
 

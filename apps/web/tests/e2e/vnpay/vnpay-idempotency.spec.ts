@@ -23,7 +23,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const firstPaymentResponse = await firstPaymentPromise;
-    const firstPaymentData = enrichVnpayPaymentResponse(await firstPaymentResponse.json(), firstPaymentResponse);
+    const firstPaymentData = enrichVnpayPaymentResponse(undefined, firstPaymentResponse);
     const { gatewayReference: ref1, orderId, amount } = firstPaymentData.data;
     const firstKey = firstPaymentResponse.request().headers()['idempotency-key'];
 
@@ -45,7 +45,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const retryPaymentResponse = await retryPaymentPromise;
-    const retryPaymentData = enrichVnpayPaymentResponse(await retryPaymentResponse.json(), retryPaymentResponse);
+    const retryPaymentData = enrichVnpayPaymentResponse(undefined, retryPaymentResponse);
     const { gatewayReference: ref2 } = retryPaymentData.data;
     const retryKey = retryPaymentResponse.request().headers()['idempotency-key'];
 
@@ -87,7 +87,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const firstPaymentResponse = await firstPaymentPromise;
-    const firstPaymentData = enrichVnpayPaymentResponse(await firstPaymentResponse.json(), firstPaymentResponse);
+    const firstPaymentData = enrichVnpayPaymentResponse(undefined, firstPaymentResponse);
     const { orderId } = firstPaymentData.data;
 
     const retryResponse = await request.post(apiUrl + '/payments', {
@@ -122,7 +122,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const firstPaymentResponse = await firstPaymentPromise;
-    const firstPaymentData = enrichVnpayPaymentResponse(await firstPaymentResponse.json(), firstPaymentResponse);
+    const firstPaymentData = enrichVnpayPaymentResponse(undefined, firstPaymentResponse);
     const { gatewayReference: ref1, orderId, amount } = firstPaymentData.data;
 
     await vnpayHelper.simulateIpn(request, {

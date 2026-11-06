@@ -1,5 +1,5 @@
 import { test as base } from '@playwright/test';
-import { VnpayTestHelper } from '../helpers/vnpay-test-helper.js';
+import { VnpayTestHelper, captureVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
 import { createTestUser, type TestUser } from '../helpers/auth-helper.js';
 
 interface VnpayFixtures {
@@ -14,6 +14,27 @@ export const test = base.extend<VnpayFixtures>({
   // to an external merchant in deterministic CI tests.
   page: async ({ page }, use) => {
     if (!process.env.E2E_EXTERNAL_BASE_URL) {
+      // Record the real payment response before checkout navigates to VNPay.
+      // Otherwise Chromium discards response.json() after leaving the page.
+      await page.route('**/api/v1/payments', async (route) => {
+        const request = route.request();
+        if (request.method() !== 'POST') {
+          await route.continue();
+          return;
+        }
+        const upstream = await route.fetch();
+        if (upstream.ok()) {
+          try {
+            captureVnpayPaymentResponse(
+              request.headers()['idempotency-key'],
+              await upstream.json(),
+            );
+          } catch {
+            // Non-JSON responses must still be forwarded intact to the app.
+          }
+        }
+        await route.fulfill({ response: upstream });
+      });
       const baseUrl = 'http://localhost:' + (process.env.E2E_WEB_PORT ?? '3100');
       await page.route(/^https:\/\/sandbox\.vnpayment\.vn\/paymentv2\/vpcpay\.html(?:\?.*)?$/, async (route) => {
         await route.fulfill({

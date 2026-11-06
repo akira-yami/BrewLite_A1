@@ -29,7 +29,7 @@ test('VNPAY happy path: checkout → payment → confirmation', async ({
   const paymentResponse = await paymentPromise;
   expect(paymentResponse.ok()).toBeTruthy();
 
-  const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+  const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
   const { gatewayReference, orderId, amount } = paymentData.data;
 
   // Step 5: Verify payment URL has valid signature

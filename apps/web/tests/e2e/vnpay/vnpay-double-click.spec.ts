@@ -50,7 +50,7 @@ test.describe('VNPAY Double-Click Protection', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const idempotencyKey = paymentResponse.request().headers()['idempotency-key'];
 
     await page.waitForTimeout(1000);
@@ -93,7 +93,7 @@ test.describe('VNPAY Double-Click Protection', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
 
     const paymentResponse = await paymentPromise;
-    const paymentData = enrichVnpayPaymentResponse(await paymentResponse.json(), paymentResponse);
+    const paymentData = enrichVnpayPaymentResponse(undefined, paymentResponse);
     const { orderId } = paymentData.data;
 
     const concurrentResponse = await request.post(apiUrl + '/payments', {

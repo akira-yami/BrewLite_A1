@@ -14,6 +14,7 @@ import {
   UsePipes,
   Param,
   ValidationPipe,
+  ForbiddenException,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { PaymentsService } from '../services/payments.service.js';
@@ -55,6 +56,19 @@ export class PaymentsController {
   @Get('vnpay/ipn')
   @HttpCode(HttpStatus.OK)
   async vnpayIpn(@Query() query: Record<string, unknown>) {
+    return this.paymentsService.handleVnpayIpn(query);
+  }
+
+  // Test-only endpoint to simulate IPN callback from VNPAY without needing a public-accessible URL
+  @Post('test/vnpay/simulate-ipn')
+  @HttpCode(HttpStatus.OK)
+  async testSimulateVnpayIpn(@Query() query: Record<string, unknown>) {
+    if (process.env.NODE_ENV !== 'test') {
+      throw new ForbiddenException(
+        'Endpoint này chỉ khả dụng trong môi trường test',
+      );
+    }
+    // Reuse production IPN handler
     return this.paymentsService.handleVnpayIpn(query);
   }
 

@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "brewlite-web",
   "version": "0.1.0",
   "private": true,
@@ -10,7 +10,10 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:vnpay": "playwright test tests/e2e/vnpay --reporter=html,list",
+    "test:e2e:vnpay:ui": "playwright test tests/e2e/vnpay --ui",
+    "test:e2e:vnpay:debug": "playwright test tests/e2e/vnpay --debug"
   },
   "engines": {
     "node": ">=24 <25"

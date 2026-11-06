@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PaymentsController } from './payments.controller.js';
 import { PaymentsService } from '../services/payments.service.js';
@@ -58,6 +58,52 @@ describe('PaymentsController (Unit Test - TDD)', () => {
         expect(paymentsServiceMock.getPaymentStatus).toHaveBeenCalledWith('key-status', 'u-1');
         expect(result).toEqual({ data: paymentStatus });
         expect(ordersServiceMock.getOrderForPayment).not.toHaveBeenCalled();
+    });
+
+    describe('testSimulateVnpayIpn', () => {
+        const originalNodeEnv = process.env.NODE_ENV;
+
+        afterEach(() => {
+            process.env.NODE_ENV = originalNodeEnv;
+        });
+
+        it('ném ForbiddenException khi NODE_ENV không phải test', async () => {
+            process.env.NODE_ENV = 'production';
+            const mockQuery = { vnp_TxnRef: 'test-ref' };
+
+            await expect(controller.testSimulateVnpayIpn(mockQuery)).rejects.toThrow(ForbiddenException);
+            await expect(controller.testSimulateVnpayIpn(mockQuery)).rejects.toThrow('Endpoint này chỉ khả dụng trong môi trường test');
+        });
+
+        it('gọi handleVnpayIpn khi NODE_ENV là test', async () => {
+            process.env.NODE_ENV = 'test';
+            const mockQuery = { vnp_TxnRef: 'test-ref', vnp_Amount: '10000000' };
+            const mockIpnResponse = { RspCode: '00', Message: 'Confirm Success' };
+            
+            paymentsServiceMock.handleVnpayIpn = vi.fn().mockResolvedValue(mockIpnResponse);
+
+            const result = await controller.testSimulateVnpayIpn(mockQuery);
+
+            expect(paymentsServiceMock.handleVnpayIpn).toHaveBeenCalledWith(mockQuery);
+            expect(result).toEqual(mockIpnResponse);
+        });
+
+        it('sử dụng chính logic production cho IPN validation', async () => {
+            process.env.NODE_ENV = 'test';
+            const mockQuery = { 
+                vnp_TxnRef: 'test-ref', 
+                vnp_Amount: '10000000',
+                vnp_SecureHash: 'invalid-signature'
+            };
+            const mockError = { RspCode: '97', Message: 'Invalid Signature' };
+            
+            paymentsServiceMock.handleVnpayIpn = vi.fn().mockResolvedValue(mockError);
+
+            const result = await controller.testSimulateVnpayIpn(mockQuery);
+
+            expect(paymentsServiceMock.handleVnpayIpn).toHaveBeenCalledWith(mockQuery);
+            expect(result).toEqual(mockError);
+        });
     });
 
 });

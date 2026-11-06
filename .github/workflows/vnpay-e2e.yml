@@ -11,7 +11,7 @@ on:
 
 jobs:
   vnpay-e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     env:
@@ -79,6 +79,10 @@ jobs:
 
       - name: Build backend
         run: npm run build --prefix apps/api
+
+      - name: Use HTTPS Ubuntu package mirror
+        # The Azure mirror can take minutes to download Playwright's font packages.
+        run: sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

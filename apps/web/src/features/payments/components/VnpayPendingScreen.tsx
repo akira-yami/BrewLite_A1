@@ -104,11 +104,11 @@ export function VnpayPendingScreen({
   }, [idempotencyKey, token, onSucceeded, onFailed, stopPolling]);
 
   useEffect(() => {
-    // Immediate first poll on mount so the user gets a fast response.
-    void poll();
+    // Defer first poll to avoid setState synchronously in effect body.
+    const timeoutId = setTimeout(() => void poll(), 0);
     intervalRef.current = setInterval(() => void poll(), POLL_INTERVAL_MS);
 
-    return () => stopPolling();
+    return () => { clearTimeout(timeoutId); stopPolling(); };
   }, [poll, stopPolling]);
 
   const handleExpired = useCallback(() => {

@@ -15,6 +15,13 @@ const eslintConfig = defineConfig([
     "playwright-report/**",
     "test-results/**",
   ]),
+  // Playwright E2E test files are not React components; disable react-hooks rules.
+  {
+    files: ["tests/e2e/**/*.ts"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

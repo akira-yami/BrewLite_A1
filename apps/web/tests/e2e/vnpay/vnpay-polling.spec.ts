@@ -123,7 +123,7 @@ test.describe('VNPAY Polling Behavior', () => {
     await page.getByRole('button', { name: /VNPAY/ }).click();
 
     let paymentKey: string | null = null;
-    let statusKeys: string[] = [];
+    const statusKeys: string[] = [];
 
     page.on('response', async (response) => {
       if (

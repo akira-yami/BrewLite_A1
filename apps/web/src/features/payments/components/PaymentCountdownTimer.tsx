@@ -20,7 +20,9 @@ interface PaymentCountdownTimerProps {
 export function PaymentCountdownTimer({ expiresAt, onExpired }: PaymentCountdownTimerProps) {
   const deadline = new Date(expiresAt).getTime();
   const onExpiredRef = useRef(onExpired);
-  onExpiredRef.current = onExpired;
+  useEffect(() => {
+    onExpiredRef.current = onExpired;
+  }, [onExpired]);
 
   function getRemainingSeconds(): number {
     return Math.max(0, Math.floor((deadline - Date.now()) / 1000));

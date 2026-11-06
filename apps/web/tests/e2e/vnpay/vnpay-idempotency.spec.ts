@@ -144,7 +144,7 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     });
 
     expect(secondPaymentResponse.ok()).toBeTruthy();
-    const secondPaymentData = enrichVnpayPaymentResponse(await secondPaymentResponse.json(), secondPaymentResponse);
+    const secondPaymentData = await secondPaymentResponse.json();
     expect(secondPaymentData.data.status).toBe('PROCESSING');
   });
 });

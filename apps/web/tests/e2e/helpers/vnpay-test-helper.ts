@@ -114,7 +114,7 @@ export class VnpayTestHelper {
  * this helper never alters the real API contract.
  */
 export function enrichVnpayPaymentResponse(
-  body: { data: { paymentUrl?: string; [key: string]: unknown } },
+  body: { data: { paymentUrl?: string; status?: string; [key: string]: unknown } },
   response: PlaywrightResponse,
 ) {
   const paymentUrl = body?.data?.paymentUrl;
@@ -133,13 +133,13 @@ export function enrichVnpayPaymentResponse(
   if (!gatewayReference || !rawAmount || !/^[0-9]+$/.test(rawAmount) || typeof orderId !== 'string') {
     throw new Error('Signed VNPay URL or payment request is missing required transaction data');
   }
-  const amount = BigInt(rawAmount) / 100n;
-  if (BigInt(rawAmount) % 100n !== 0n || amount > BigInt(Number.MAX_SAFE_INTEGER)) {
+  const amount = BigInt(rawAmount) / BigInt(100);
+  if (BigInt(rawAmount) % BigInt(100) !== BigInt(0) || amount > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error('VNPay amount is invalid or exceeds the safe integer range');
   }
 
   return {
     ...body,
-    data: { ...body.data, paymentUrl, gatewayReference, amount: Number(amount), orderId },
+    data: { ...body.data, status: body.data.status, paymentUrl, gatewayReference, amount: Number(amount), orderId },
   };
 }

@@ -5,8 +5,14 @@ import { AppModule } from './app.module.js';
 import { loadAppConfig } from './config/app-config.js';
 
 async function bootstrap() {
-  loadAppConfig();
+  const config = loadAppConfig();
   const app = await NestFactory.create(AppModule);
+
+  // Trust forwarded client IP headers only from explicitly allowlisted ingress hops.
+  // Never use trust proxy=true or a world-wide CIDR: clients could spoof X-Forwarded-For.
+  if (config.trustedProxyCidrs.length > 0) {
+    app.getHttpAdapter().getInstance().set('trust proxy', config.trustedProxyCidrs);
+  }
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(

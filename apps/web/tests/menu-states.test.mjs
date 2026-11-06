@@ -81,6 +81,10 @@ function loadMenuPage(snapshot) {
       CartDrawer: () => null,
     },
 
+    '@/features/checkout/session': {
+      writeCheckoutCoupon() {},
+    },
+
     '@/features/auth/AuthControls': {
       AuthControls: () => null,
     },

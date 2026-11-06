@@ -1,4 +1,4 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PromotionsService } from './promotions.service.js';
 import { PromotionsRepository } from '../repositories/promotions.repository.js';
@@ -25,11 +25,13 @@ describe('PromotionsService (Unit Test - TDD)', () => {
 
     beforeEach(() => {
         repositoryMock = {
-        findByCode: vi.fn(),
-        lockCoupon: vi.fn(),
-        countRedemptions: vi.fn(),
-        countTotalRedemptions: vi.fn(),
-        createRedemption: vi.fn(),
+            findByCode: vi.fn(),
+            lockCoupon: vi.fn(),
+            countRedemptions: vi.fn(),
+            countTotalRedemptions: vi.fn(),
+            createRedemption: vi.fn(),
+            consumeByOrderId: vi.fn(),
+            releaseByOrderId: vi.fn(),
         };
         service = new PromotionsService(repositoryMock as unknown as PromotionsRepository);
     });
@@ -91,6 +93,60 @@ describe('PromotionsService (Unit Test - TDD)', () => {
             expect(result).toEqual({ code: 'WELCOME10', discountAmount: 40000 });
         });
 
+        it('Nên từ chối subtotal vượt Number.MAX_SAFE_INTEGER trước khi truy vấn coupon', async () => {
+            const unsafeSubtotal = Number.MAX_SAFE_INTEGER + 1;
+
+            await expect(
+                service.validateCoupon('WELCOME10', unsafeSubtotal, 'u-1', fixedNow),
+            ).rejects.toThrow(BadRequestException);
+
+            expect(repositoryMock.findByCode).not.toHaveBeenCalled();
+        });
+
+        it('Preview và quote trong transaction phải trả cùng discount cho cùng coupon/subtotal', async () => {
+            repositoryMock.findByCode.mockResolvedValue(validCoupon);
+            repositoryMock.lockCoupon.mockResolvedValue(validCoupon);
+            repositoryMock.countRedemptions.mockResolvedValue(0);
+            repositoryMock.countTotalRedemptions.mockResolvedValue(0);
+            const txMock = {} as any;
+
+            const preview = await service.validateCoupon('WELCOME10', 300000, 'u-1', fixedNow);
+            const lockedQuote = await service.quoteAndLock(
+                txMock,
+                'u-1',
+                'WELCOME10',
+                300000n,
+                fixedNow,
+            );
+
+            // Cả hai đường đi phải dùng chung phép tính BigInt và maxDiscount.
+            expect(preview.discountAmount).toBe(20000);
+            expect(lockedQuote.discountAmount).toBe(20000n);
+        });
+
+        it('Chấp nhận coupon đúng thời điểm startsAt nhưng từ chối đúng thời điểm endsAt', async () => {
+            const startsNowCoupon = {
+                ...validCoupon,
+                startsAt: fixedNow,
+            };
+            repositoryMock.findByCode.mockResolvedValue(startsNowCoupon);
+            repositoryMock.countRedemptions.mockResolvedValue(0);
+            repositoryMock.countTotalRedemptions.mockResolvedValue(0);
+
+            await expect(
+                service.validateCoupon('WELCOME10', 100000, 'u-1', fixedNow),
+            ).resolves.toEqual({ code: 'WELCOME10', discountAmount: 10000 });
+
+            repositoryMock.findByCode.mockResolvedValue({
+                ...validCoupon,
+                endsAt: fixedNow,
+            });
+
+            await expect(
+                service.validateCoupon('WELCOME10', 100000, 'u-1', fixedNow),
+            ).rejects.toThrow(UnprocessableEntityException);
+        });
+
     });
 
     describe('quoteAndLock (UC-06 Transaction)', () => {
@@ -146,19 +202,56 @@ describe('PromotionsService (Unit Test - TDD)', () => {
         });
     });
 
-    describe('releaseByOrderId (Order Expiry / Cancellation)', () => {
-        it('Nên gọi repository.releaseByOrderId để chuyển trạng thái CouponRedemption sang EXPIRED hoặc RELEASED', async () => {
+/*
+*Bổ sung Mock và Test Cases cho consumeRedemption & releaseRedemption trong promotions.service.spec.ts
+→ Tại sao làm bước này trước?
+    Theo quy chuẩn GEMINI.md (TDD Mandatory) và ADR-001 (Module Boundary),
+    OrdersModule không được phép gọi trực tiếp
+        PromotionsRepository.consumeByOrderId
+        hay releaseByOrderId,
+    mà bắt buộc phải gọi qua public method của PromotionsService.
+    → Vì vậy, ta viết bài test mô tả đúng hợp đồng của 2 hàm này tại PromotionsService trước.
+*/
+    describe('consumeRedemption (UC-08 Transaction)', () => {
+        it('Nên gọi repository.consumeByOrderId với đúng tx và orderId', async () => {
             const txMock = {} as any;
-            const releasedAt = new Date('2026-10-22T08:30:00.000Z');
-            repositoryMock.releaseByOrderId = vi.fn().mockResolvedValue(1);
+            repositoryMock.consumeByOrderId.mockResolvedValue(1);
 
-            const count = await service.releaseByOrderId('o-1', 'EXPIRED', releasedAt, txMock);
+            await service.consumeRedemption(txMock, 'order-123');
 
-            expect(count).toBe(1);
+            expect(repositoryMock.consumeByOrderId).toHaveBeenCalledWith(
+                'order-123',
+                expect.any(Date),
+                txMock,
+            );
+        });
+    });
+
+    describe('releaseRedemption (UC-06 / Khách hủy đơn / CronJob)', () => {
+        it('Nên gọi repository.releaseByOrderId với status EXPIRED nếu isExpired = true', async () => {
+            const txMock = {} as any;
+            repositoryMock.releaseByOrderId.mockResolvedValue(1);
+
+            await service.releaseRedemption(txMock, 'order-123', true);
+
             expect(repositoryMock.releaseByOrderId).toHaveBeenCalledWith(
-                'o-1',
+                'order-123',
                 'EXPIRED',
-                releasedAt,
+                expect.any(Date),
+                txMock,
+            );
+        });
+
+        it('Nên gọi repository.releaseByOrderId với status RELEASED nếu isExpired = false', async () => {
+            const txMock = {} as any;
+            repositoryMock.releaseByOrderId.mockResolvedValue(1);
+
+            await service.releaseRedemption(txMock, 'order-123', false);
+
+            expect(repositoryMock.releaseByOrderId).toHaveBeenCalledWith(
+                'order-123',
+                'RELEASED',
+                expect.any(Date),
                 txMock,
             );
         });

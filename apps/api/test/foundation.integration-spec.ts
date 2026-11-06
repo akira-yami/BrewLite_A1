@@ -44,13 +44,13 @@ describe('Foundation on migrated PostgreSQL', () => {
   });
   afterAll(async () => { await prisma.$disconnect(); });
 
-  it('supports only customer and barista accounts; the gateway is not an account role', async () => {
+  it('supports customer, barista and payment operator accounts; the gateway is not an account role', async () => {
     const roles = await prisma.$queryRaw<Array<{ role: string }>>`
       SELECT e.enumlabel AS role FROM pg_enum e
       JOIN pg_type t ON t.oid = e.enumtypid
       WHERE t.typname = 'UserRole' ORDER BY e.enumsortorder
     `;
-    expect(roles.map(row => row.role)).toEqual(['CUSTOMER', 'BARISTA']);
+    expect(roles.map(row => row.role)).toEqual(['CUSTOMER', 'BARISTA', 'PAYMENT_OPERATOR']);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).role).toBe('CUSTOMER');
     const barista = await prisma.user.create({ data: {
       username: `barista-${randomUUID()}`, passwordHash: 'test-hash', role: 'BARISTA',
@@ -58,13 +58,16 @@ describe('Foundation on migrated PostgreSQL', () => {
     expect(barista.role).toBe('BARISTA');
   });
 
-  it('has all 18 domain tables and the default ingredient version', async () => {
+  it('has all 27 domain tables and the default ingredient version', async () => {
     const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
     expect(tables.map(t => t.tablename).sort()).toEqual([
       'users', 'products', 'product_variants', 'toppings', 'product_toppings', 'orders',
       'order_items', 'order_item_toppings', 'payments', 'order_status_histories',
       'inventory_reservations', 'coupons', 'coupon_redemptions', 'loyalty_transactions',
       'ingredients', 'recipe_items', 'inventory_reservation_items', 'topping_recipe_items',
+      'payment_recovery_requests', 'payment_recovery_audits', 'payment_recovery_resolutions',
+      'sla_documents', 'sla_approval_workflows', 'sla_approvals', 'sla_review_feedback',
+      'sla_metrics_validations', 'sla_test_evidence',
     ].sort());
     expect((await prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } })).version).toBe(0);
   });

@@ -54,6 +54,15 @@ jobs:
           npm run build
           cd ../web
           npm run build
+          # Next.js standalone omits these directories by design; copy them beside
+          # server.js so browser requests for chunks, fonts and public images do not 404.
+          mkdir -p .next/standalone/.next/static
+          cp -a .next/static/. .next/standalone/.next/static/
+          if [ -d public ]; then
+            mkdir -p .next/standalone/public
+            cp -a public/. .next/standalone/public/
+          fi
+          test -d .next/standalone/.next/static
           npx playwright install --with-deps chromium
       # No continue-on-error: payment contract/retry regressions must fail this job.
       - run: npm run test:e2e --prefix apps/web

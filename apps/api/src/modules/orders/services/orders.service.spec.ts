@@ -39,6 +39,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
   const repository = {
     findActiveVariantById: vi.fn(),
     findByIdAndUserId: vi.fn(),
+    findByIdAndUserIdForUpdate: vi.fn(),
     updateStatusWithHistory: vi.fn(),
     markAsPaid: vi.fn(),
     findOrdersByUserId: vi.fn(),
@@ -60,10 +61,18 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       productVariant: {},
       ingredient: {
         updateMany: vi.fn(),
+        update: vi.fn(),
       },
 
       inventoryReservation: {
         create: vi.fn(),
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        updateMany: vi.fn(),
+      },
+
+      payment: {
+        findFirst: vi.fn(),
       },
 
       orderStatusHistory: {
@@ -82,6 +91,9 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     promotionsServiceMock = {
       quoteAndLock: vi.fn(),
       reserve: vi.fn(),
+      // Mô phỏng cổng quyết toán coupon khi thanh toán thành công và khi hủy đơn.
+      consumeRedemption: vi.fn(),
+      releaseRedemption: vi.fn(),
     };
 
     // CatalogService vẫn được sử dụng để kiểm tra và tính giá sản phẩm.
@@ -392,7 +404,20 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       total: 100000n,
     };
 
-    const txMock = {} as any;
+    // Transaction mock phục vụ cả các test transition và thao tác cancel có đọc Payment/Inventory.
+    const paymentTxMock = {
+      payment: {
+        findFirst: vi.fn(),
+      },
+      inventoryReservation: {
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        updateMany: vi.fn(),
+      },
+      ingredient: {
+        update: vi.fn(),
+      },
+    } as any;
 
     it('getOrderForPayment - ném NotFoundException nếu không tìm thấy đơn hoặc sai userId', async () => {
       repository.findByIdAndUserId.mockResolvedValue(null);
@@ -407,6 +432,23 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
       const result = await service.getOrderForPayment('o-1', 'u-1');
 
+      expect(result).toEqual(mockOrder);
+    });
+
+    it('getOrderForPaymentForUpdate - khóa Order trong transaction và trả về đúng chủ đơn', async () => {
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue(mockOrder);
+
+      const result = await service.getOrderForPaymentForUpdate(
+        'o-1',
+        'u-1',
+        paymentTxMock,
+      );
+
+      expect(repository.findByIdAndUserIdForUpdate).toHaveBeenCalledWith(
+        'o-1',
+        'u-1',
+        paymentTxMock,
+      );
       expect(result).toEqual(mockOrder);
     });
 
@@ -427,16 +469,135 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       );
     });
 
+    it('transitionForPaymentRetry - truyền transaction khi được cung cấp', async () => {
+      await service.transitionForPaymentRetry(
+        'o-1',
+        'u-1',
+        'Retry trong transaction',
+        paymentTxMock,
+      );
+
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PAYMENT_FAILED,
+        OrderStatus.PENDING,
+        'u-1',
+        'Retry trong transaction',
+        paymentTxMock,
+      );
+    });
+
     it('markOrderPaid - gọi markAsPaid chuyển từ PENDING sang PAID', async () => {
-      await service.markOrderPaid('o-1', 'u-1', 100000n, txMock);
+      await service.markOrderPaid('o-1', 'u-1', 100000n, paymentTxMock);
 
       expect(repository.markAsPaid).toHaveBeenCalledWith(
         'o-1',
         OrderStatus.PENDING,
         'u-1',
         100000n,
-        txMock,
+        paymentTxMock,
       );
+      expect(promotionsServiceMock.consumeRedemption).toHaveBeenCalledWith(
+        paymentTxMock,
+        'o-1',
+      );
+      // Mỗi luồng thanh toán thành công chỉ consume coupon đúng một lần trong cùng transaction.
+      expect(promotionsServiceMock.consumeRedemption).toHaveBeenCalledTimes(1);
+    });
+
+    it('cancelOrder - khóa Order, đổi CANCELLED, release coupon và hoàn kho trong cùng transaction', async () => {
+      // Giả lập Order còn hạn, không có Payment PROCESSING và có một reservation ACTIVE.
+      const reservationExpiry = new Date(Date.now() + 60_000);
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue({
+        id: 'o-1',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: reservationExpiry,
+      });
+      paymentTxMock.payment.findFirst.mockResolvedValue(null);
+      paymentTxMock.inventoryReservation.findMany.mockResolvedValue([
+        { id: 'r-1', expiresAt: reservationExpiry },
+      ]);
+      paymentTxMock.inventoryReservation.findUnique.mockResolvedValue({
+        id: 'r-1',
+        status: 'ACTIVE',
+        expiresAt: reservationExpiry,
+        items: [
+          {
+            ingredientId: 'ingredient-1',
+            quantity: 20,
+          },
+        ],
+      });
+
+      paymentTxMock.inventoryReservation.updateMany.mockResolvedValue({
+        count: 1,
+      });
+
+      paymentTxMock.ingredient.update.mockResolvedValue({});
+
+      await service.cancelOrder('o-1', 'u-1', 'Khách hàng hủy đơn', false, paymentTxMock);
+
+      // Xác nhận cùng transaction khóa Order, cập nhật history, release coupon và inventory.
+      expect(repository.findByIdAndUserIdForUpdate).toHaveBeenCalledWith(
+        'o-1',
+        'u-1',
+        paymentTxMock,
+      );
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PENDING,
+        OrderStatus.CANCELLED,
+        'u-1',
+        'Khách hàng hủy đơn',
+        paymentTxMock,
+      );
+      expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
+        paymentTxMock,
+        'o-1',
+        false,
+      );
+
+      expect(paymentTxMock.inventoryReservation.updateMany,).toHaveBeenCalledWith({
+        where: {
+          id: 'r-1',
+          status: 'ACTIVE',
+          expiresAt: {gt: expect.any(Date),},
+        },
+        data: {status: 'RELEASED',},
+      });
+
+      expect(paymentTxMock.ingredient.update).toHaveBeenCalledWith({
+        where: {id: 'ingredient-1',},
+        data: {
+          stockQuantity: {increment: 20,},
+          version: {increment: 1,},
+        },
+      });
+
+
+    });
+
+    it('cancelOrder - không hủy Order khi Payment vẫn PROCESSING', async () => {
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue({
+        id: 'o-1',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: new Date(Date.now() + 60_000),
+      });
+      paymentTxMock.payment.findFirst.mockResolvedValue({ id: 'payment-1' });
+
+      await expect(
+        service.cancelOrder('o-1', 'u-1', 'Khách hàng hủy đơn', false, paymentTxMock),
+      ).rejects.toThrow(ConflictException);
+
+      expect(repository.updateStatusWithHistory).not.toHaveBeenCalled();
+      expect(promotionsServiceMock.releaseRedemption).not.toHaveBeenCalled();
+
+      expect(paymentTxMock.ingredient.update).not.toHaveBeenCalled();
+
+      expect(paymentTxMock.inventoryReservation.updateMany,).not.toHaveBeenCalled();
+
     });
 
     it('markOrderPaymentFailed - gọi updateStatusWithHistory chuyển từ PENDING sang PAYMENT_FAILED', async () => {
@@ -444,7 +605,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         'o-1',
         'u-1',
         'Lỗi thanh toán Gateway',
-        txMock,
+        paymentTxMock,
       );
 
       expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
@@ -453,7 +614,77 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         OrderStatus.PAYMENT_FAILED,
         'u-1',
         'Lỗi thanh toán Gateway',
+        paymentTxMock,
+      );
+    });
+
+
+    it('cancelOrder (Hết hạn 15 phút) - release coupon EXPIRED trong transaction', async () => {
+      // Chuẩn bị đơn còn ở trạng thái PENDING nhưng đã quá deadline 15 phút.
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue({
+        id: 'o-1',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: new Date(Date.now() - 15 * 60 * 1000),
+      });
+      paymentTxMock.payment.findFirst.mockResolvedValue(null);
+      paymentTxMock.inventoryReservation.findMany.mockResolvedValue([]);
+
+      await service.cancelOrder(
+        'o-1',
+        'u-1',
+        'Quá hạn thanh toán 15 phút',
+        true,
+        paymentTxMock,
+      );
+
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PENDING,
+        OrderStatus.CANCELLED,
+        'u-1',
+        'Quá hạn thanh toán 15 phút',
+        paymentTxMock,
+      );
+      expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
+        paymentTxMock,
+        'o-1',
+        true,
+      );
+    });
+
+    it('cancelOrder (Khách hủy đơn) - tự tạo transaction và release coupon RELEASED', async () => {
+      // Khách chủ động hủy đơn còn hạn; mọi thao tác trong callback dùng transaction mock do Prisma truyền vào.
+      repository.findByIdAndUserIdForUpdate.mockResolvedValue({
+        id: 'o-1',
+        userId: 'u-1',
+        status: OrderStatus.PENDING,
+        reservationExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      });
+      txMock.payment.findFirst.mockResolvedValue(null);
+      txMock.inventoryReservation.findMany.mockResolvedValue([]);
+
+      await service.cancelOrder(
+        'o-1',
+        'u-1',
+        'Khách hàng đổi ý hủy đơn',
+        false,
+      );
+
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(
+        'o-1',
+        OrderStatus.PENDING,
+        OrderStatus.CANCELLED,
+        'u-1',
+        'Khách hàng đổi ý hủy đơn',
         txMock,
+      );
+      // PromotionsService phải nhận transaction client, không nhận PrismaService gốc.
+      expect(promotionsServiceMock.releaseRedemption).toHaveBeenCalledWith(
+        txMock,
+        'o-1',
+        false,
       );
     });
   });
@@ -564,11 +795,13 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     });
 
     it('tạo đơn hàng thành công có coupon: gọi quoteAndLock và reserve', async () => {
+      // Chuẩn bị DTO đầu vào có đính kèm mã giảm giá SALE10
       const dtoWithCoupon = {
         ...mockDto,
         couponCode: 'SALE10',
       };
 
+      // Snapshot đơn hàng trả về từ DB sau khi đã trừ giảm giá (86.000 - 10.000 = 76.000 VND)
       const mockOrderWithCoupon = {
         ...mockOrderDb,
         discountAmount: 10000n,
@@ -585,6 +818,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
       const result = await service.createOrder('u-1', dtoWithCoupon as any);
 
+      // 1. Kiểm chứng gọi quoteAndLock với đúng transaction txMock, userId, mã coupon và subtotal
       expect(promotionsServiceMock.quoteAndLock).toHaveBeenCalledWith(
         txMock,
         'u-1',
@@ -593,6 +827,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         expect.any(Date),
       );
 
+      // 2. Kiểm chứng gọi reserve sau khi đã có orderId ('order-uuid-1') để không vi phạm FK order_id (SD-12)
       expect(promotionsServiceMock.reserve).toHaveBeenCalledWith(
         txMock,
         expect.objectContaining({ couponId: 'c-1' }),
@@ -600,6 +835,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         expect.any(Date),
       );
 
+      // 3. Kiểm chứng DTO trả về phản ánh đúng số tiền giảm và tổng thanh toán cuối cùng
       expect(result.discountAmount).toBe(10000);
       expect(result.total).toBe(76000);
     });

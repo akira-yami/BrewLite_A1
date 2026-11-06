@@ -27,6 +27,7 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator.js';
 import { UserRole } from '../../../generated/prisma/client.js';
 
 type Principal = { id: string; role: UserRole };
+
 @Controller('orders')
 @UseFilters(OrdersExceptionFilter)
 @UseInterceptors(OrdersResponseInterceptor)
@@ -40,15 +41,6 @@ export class OrdersController {
   async create(@CurrentUser() user: Principal, @Body() dto: CreateOrderDto) {
     const data = await this.orders.createOrder(user.id, dto);
     return { data };
-  }
-
-  @Post(':id/cancel')
-  @HttpCode(HttpStatus.OK)
-  async cancel(
-    @Param('id', ParseUUIDPipe) orderId: string,
-    @CurrentUser() user: Principal,
-  ) {
-    return { data: await this.orders.cancelOrder(orderId, user.id) };
   }
 
   @Get('/me')
@@ -66,6 +58,23 @@ export class OrdersController {
     @Param('id', ParseUUIDPipe) orderId: string,
     @CurrentUser() user: Principal,
   ) {
+    const data = await this.orders.getOrderDetail(orderId, user.id);
+    return { data };
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  async cancelOrder(
+    @Param('id', ParseUUIDPipe) orderId: string,
+    @CurrentUser() user: Principal,
+  ) {
+    // Lý do cố định từ controller — client không được tự đặt nội dung lịch sử.
+    await this.orders.cancelOrder(
+      orderId,
+      user.id,
+      'Khách hàng yêu cầu hủy đơn hàng',
+      false,
+    );
     const data = await this.orders.getOrderDetail(orderId, user.id);
     return { data };
   }

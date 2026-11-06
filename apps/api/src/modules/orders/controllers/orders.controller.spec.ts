@@ -9,6 +9,8 @@ describe('OrdersController (Unit Test)', () => {
   beforeEach(() => {
     serviceMock = {
       createOrder: vi.fn(),
+      cancelOrder: vi.fn(),
+      getOrderDetail: vi.fn(),
     };
     controller = new OrdersController(serviceMock as unknown as OrdersService);
   });
@@ -46,4 +48,22 @@ describe('OrdersController (Unit Test)', () => {
     expect(serviceMock.getOrderDetail).toHaveBeenCalledWith('o-1', 'u-1');
     expect(result).toEqual({ data: mockDetail });
   });
+  it('cancelOrder - hủy đơn bằng principal đã xác thực và trả về chi tiết trạng thái mới', async () => {
+    const mockUser = { id: 'u-1', role: 'CUSTOMER' as any };
+    const mockDetail = { id: 'o-1', status: 'CANCELLED' };
+    serviceMock.cancelOrder.mockResolvedValue(undefined);
+    serviceMock.getOrderDetail.mockResolvedValue(mockDetail);
+
+    const result = await controller.cancelOrder('o-1', mockUser);
+
+    expect(serviceMock.cancelOrder).toHaveBeenCalledWith(
+      'o-1',
+      'u-1',
+      'Khách hàng yêu cầu hủy đơn hàng',
+      false,
+    );
+    expect(serviceMock.getOrderDetail).toHaveBeenCalledWith('o-1', 'u-1');
+    expect(result).toEqual({ data: mockDetail });
+  });
+
 });

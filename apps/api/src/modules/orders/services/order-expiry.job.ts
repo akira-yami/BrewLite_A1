@@ -9,8 +9,11 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { OrdersRepository } from '../repositories/orders.repository.js';
 import { InventoryService } from '../../inventory/services/inventory.service.js';
+import {
+  OrderStatus,
+  PaymentStatus,
+} from '../../../generated/prisma/client.js';
 import { PromotionsService } from '../../promotions/services/promotions.service.js';
-import { OrderStatus } from '../../../generated/prisma/client.js';
 
 @Injectable()
 export class OrderExpiryJob {
@@ -38,51 +41,66 @@ export class OrderExpiryJob {
     try {
       const now = new Date();
 
-      // Both unpaid states must release their reservations after the TTL.
+      // Quét cả đơn PAYMENT_FAILED đã hết hạn; không đụng đơn còn Payment PROCESSING.
       const expiredOrders = await this.prisma.order.findMany({
         where: {
-          status: { in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED] },
+          status: {
+            in: [OrderStatus.PENDING, OrderStatus.PAYMENT_FAILED],
+          },
           reservationExpiresAt: {
             lte: now,
+          },
+          payments: {
+            none: {
+              status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] },
+            },
           },
         },
         select: {
           id: true,
           userId: true,
+          status: true,
         },
       });
 
       for (const order of expiredOrders) {
         try {
-          const cancelled = await this.prisma.$transaction(async (tx) => {
-            // Payment admission uses the same row lock. Recheck after waiting:
-            // a payment admitted before TTL owns the reservation until it settles.
-            const current = await this.ordersRepo.lockById(order.id, tx);
-            if (!current ||
-                (current.status !== OrderStatus.PENDING && current.status !== OrderStatus.PAYMENT_FAILED) ||
-                current.reservationExpiresAt > now) return false;
-            const processing = await tx.payment.findFirst({
-              where: { orderId: order.id, status: 'PROCESSING' },
+          const wasExpired = await this.prisma.$transaction(async (tx) => {
+            // Khóa lại Order và đọc trạng thái mới nhất sau khi chờ các tiến trình thanh toán khác.
+            const lockedOrder = await this.ordersRepo.findByIdForUpdate(order.id, tx);
+            if (
+              !lockedOrder ||
+              (lockedOrder.status !== OrderStatus.PENDING &&
+                lockedOrder.status !== OrderStatus.PAYMENT_FAILED) ||
+              lockedOrder.reservationExpiresAt > now
+            ) {
+              return false;
+            }
+
+            // Chỉ hết hạn khi không còn Payment PROCESSING; khóa Order ngăn Payment mới chen vào.
+            const processingPayment = await tx.payment.findFirst({
+              where: {
+                orderId: order.id,
+                status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] },
+              },
               select: { id: true },
             });
-            if (processing) return false;
+            if (processingPayment) {
+              return false;
+            }
+
             // Chuyển trạng thái đơn và ghi lịch sử trong transaction.
-            // Nếu đơn đã bị tiến trình khác xử lý, thao tác sẽ thất bại.
             await this.ordersRepo.updateStatusWithHistory(
               order.id,
-              current.status,
+              lockedOrder.status,
               OrderStatus.CANCELLED,
-              order.userId,
+              lockedOrder.userId,
               `Hủy tự động do đơn hàng hết thời hạn thanh toán: ${order.id}`,
               tx,
             );
 
-            // Order TTL is authoritative. Repair a later reservation deadline
-            // inside the same transaction so legacy drift cannot block cleanup.
-            await tx.inventoryReservation.updateMany({
-              where: { orderId: order.id, status: 'ACTIVE', expiresAt: { gt: current.reservationExpiresAt } },
-              data: { expiresAt: current.reservationExpiresAt },
-            });
+            // Coupon của đơn quá hạn phải được giải phóng thành EXPIRED trong cùng transaction.
+            await this.promotionsService.releaseRedemption(tx, order.id, true);
 
             // Lấy các reservation còn ACTIVE của đơn hàng.
             const reservations =
@@ -93,31 +111,35 @@ export class OrderExpiryJob {
                 },
                 select: {
                   id: true,
+                  expiresAt: true,
                 },
               });
 
-            // Chuyển reservation sang EXPIRED và hoàn kho.
-            // Thao tác dùng chung transaction với việc hủy đơn.
+            // Order TTL là mốc hết hạn có thẩm quyền. Nếu expiresAt của
+            // reservation bị lệch muộn hơn Order, đồng bộ về deadline Order
+            // trước khi release để InventoryService không từ chối hoàn kho.
             for (const reservation of reservations) {
+              if (reservation.expiresAt > lockedOrder.reservationExpiresAt) {
+                await tx.inventoryReservation.update({
+                  where: { id: reservation.id },
+                  data: { expiresAt: lockedOrder.reservationExpiresAt },
+                });
+              }
+
               await this.inventoryService.releaseInTransaction(
                 tx,
                 reservation.id,
                 true,
               );
             }
-
-            await this.promotionsService.releaseByOrderId(
-              order.id,
-              'EXPIRED',
-              now,
-              tx,
-            );
             return true;
           });
 
-          if (cancelled) this.logger.log(
-            `Đã hủy đơn ${order.id}, hết hạn reservation và hoàn kho/coupon thành công.`,
-          );
+          if (wasExpired) {
+            this.logger.log(
+              `Đã hủy đơn ${order.id}, hết hạn coupon/reservation và hoàn kho thành công.`,
+            );
+          }
         } catch (error) {
           if (error instanceof ConflictException) {
             this.logger.warn(

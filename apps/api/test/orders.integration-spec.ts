@@ -1,11 +1,19 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import {
+  ConflictException,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
-import { randomUUID } from 'node:crypto';
 import request from 'supertest';
+
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/database/prisma.service.js';
 import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
+import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.js';
+import { PaymentRecoveryService } from '../src/modules/payments/services/payment-recovery.service.js';
+
 
 const connectionString = process.env.SMOKE_DATABASE_URL;
 if (
@@ -23,14 +31,18 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let userId: string;
+  let otherUserId: string;
   let token: string;
   let otherToken: string;
   let baristaToken: string;
+  let paymentOperatorToken: string;
+  let paymentOperatorId: string;
   const previousUrl = process.env.DATABASE_URL;
   const auth = (req: request.Test, bearer = token) =>
     req.set('Authorization', `Bearer ${bearer}`);
-  const post = (items: unknown[], couponCode?: string) =>
-    auth(request(app.getHttpServer()).post('/api/v1/orders')).send({
+  // Cho phép chỉ định người dùng khi kiểm thử giới hạn coupon giữa nhiều khách hàng.
+  const post = (items: unknown[], couponCode?: string, bearer = token) =>
+    auth(request(app.getHttpServer()).post('/api/v1/orders'), bearer).send({
       items,
       ...(couponCode ? { couponCode } : {}),
     });
@@ -53,7 +65,7 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     prisma = app.get(PrismaService);
     const jwt = app.get(JwtService);
     const users = await Promise.all(
-      (['CUSTOMER', 'CUSTOMER', 'BARISTA'] as const).map((role) =>
+      (['CUSTOMER', 'CUSTOMER', 'BARISTA', 'PAYMENT_OPERATOR'] as const).map((role) =>
         prisma.user.create({
           data: {
             username: `orders-${randomUUID()}`,
@@ -64,7 +76,9 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       ),
     );
     userId = users[0].id;
-    [token, otherToken, baristaToken] = users.map((user) =>
+    otherUserId = users[1].id;
+    paymentOperatorId = users[3].id;
+    [token, otherToken, baristaToken, paymentOperatorToken] = users.map((user) =>
       jwt.sign({ sub: user.id, role: user.role, username: user.username }),
     );
   });
@@ -110,8 +124,15 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     };
   }
   const ingredientOf = (ingredientId: string) =>
-    prisma.ingredient.findUniqueOrThrow({ where: { id: ingredientId } });
-  async function coupon() {
+    prisma.ingredient.findUniqueOrThrow({
+      where: { id: ingredientId },
+    });
+
+  // Cho phép cấu hình riêng hai loại quota để test không vô tình phụ thuộc lẫn nhau.
+  async function coupon(options: {
+    usageLimit?: number | null;
+    perUserLimit?: number;
+  } = {}) {
     return prisma.coupon.create({
       data: {
         code: `TEST-${randomUUID()}`,
@@ -119,10 +140,12 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
         discountValue: 5000n,
         startsAt: new Date(Date.now() - 60000),
         endsAt: new Date(Date.now() + 3600000),
-        usageLimit: 1,
+        usageLimit: options.usageLimit === undefined ? 1 : options.usageLimit,
+        perUserLimit: options.perUserLimit ?? 1,
       },
     });
   }
+
 
   it('merges normalized lines, preserves 0/null preferences, snapshots and ownership', async () => {
     const variant = await product();
@@ -231,6 +254,60 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     )
       .send({ items: [] })
       .expect(403);
+  });
+
+
+  it('restricts Payment recovery to the PAYMENT_OPERATOR role', async () => {
+    const recovery = app.get(PaymentRecoveryService);
+    const recoverSpy = vi.spyOn(recovery, 'recover').mockResolvedValue({
+      recoveryRequestId: randomUUID(),
+      providerRequestId: 'operator-request-123',
+      status: 'UNKNOWN',
+      providerOutcome: 'UNKNOWN',
+      paymentStatus: 'PROCESSING',
+      errorCode: null,
+      isRetried: false,
+    } as never);
+    const paymentId = randomUUID();
+    const endpoint = () => request(app.getHttpServer())
+      .post(`/api/v1/payments/${paymentId}/recovery`)
+      .set('Idempotency-Key', 'http-recovery-key-1')
+      .send({ incidentReference: 'INC-HTTP-RECOVERY' });
+
+    await endpoint().expect(401);
+    await auth(endpoint()).expect(403);
+    await auth(endpoint(), baristaToken).expect(403);
+    const response = await auth(endpoint(), paymentOperatorToken).expect(200);
+
+    expect(response.body.data).toMatchObject({ status: 'UNKNOWN', paymentStatus: 'PROCESSING' });
+    expect(recoverSpy).toHaveBeenCalledTimes(1);
+    expect(recoverSpy).toHaveBeenCalledWith(expect.objectContaining({
+      paymentId,
+      idempotencyKey: 'http-recovery-key-1',
+      incidentReference: 'INC-HTTP-RECOVERY',
+      actorUserId: paymentOperatorId,
+    }));
+    const resolveSpy = vi.spyOn(recovery, 'resolveManualReview').mockResolvedValue({
+      resolutionId: randomUUID(), paymentId, decision: 'REFUND_CONFIRMED',
+      paymentStatus: 'REFUNDED', evidenceReference: 'VN-REFUND-HTTP-1', isRetried: false,
+    } as never);
+    const resolveEndpoint = () => request(app.getHttpServer())
+      .post(`/api/v1/payments/${paymentId}/recovery/resolve`)
+      .set('Idempotency-Key', 'http-resolution-key-1')
+      .send({
+        decision: 'REFUND_CONFIRMED',
+        evidenceReference: 'VN-REFUND-HTTP-1',
+        incidentReference: 'INC-HTTP-RESOLUTION',
+      });
+    await resolveEndpoint().expect(401);
+    await auth(resolveEndpoint()).expect(403);
+    await auth(resolveEndpoint(), baristaToken).expect(403);
+    const resolveResponse = await auth(resolveEndpoint(), paymentOperatorToken).expect(200);
+    expect(resolveResponse.body.data).toMatchObject({ decision: 'REFUND_CONFIRMED', paymentStatus: 'REFUNDED' });
+    expect(resolveSpy).toHaveBeenCalledWith(expect.objectContaining({
+      paymentId, idempotencyKey: 'http-resolution-key-1', decision: 'REFUND_CONFIRMED',
+      evidenceReference: 'VN-REFUND-HTTP-1', incidentReference: 'INC-HTTP-RESOLUTION', actorUserId: paymentOperatorId,
+    }));
   });
 
   it('rejects invalid preferences, forged prices, duplicate normalized toppings and quantities above 20', async () => {
@@ -514,6 +591,96 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
     );
   });
 
+  it('enforces per-user coupon limit independently under concurrent orders', async () => {
+    // Tắt quota toàn cục để chỉ perUserLimit có thể từ chối request thứ hai.
+    const firstVariant = await product();
+    const secondVariant = await product();
+    const promotion = await coupon({ usageLimit: null, perUserLimit: 1 });
+
+    const results = await Promise.all([
+      post([{ productVariantId: firstVariant.id, quantity: 1 }], promotion.code),
+      post([{ productVariantId: secondVariant.id, quantity: 1 }], promotion.code),
+    ]);
+
+    expect(
+      results.map((result) => result.status).sort((a, b) => a - b),
+    ).toEqual([201, 422]);
+    expect(
+      results.find((result) => result.status === 422)?.body.error.code,
+    ).toBe('COUPON_NOT_APPLICABLE');
+    expect(
+      await prisma.couponRedemption.count({
+        where: { couponId: promotion.id, userId },
+      }),
+    ).toBe(1);
+  });
+
+  it('enforces global coupon usage limit independently across different users', async () => {
+    // Cho phép mỗi user dùng nhiều lần để chỉ usageLimit toàn cục quyết định kết quả.
+    const firstVariant = await product();
+    const secondVariant = await product();
+    const promotion = await coupon({ usageLimit: 1, perUserLimit: 2 });
+
+    const results = await Promise.all([
+      post([{ productVariantId: firstVariant.id, quantity: 1 }], promotion.code, token),
+      post([{ productVariantId: secondVariant.id, quantity: 1 }], promotion.code, otherToken),
+    ]);
+
+    expect(
+      results.map((result) => result.status).sort((a, b) => a - b),
+    ).toEqual([201, 422]);
+    expect(
+      results.find((result) => result.status === 422)?.body.error.code,
+    ).toBe('COUPON_NOT_APPLICABLE');
+
+    const redemptions = await prisma.couponRedemption.findMany({
+      where: { couponId: promotion.id },
+      select: { userId: true },
+    });
+    expect(redemptions).toHaveLength(1);
+    expect([userId, otherUserId]).toContain(redemptions[0].userId);
+  });
+
+  it('uses server-priced subtotal when creating an order after a client-side coupon preview', async () => {
+    const variant = await product(5, 40000n);
+    const promotion = await prisma.coupon.create({
+      data: {
+        code: `PREVIEW-${randomUUID()}`,
+        discountType: 'PERCENTAGE',
+        discountValue: 50n,
+        minOrderValue: 0n,
+        startsAt: new Date(Date.now() - 60000),
+        endsAt: new Date(Date.now() + 3600000),
+        usageLimit: 1,
+        perUserLimit: 1,
+      },
+    });
+
+    // Preview là ước tính theo subtotal client gửi; không được dùng để chốt số tiền Order.
+    const preview = await auth(
+      request(app.getHttpServer()).post('/api/v1/coupons/validate'),
+    )
+      .send({ code: promotion.code, subtotal: 100000 })
+      .expect(200);
+    expect(preview.body.data.discountAmount).toBe(50000);
+
+    // Khi tạo Order, server tự đọc giá variant (40.000 VND) và tính lại discount (20.000 VND).
+    const orderResponse = await post(
+      [{ productVariantId: variant.id, quantity: 1 }],
+      promotion.code,
+    ).expect(201);
+    expect(orderResponse.body.data).toMatchObject({
+      subtotal: 40000,
+      discountAmount: 20000,
+      total: 20000,
+    });
+
+    const redemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId: orderResponse.body.data.id },
+    });
+    expect(redemption.discountAmount).toBe(20000n);
+  });
+
   it('fails before committing money outside the JSON integer range', async () => {
     const variant = await product(20, BigInt(Number.MAX_SAFE_INTEGER));
     const result = await post([
@@ -572,5 +739,368 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
         request(app.getHttpServer()).get(`/api/v1/orders/me?${query}`),
       ).expect(400);
     }
+  });
+  it('Regression: Payment FAILED → retry success consumes coupon once; expired FAILED order releases coupon and stock safely', async () => {
+    // Chỉ mock Gateway bên ngoài; Order, Payment, Coupon và Inventory vẫn chạy trên PostgreSQL thật.
+    const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');
+    const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
+
+    const paymentsService = app.get(PaymentsService);
+    const mockGateway = app.get(MockGatewayService);
+    const expiryJob = app.get(OrderExpiryJob);
+    const gatewayCharge = vi.spyOn(mockGateway, 'charge');
+
+    const variant = await product();
+    const promotion = await coupon();
+
+    // KỊCH BẢN 1: Thanh toán thất bại phải giữ coupon và inventory để khách retry.
+    const orderResponse = await post(
+      [{ productVariantId: variant.id, quantity: 1 }],
+      promotion.code,
+    ).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const totalAmount = BigInt(orderResponse.body.data.total);
+
+    let redemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId },
+    });
+    expect(redemption.status).toBe('RESERVED');
+
+    gatewayCharge.mockResolvedValueOnce({
+      success: false,
+      errorCode: 'INSUFFICIENT_FUNDS',
+    });
+    const failedPaymentResult = await paymentsService.processPayment({
+      idempotencyKey: `fail-key-${randomUUID()}`,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: totalAmount,
+    });
+    expect(failedPaymentResult.success).toBe(false);
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
+      .toMatchObject({ status: 'PAYMENT_FAILED' });
+    expect(await prisma.payment.findFirstOrThrow({ where: { orderId } }))
+      .toMatchObject({ status: 'FAILED', failureCode: 'INSUFFICIENT_FUNDS' });
+    redemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId },
+    });
+    expect(redemption.status).toBe('RESERVED');
+    expect(await prisma.inventoryReservation.findFirstOrThrow({ where: { orderId } }))
+      .toMatchObject({ status: 'ACTIVE' });
+
+    // KỊCH BẢN 2: Retry bằng key mới thành công; chỉ quyết toán coupon và Loyalty một lần.
+    const successKey = `success-key-${randomUUID()}`;
+    gatewayCharge.mockResolvedValueOnce({
+      success: true,
+      gatewayTransactionId: `GW-RETRY-${randomUUID()}`,
+    });
+    const successResult = await paymentsService.processPayment({
+      idempotencyKey: successKey,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: totalAmount,
+    });
+    expect(successResult.success).toBe(true);
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
+      .toMatchObject({ status: 'PAID' });
+    expect(await prisma.couponRedemption.findFirstOrThrow({ where: { orderId } }))
+      .toMatchObject({ status: 'CONSUMED', consumedAt: expect.any(Date) });
+    expect(await prisma.inventoryReservation.findFirstOrThrow({ where: { orderId } }))
+      .toMatchObject({ status: 'CONSUMED' });
+    expect(await prisma.payment.count({ where: { orderId } })).toBe(2);
+    expect(await prisma.loyaltyTransaction.count({
+      where: { orderId, type: 'EARN' },
+    })).toBe(1);
+
+    // Replay cùng key phải trả kết quả cũ, không gọi Gateway và không consume coupon lần hai.
+    const gatewayCallsAfterSuccess = gatewayCharge.mock.calls.length;
+    const replayResult = await paymentsService.processPayment({
+      idempotencyKey: successKey,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: totalAmount,
+    });
+    expect(replayResult).toMatchObject({
+      success: true,
+      isRetried: true,
+      status: 'SUCCEEDED',
+    });
+    expect(gatewayCharge).toHaveBeenCalledTimes(gatewayCallsAfterSuccess);
+    expect(await prisma.couponRedemption.count({
+      where: { orderId, status: 'CONSUMED' },
+    })).toBe(1);
+    expect(await prisma.loyaltyTransaction.count({
+      where: { orderId, type: 'EARN' },
+    })).toBe(1);
+
+    // KỊCH BẢN 3: Payment FAILED rồi hết hạn; Cron thật phải hủy Order, release coupon và hoàn kho.
+    const promotion2 = await coupon();
+    // Lưu tồn kho trước khi tạo đơn để xác nhận Cron hoàn về đúng baseline ban đầu.
+    const stockBeforeExpiryOrder = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
+    });
+    const orderResponse2 = await post(
+      [{ productVariantId: variant.id, quantity: 1 }],
+      promotion2.code,
+    ).expect(201);
+    const expiredOrderId = orderResponse2.body.data.id;
+    const expiredOrderAmount = BigInt(orderResponse2.body.data.total);
+    const stockAfterReservation = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
+    });
+
+    gatewayCharge.mockResolvedValueOnce({
+      success: false,
+      errorCode: 'INSUFFICIENT_FUNDS',
+    });
+    await paymentsService.processPayment({
+      idempotencyKey: `expiry-fail-key-${randomUUID()}`,
+      orderId: expiredOrderId,
+      userId,
+      method: 'E_WALLET',
+      amount: expiredOrderAmount,
+    });
+    expect(await prisma.order.findUniqueOrThrow({
+      where: { id: expiredOrderId },
+    })).toMatchObject({ status: 'PAYMENT_FAILED' });
+    const expiryRedemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId: expiredOrderId },
+    });
+    const expiryReservation = await prisma.inventoryReservation.findFirstOrThrow({
+      where: { orderId: expiredOrderId },
+    });
+    expect(expiryRedemption.status).toBe('RESERVED');
+    expect(expiryReservation.status).toBe('ACTIVE');
+
+    // Đẩy hạn giữ chỗ của Order, Coupon và Inventory về quá khứ để kiểm tra nhánh expiry.
+    const expiredAt = new Date(Date.now() - 60_000);
+    await prisma.order.update({
+      where: { id: expiredOrderId },
+      data: { reservationExpiresAt: expiredAt },
+    });
+    await prisma.couponRedemption.update({
+      where: { id: expiryRedemption.id },
+      data: { expiresAt: expiredAt },
+    });
+    await prisma.inventoryReservation.update({
+      where: { id: expiryReservation.id },
+      data: { expiresAt: expiredAt },
+    });
+
+    // Retry trước khi Cron chạy phải bị chặn ngay bởi deadline đã qua.
+    const gatewayCallsBeforeExpiredRetry = gatewayCharge.mock.calls.length;
+    const expiredRetryError = await paymentsService.processPayment({
+      idempotencyKey: `expired-retry-key-${randomUUID()}`,
+      orderId: expiredOrderId,
+      userId,
+      method: 'E_WALLET',
+      amount: expiredOrderAmount,
+    }).then(() => null, (error: unknown) => error);
+    expect(expiredRetryError).toBeInstanceOf(ConflictException);
+    expect((expiredRetryError as ConflictException).getResponse()).toMatchObject({
+      code: 'ORDER_EXPIRED',
+    });
+    expect(gatewayCharge).toHaveBeenCalledTimes(gatewayCallsBeforeExpiredRetry);
+
+    // Cron job thật phải kết thúc toàn bộ vòng đời trong cùng transaction.
+    await expiryJob.handleExpiredOrders();
+    expect(await prisma.order.findUniqueOrThrow({
+      where: { id: expiredOrderId },
+    })).toMatchObject({ status: 'CANCELLED' });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({
+      where: { id: expiryRedemption.id },
+    })).toMatchObject({ status: 'EXPIRED', releasedAt: expect.any(Date) });
+    expect(await prisma.inventoryReservation.findUniqueOrThrow({
+      where: { id: expiryReservation.id },
+    })).toMatchObject({ status: 'EXPIRED' });
+    const stockAfterExpiry = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
+    });
+    expect(stockAfterExpiry).toMatchObject({
+      stockQuantity: stockBeforeExpiryOrder.stockQuantity,
+      version: stockAfterReservation.version + 1,
+    });
+
+    // Chạy Cron lặp và retry sau khi đã CANCELLED đều không được tạo side effect lần hai.
+    await expiryJob.handleExpiredOrders();
+    expect(await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
+    })).toMatchObject({
+      stockQuantity: stockBeforeExpiryOrder.stockQuantity,
+      version: stockAfterReservation.version + 1,
+    });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({
+      where: { id: expiryRedemption.id },
+    })).toMatchObject({ status: 'EXPIRED' });
+
+    const cancelledRetryError = await paymentsService.processPayment({
+      idempotencyKey: `cancelled-retry-key-${randomUUID()}`,
+      orderId: expiredOrderId,
+      userId,
+      method: 'E_WALLET',
+      amount: expiredOrderAmount,
+    }).then(() => null, (error: unknown) => error);
+    expect(cancelledRetryError).toBeInstanceOf(ConflictException);
+    expect((cancelledRetryError as ConflictException).getResponse()).toMatchObject({
+      code: 'ORDER_INVALID_TRANSITION',
+    });
+    expect(gatewayCharge).toHaveBeenCalledTimes(gatewayCallsBeforeExpiredRetry);
+    expect(await prisma.payment.count({ where: { orderId: expiredOrderId } })).toBe(1);
+    expect(await prisma.couponRedemption.count({
+      where: { orderId: expiredOrderId, status: 'CONSUMED' },
+    })).toBe(0);
+  });
+
+  it('customer can cancel an owned order through HTTP and release coupon and inventory exactly once', async () => {
+    const variant = await product();
+    const promotion = await coupon();
+
+    const orderResponse = await post(
+      [{ productVariantId: variant.id, quantity: 1 }],
+      promotion.code,
+    ).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const stockAfterReservation = await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
+    });
+    const redemption = await prisma.couponRedemption.findFirstOrThrow({
+      where: { orderId },
+    });
+    const reservation = await prisma.inventoryReservation.findFirstOrThrow({
+      where: { orderId },
+    });
+    expect(redemption.status).toBe('RESERVED');
+    expect(reservation.status).toBe('ACTIVE');
+
+    // Đơn không được hủy bởi khách hàng khác hoặc principal không có vai trò CUSTOMER.
+    await auth(
+      request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
+      otherToken,
+    ).expect(404);
+    await auth(
+      request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
+      baristaToken,
+    ).expect(403);
+
+    const cancellation = await auth(
+      request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
+    ).expect(200);
+    expect(cancellation.body.data).toMatchObject({
+      id: orderId,
+      status: 'CANCELLED',
+    });
+
+    expect(await prisma.order.findUniqueOrThrow({ where: { id: orderId } }))
+      .toMatchObject({ status: 'CANCELLED' });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({
+      where: { id: redemption.id },
+    })).toMatchObject({ status: 'RELEASED', releasedAt: expect.any(Date) });
+    expect(await prisma.inventoryReservation.findUniqueOrThrow({
+      where: { id: reservation.id },
+    })).toMatchObject({ status: 'RELEASED' });
+    expect(await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
+    })).toMatchObject({
+      stockQuantity: stockAfterReservation.stockQuantity + 10,
+      version: stockAfterReservation.version + 1,
+    });
+
+    // Hủy lặp qua HTTP phải bị từ chối và tuyệt đối không hoàn kho lần hai.
+    const repeatedCancellation = await auth(
+      request(app.getHttpServer()).post(`/api/v1/orders/${orderId}/cancel`),
+    ).expect(409);
+    expect(repeatedCancellation.body.error.code).toBe('ORDER_INVALID_TRANSITION');
+    expect(await prisma.ingredient.findUniqueOrThrow({
+      where: { id: variant.ingredientId },
+    })).toMatchObject({
+      stockQuantity: stockAfterReservation.stockQuantity + 10,
+      version: stockAfterReservation.version + 1,
+    });
+    expect(await prisma.couponRedemption.findUniqueOrThrow({
+      where: { id: redemption.id },
+    })).toMatchObject({ status: 'RELEASED' });
+  });
+
+  it('blocks a second PROCESSING payment for the same order even when its idempotency key differs', async () => {
+    // Giữ Gateway của request đầu ở trạng thái chờ để request thứ hai va vào ràng buộc DB.
+    const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');
+    const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
+    const paymentsService = app.get(PaymentsService);
+    const mockGateway = app.get(MockGatewayService);
+
+    const variant = await product();
+    const orderResponse = await post([
+      { productVariantId: variant.id, quantity: 1 },
+    ]).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const totalAmount = BigInt(orderResponse.body.data.total);
+
+    let releaseGateway!: (result: {
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }) => void;
+    const blockedGatewayResponse = new Promise<{
+      success: boolean;
+      errorCode?: string;
+      gatewayTransactionId?: string;
+    }>((resolve) => {
+      releaseGateway = resolve;
+    });
+
+    vi.spyOn(mockGateway, 'charge').mockReturnValueOnce(blockedGatewayResponse);
+
+    const firstPayment = paymentsService.processPayment({
+      idempotencyKey: `first-${randomUUID()}`,
+      orderId,
+      userId,
+      method: 'E_WALLET',
+      amount: totalAmount,
+    });
+
+    try {
+      // Chờ đến khi request đầu đã ghi Payment PROCESSING vào PostgreSQL.
+      let processingPaymentExists = false;
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        const payment = await prisma.payment.findFirst({
+          where: { orderId, status: 'PROCESSING' },
+        });
+        if (payment) {
+          processingPaymentExists = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(processingPaymentExists).toBe(true);
+
+      // Request thứ hai dùng key khác nhưng phải bị DB bảo vệ trước khi gọi Gateway.
+      await expect(
+        paymentsService.processPayment({
+          idempotencyKey: `second-${randomUUID()}`,
+          orderId,
+          userId,
+          method: 'E_WALLET',
+          amount: totalAmount,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'PAYMENT_IN_PROGRESS',
+        },
+      });
+    } finally {
+      // Luôn giải phóng Gateway giả lập để không để request đầu bị treo khi test fail.
+      releaseGateway({ success: false, errorCode: 'TEST_DECLINED' });
+    }
+
+    await firstPayment;
+    expect(
+      await prisma.payment.count({ where: { orderId } }),
+    ).toBe(1);
+    expect(
+      await prisma.order.findUniqueOrThrow({ where: { id: orderId } }),
+    ).toMatchObject({ status: 'PAYMENT_FAILED' });
   });
 });

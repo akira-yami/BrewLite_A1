@@ -126,6 +126,99 @@ describe('app-config and AuthModule dynamic configuration (TDD)', () => {
     expect(testCfg.jwtSecret).toBe('test-jwt-secret-for-isolated-tests-only-32bytes-long');
   });
 
+  it('does not trust forwarded IP headers unless trusted proxy CIDRs are explicitly configured', () => {
+    expect(loadAppConfig({ NODE_ENV: 'test' }).trustedProxyCidrs).toEqual([]);
+
+    expect(loadAppConfig({
+      NODE_ENV: 'test',
+      TRUSTED_PROXY_CIDRS: '10.20.30.40, 2001:db8:abcd::/64, 10.20.30.40/32',
+    }).trustedProxyCidrs).toEqual([
+      '10.20.30.40/32',
+      '2001:db8:abcd::/64',
+    ]);
+  });
+
+  it('rejects wildcard, invalid IPs, malformed CIDRs and world-wide /0 trusted proxy ranges', () => {
+    const invalidValues = [
+      '*',
+      'unknown-proxy',
+      '192.0.2.10/33',
+      '2001:db8::1/129',
+      '192.0.2.10/0',
+      '::/0',
+      '192.0.2.10/not-a-prefix',
+      '192.0.2.10//32',
+      '192.0.2.10,,192.0.2.11',
+    ];
+
+    for (const value of invalidValues) {
+      expect(() => loadAppConfig({
+        NODE_ENV: 'test',
+        TRUSTED_PROXY_CIDRS: value,
+      })).toThrow(/TRUSTED_PROXY_CIDRS/);
+    }
+  });
+
+  it('keeps VNPay disabled by default and fails closed for incomplete or insecure settings', () => {
+    expect(loadAppConfig({ NODE_ENV: 'test' }).vnpay.enabled).toBe(false);
+
+    expect(() => loadAppConfig({
+      NODE_ENV: 'test',
+      VNPAY_ENABLED: 'true',
+      VNPAY_TMN_CODE: 'DEMO1234',
+    })).toThrow(/VNPAY_HASH_SECRET is required/);
+
+    expect(() => loadAppConfig({
+      NODE_ENV: 'test',
+      WEB_ORIGIN: 'https://brew.example',
+      VNPAY_ENABLED: 'true',
+      VNPAY_TMN_CODE: 'DEMO1234',
+      VNPAY_HASH_SECRET: '12345678901234567890123456789012',
+      VNPAY_RETURN_URL: 'https://api.example/vnpay/return',
+      VNPAY_IPN_URL: 'http://api.example/vnpay/ipn',
+    })).toThrow(/VNPAY_IPN_URL must be a valid HTTPS URL/);
+  });
+
+  it('loads complete VNPay settings with HTTPS endpoints and the official sandbox URL by default', () => {
+    const config = loadAppConfig({
+      NODE_ENV: 'test',
+      WEB_ORIGIN: 'https://brew.example',
+      VNPAY_ENABLED: 'true',
+      VNPAY_TMN_CODE: 'DEMO1234',
+      VNPAY_HASH_SECRET: '12345678901234567890123456789012',
+      VNPAY_RETURN_URL: 'https://api.brew.example/api/v1/payments/vnpay/return',
+      VNPAY_IPN_URL: 'https://api.brew.example/api/v1/payments/vnpay/ipn',
+    });
+    expect(config.vnpay).toMatchObject({
+      enabled: true,
+      tmnCode: 'DEMO1234',
+      paymentUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+      returnUrl: 'https://api.brew.example/api/v1/payments/vnpay/return',
+      ipnUrl: 'https://api.brew.example/api/v1/payments/vnpay/ipn',
+      frontendOrigin: 'https://brew.example',
+    });
+  });
+
+  it('allows loopback HTTP frontend only in isolated VNPay tests, never production', () => {
+    const values = {
+      WEB_ORIGIN: 'http://localhost:3100',
+      VNPAY_ENABLED: 'true',
+      VNPAY_TMN_CODE: 'TEST0001',
+      VNPAY_HASH_SECRET: '0123456789abcdef0123456789abcdef',
+      VNPAY_RETURN_URL: 'https://e2e.invalid/api/v1/payments/vnpay/return',
+      VNPAY_IPN_URL: 'https://e2e.invalid/api/v1/payments/vnpay/ipn',
+    };
+
+    expect(loadAppConfig({ ...values, NODE_ENV: 'test' }).vnpay.frontendOrigin)
+      .toBe('http://localhost:3100');
+    for (const nodeEnv of ['production', 'development']) {
+      expect(() => loadAppConfig({ ...values, NODE_ENV: nodeEnv, JWT_SECRET: TEST_SECRET }))
+        .toThrow(/WEB_ORIGIN must be a valid HTTPS URL/);
+    }
+    expect(() => loadAppConfig({ ...values, NODE_ENV: 'test', WEB_ORIGIN: 'http://example.com' }))
+      .toThrow(/WEB_ORIGIN must be a valid HTTPS URL/);
+  });
+
   it('keeps AuthModule JwtService signOptions synchronized with AuthService expiresIn when env changes after module import', async () => {
     const prevExpires = process.env.JWT_EXPIRES_IN;
     const prevNodeEnv = process.env.NODE_ENV;

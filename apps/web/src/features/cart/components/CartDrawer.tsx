@@ -1,13 +1,15 @@
 'use client';
-
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import { CouponApiError, validateCoupon } from '@/api/coupons.api';
+import { readCheckoutCoupon, writeCheckoutCoupon, type CheckoutCouponQuote } from '@/features/checkout/session';
 
 interface CartDrawerProps {
   open: boolean;
   onClose: () => void;
   onEditOptions: (item: CartItem) => void;
-  onCheckout: () => void;
+  onCheckout: (coupon: CheckoutCouponQuote | null) => void;
 }
 
 export function CartDrawer({
@@ -17,6 +19,118 @@ export function CartDrawer({
   onCheckout,
 }: CartDrawerProps) {
   const { items, subtotal, totalQuantity } = useCartStore();
+
+  const [couponInput, setCouponInput] = useState('');
+  // Lưu subtotal đã được backend xác nhận cùng với coupon để nhận biết quote đã cũ.
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    subtotal: number;
+    discountAmount: number;
+  } | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
+  const applyingRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      const savedQuote = readCheckoutCoupon(window.sessionStorage);
+      if (savedQuote && savedQuote.subtotal === cartStore.getSnapshot().subtotal) {
+        setAppliedCoupon(savedQuote);
+      } else if (savedQuote) {
+        writeCheckoutCoupon(window.sessionStorage, null);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      typeof window !== 'undefined'
+      && appliedCoupon
+      && appliedCoupon.subtotal !== subtotal
+    ) {
+      writeCheckoutCoupon(window.sessionStorage, null);
+    }
+  }, [appliedCoupon, subtotal]);
+
+  // Không dùng effect để đồng bộ state: quote chỉ được áp dụng khi subtotal vẫn khớp.
+  const couponIsStale = appliedCoupon !== null && appliedCoupon.subtotal !== subtotal;
+  const visibleCoupon = couponIsStale ? null : appliedCoupon;
+  const effectiveDiscountAmount = visibleCoupon?.discountAmount ?? 0;
+  const visibleCouponError = couponError
+    ?? (couponIsStale ? 'Giỏ hàng thay đổi, vui lòng áp dụng lại mã giảm giá.' : null);
+
+  const handleApplyCoupon = async () => {
+    if (applyingRef.current) return;
+    setCouponError(null);
+    if (!couponInput.trim()) {
+      setCouponError('Vui lòng nhập mã giảm giá.');
+      return;
+    }
+
+    const requestedCode = couponInput.trim();
+    const requestedSubtotal = subtotal;
+    applyingRef.current = true;
+    setIsApplying(true);
+    try {
+      const data = await validateCoupon(requestedCode, requestedSubtotal);
+      if (cartStore.getSnapshot().subtotal !== requestedSubtotal) {
+        setCouponError('Giỏ hàng đã thay đổi trong lúc kiểm tra. Vui lòng áp dụng lại mã giảm giá.');
+        return;
+      }
+
+      const quote = {
+        code: requestedCode,
+        subtotal: requestedSubtotal,
+        discountAmount: data.discountAmount,
+      };
+      setAppliedCoupon(quote);
+      if (typeof window !== 'undefined') {
+        writeCheckoutCoupon(window.sessionStorage, quote);
+      }
+      setCouponInput('');
+    } catch (reason: unknown) {
+      if (reason instanceof CouponApiError) {
+        if (reason.status === 401) {
+          setCouponError('Vui lòng đăng nhập để kiểm tra mã giảm giá.');
+        } else if (reason.code === 'COUPON_NOT_APPLICABLE') {
+          setCouponError('Mã giảm giá không hợp lệ, đã hết hạn hoặc chưa đủ điều kiện áp dụng.');
+        } else if (reason.status === 0 || reason.status >= 500) {
+          setCouponError('Dịch vụ mã giảm giá đang gặp sự cố. Vui lòng thử lại.');
+        } else {
+          setCouponError(
+            reason.message && !/^[A-Z][A-Z0-9_]+$/.test(reason.message)
+              ? reason.message
+              : 'Không thể áp dụng mã giảm giá. Vui lòng kiểm tra lại mã.',
+          );
+        }
+      } else {
+        setCouponError('Không thể kết nối đến dịch vụ mã giảm giá. Vui lòng thử lại.');
+      }
+      setAppliedCoupon(null);
+      if (typeof window !== 'undefined') {
+        writeCheckoutCoupon(window.sessionStorage, null);
+      }
+    } finally {
+      applyingRef.current = false;
+      setIsApplying(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+    if (typeof window !== 'undefined') {
+      writeCheckoutCoupon(window.sessionStorage, null);
+    }
+  };
 
   return (
     <>
@@ -174,15 +288,53 @@ export function CartDrawer({
                   <span>Tạm tính ({totalQuantity} món)</span>
                   <strong className="font-mono text-[#1E1813]">{formatVnd(subtotal)}</strong>
                 </div>
-                <div className="flex items-center justify-between text-[#756A63]">
-                  <span>Khuyến mãi</span>
-                  <span>Áp dụng ở bước thanh toán</span>
+
+                {/* Khu vực Coupon */}
+                <div className="py-2">
+                  {!visibleCoupon ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nhập mã giảm giá..."
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value)}
+                        className="flex-1 rounded-md border border-[#E5DCD2] px-3 py-1.5 text-sm outline-none focus:border-[#163E2B]"
+                        disabled={isApplying}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={isApplying}
+                        className="rounded-md bg-[#163E2B] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-[#1f4f38] disabled:opacity-50"
+                      >
+                        {isApplying ? 'Đang kiểm tra...' : 'Áp dụng'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between rounded-md bg-[#E8F1EC] px-3 py-2 text-sm text-[#163E2B]">
+                      <div>
+                        <span className="font-bold">{visibleCoupon.code}</span>
+                        <span className="ml-2 font-mono text-xs">(-{formatVnd(effectiveDiscountAmount)})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoupon}
+                        className="text-[11px] font-bold text-[#9f3f2f] hover:underline"
+                      >
+                        Xóa mã
+                      </button>
+                    </div>
+                  )}
+                  {visibleCouponError && (
+                    <p className="mt-1 text-xs text-[#9f3f2f]">{visibleCouponError}</p>
+                  )}
                 </div>
+
                 <div className="border-t border-[#E5DCD2] pt-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-[#163E2B]">Tổng tạm tính</span>
+                    <span className="font-black text-[#163E2B]">Tổng thanh toán</span>
                     <strong className="font-mono text-lg text-[#163E2B]">
-                      {formatVnd(subtotal)}
+                      {formatVnd(Math.max(0, subtotal - effectiveDiscountAmount))}
                     </strong>
                   </div>
                 </div>
@@ -190,7 +342,8 @@ export function CartDrawer({
 
               <button
                 type="button"
-                onClick={onCheckout}
+                onClick={() => onCheckout(visibleCoupon)}
+                disabled={isApplying}
                 className="mt-3 w-full rounded-full bg-[#163E2B] py-3 text-sm font-black text-white shadow-md transition hover:bg-[#1f4f38] active:scale-[0.99]"
               >
                 Tiến hành đặt & thanh toán

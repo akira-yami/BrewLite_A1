@@ -1,0 +1,87 @@
+name: Payment and Order Coverage
+
+on:
+  push:
+    branches:
+      - Kiet-Payment-Idempotency-PaymentUI
+      - feature/new-split-branch
+    paths:
+      - "apps/api/src/modules/orders/**"
+      - "apps/api/src/modules/payments/**"
+      - "apps/api/src/modules/promotions/**"
+      - "apps/api/package.json"
+      - "apps/api/package-lock.json"
+      - "apps/api/vitest.config.ts"
+      - ".github/workflows/payment-orders-promotions-coverage.yml"
+      - "docs/handovers/**"
+  pull_request:
+    branches:
+      - main
+      - Kiet-Payment-Idempotency-PaymentUI
+    paths:
+      - "apps/api/src/modules/orders/**"
+      - "apps/api/src/modules/payments/**"
+      - "apps/api/src/modules/promotions/**"
+      - "apps/api/package.json"
+      - "apps/api/package-lock.json"
+      - "apps/api/vitest.config.ts"
+      - ".github/workflows/payment-orders-promotions-coverage.yml"
+      - "docs/handovers/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payment-domain-coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    name: Payment, Orders and Promotions coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/api
+    env:
+      CI: "true"
+      DATABASE_URL: postgresql://brewlite:ci-only@localhost:5432/brewlite_coverage
+      JWT_SECRET: brewlite-coverage-tests-only-not-a-production-secret
+      JWT_ISSUER: brewlite-api
+      JWT_AUDIENCE: brewlite-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+      - name: Run focused module coverage with 80% line threshold
+        run: >-
+          npm run test:cov --
+          --coverage.include='src/modules/orders/**/*.ts'
+          --coverage.include='src/modules/payments/**/*.ts'
+          --coverage.include='src/modules/promotions/**/*.ts'
+          --coverage.thresholds.lines=80
+          --coverage.reportOnFailure
+          --coverage.reporter=text
+          --coverage.reporter=json-summary
+          --coverage.reporter=html
+      - name: Upload coverage evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: payment-orders-promotions-coverage
+          path: |
+            apps/api/coverage/coverage-summary.json
+            apps/api/coverage/index.html
+          if-no-files-found: warn
+          retention-days: 14

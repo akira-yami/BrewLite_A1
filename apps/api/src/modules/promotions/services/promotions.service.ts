@@ -1,22 +1,25 @@
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { PromotionsRepository } from '../repositories/promotions.repository.js';
-import type { Prisma } from '../../../generated/prisma/client.js';
+import type { Coupon, Prisma } from '../../../generated/prisma/client.js';
 import type { CouponQuoteResponseDto } from '../dto/coupon-quote-response.dto.js';
 import { toCouponQuoteResponse } from '../mappers/coupon.mapper.js';
 import type { CouponQuoteEntity } from '../entities/coupon-quote.entity.js';
+import { DefaultArgs } from '@prisma/client/runtime/client';
+import { PrismaClient } from '../../../generated/prisma/internal/class.js';
 
 @Injectable()
 export class PromotionsService {
+    releaseByOrderId(orderId: string, arg1: string, arg2: Date, tx: Omit<PrismaClient<never, Prisma.GlobalOmitConfig | undefined, DefaultArgs>, "$connect" | "$disconnect" | "$on" | "$use" | "$extends">) {
+      throw new Error('Method not implemented.');
+    }
     constructor(private readonly repository: PromotionsRepository) {}
 
-    async validateCoupon(
-        code: string,
-        subtotal: number,
-        userId: string,
+    // Dùng chung bộ quy tắc để Preview và tạo Order không lệch điều kiện coupon.
+    private assertCouponApplicable(
+        coupon: Coupon | null,
+        subtotal: bigint,
         now: Date,
-    ): Promise<CouponQuoteResponseDto> {
-        const coupon = await this.repository.findByCode(code);
-
+    ): asserts coupon is Coupon {
         if (!coupon || !coupon.isActive) {
             throw new UnprocessableEntityException({
                 error: {
@@ -26,6 +29,7 @@ export class PromotionsService {
             });
         }
 
+        // startsAt được tính bao gồm; endsAt là mốc loại trừ.
         if (now < coupon.startsAt || now >= coupon.endsAt) {
             throw new UnprocessableEntityException({
                 error: {
@@ -35,8 +39,7 @@ export class PromotionsService {
             });
         }
 
-        const subtotalBigInt = BigInt(subtotal);
-        if (subtotalBigInt < coupon.minOrderValue) {
+        if (subtotal < coupon.minOrderValue) {
             throw new UnprocessableEntityException({
                 error: {
                     code: 'COUPON_NOT_APPLICABLE',
@@ -44,11 +47,44 @@ export class PromotionsService {
                 },
             });
         }
+    }
+
+    // Tính tiền bằng BigInt để tránh sai số số thực; phần trăm được làm tròn xuống theo VND.
+    private calculateDiscountAmount(coupon: Coupon, subtotal: bigint): bigint {
+        if (coupon.discountType === 'PERCENTAGE') {
+            const percentageAmount = (subtotal * coupon.discountValue) / 100n;
+            return coupon.maxDiscount !== null && percentageAmount > coupon.maxDiscount
+                ? coupon.maxDiscount
+                : percentageAmount;
+        }
+
+        return subtotal < coupon.discountValue ? subtotal : coupon.discountValue;
+    }
+
+    async validateCoupon(
+        code: string,
+        subtotal: number,
+        userId: string,
+        now: Date,
+    ): Promise<CouponQuoteResponseDto> {
+        // Preview nhận subtotal dạng JSON number nên phải chặn số không an toàn trước khi đổi sang BigInt.
+        if (!Number.isSafeInteger(subtotal) || subtotal < 0) {
+            throw new BadRequestException({
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'Subtotal phải là số nguyên không âm trong giới hạn an toàn.',
+                },
+            });
+        }
+
+        const subtotalBigInt = BigInt(subtotal);
+        const coupon = await this.repository.findByCode(code);
+        this.assertCouponApplicable(coupon, subtotalBigInt, now);
 
         const userRedemptions = await this.repository.countRedemptions(
-        coupon.id,
-        userId,
-        now,
+            coupon.id,
+            userId,
+            now,
         );
         if (userRedemptions >= coupon.perUserLimit) {
             throw new UnprocessableEntityException({
@@ -74,20 +110,10 @@ export class PromotionsService {
             }
         }
 
-        let discountAmount = 0n;
-        if (coupon.discountType === 'PERCENTAGE') {
-        discountAmount = (subtotalBigInt * coupon.discountValue) / 100n;
-        if (coupon.maxDiscount !== null && discountAmount > coupon.maxDiscount) {
-            discountAmount = coupon.maxDiscount;
-        }
-        } else {
-        discountAmount =
-            subtotalBigInt < coupon.discountValue
-            ? subtotalBigInt
-            : coupon.discountValue;
-        }
-
-        return toCouponQuoteResponse(coupon.code, discountAmount);
+        return toCouponQuoteResponse(
+            coupon.code,
+            this.calculateDiscountAmount(coupon, subtotalBigInt),
+        );
     }
 
     async quoteAndLock(
@@ -98,39 +124,13 @@ export class PromotionsService {
         now: Date,
     ): Promise<CouponQuoteEntity> {
         const coupon = await this.repository.lockCoupon(code, tx);
-
-        if (!coupon || !coupon.isActive) {
-            throw new UnprocessableEntityException({
-                error: {
-                    code: 'COUPON_NOT_APPLICABLE',
-                    message: 'Mã giảm giá không tồn tại hoặc đã ngừng hoạt động.',
-                },
-            });
-        }
-
-        if (now < coupon.startsAt || now >= coupon.endsAt) {
-            throw new UnprocessableEntityException({
-                error: {
-                    code: 'COUPON_NOT_APPLICABLE',
-                    message: 'Mã giảm giá không trong thời gian có hiệu lực.',
-                },
-            });
-        }
-
-        if (subtotal < coupon.minOrderValue) {
-            throw new UnprocessableEntityException({
-                error: {
-                    code: 'COUPON_NOT_APPLICABLE',
-                    message: 'Đơn hàng chưa đạt giá trị tối thiểu để áp dụng mã.',
-                },
-            });
-        }
+        this.assertCouponApplicable(coupon, subtotal, now);
 
         const userRedemptions = await this.repository.countRedemptions(
-        coupon.id,
-        userId,
-        now,
-        tx,
+            coupon.id,
+            userId,
+            now,
+            tx,
         );
         if (userRedemptions >= coupon.perUserLimit) {
             throw new UnprocessableEntityException({
@@ -157,23 +157,12 @@ export class PromotionsService {
             }
         }
 
-        let discountAmount = 0n;
-        if (coupon.discountType === 'PERCENTAGE') {
-        discountAmount = (subtotal * coupon.discountValue) / 100n;
-        if (coupon.maxDiscount !== null && discountAmount > coupon.maxDiscount) {
-            discountAmount = coupon.maxDiscount;
-        }
-        } else {
-        discountAmount =
-            subtotal < coupon.discountValue ? subtotal : coupon.discountValue;
-        }
-
         return {
-        couponId: coupon.id,
-        code: coupon.code,
-        discountType: coupon.discountType,
-        discountAmount,
-        userId,
+            couponId: coupon.id,
+            code: coupon.code,
+            discountType: coupon.discountType,
+            discountAmount: this.calculateDiscountAmount(coupon, subtotal),
+            userId,
         };
     }
 
@@ -195,12 +184,23 @@ export class PromotionsService {
         );
     }
 
-    async releaseByOrderId(
-        orderId: string,
-        targetStatus: 'RELEASED' | 'EXPIRED',
-        releasedAt: Date,
+/*
+*Rà soát consumeRedemption & releaseRedemption trong promotions.service.ts và chạy test promotions.repository.spec.ts
+→ Tại sao cần kiểm tra bước này?
+    Ở tầng PromotionsRepository, hai hàm consumeByOrderId và releaseByOrderId sử dụng điều kiện where: { orderId, status: 'RESERVED' }.
+    Điều này cực kỳ quan trọng vì nó đảm bảo tính Idempotent cho vòng đời Coupon:
+        - chỉ những lượt đang RESERVED mới được chuyển sang CONSUMED (khi PAID)
+        - hoặc RELEASED/EXPIRED (khi hủy/hết hạn), ngăn chặn tuyệt đối việc tiêu thụ hoặc giải phóng mã lặp lại.
+*/
+
+    async consumeRedemption(tx: Prisma.TransactionClient, orderId: string): Promise<void> {await this.repository.consumeByOrderId(orderId, new Date(), tx);}
+
+    async releaseRedemption(
         tx: Prisma.TransactionClient,
-    ): Promise<number> {
-        return this.repository.releaseByOrderId(orderId, targetStatus, releasedAt, tx);
+        orderId: string,
+        isExpired: boolean,
+    ): Promise<void> {
+        const targetStatus = isExpired ? 'EXPIRED' : 'RELEASED';
+        await this.repository.releaseByOrderId(orderId, targetStatus, new Date(), tx);
     }
 }

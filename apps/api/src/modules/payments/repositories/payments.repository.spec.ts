@@ -11,6 +11,7 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
         prismaMock = {
             payment: {
                 findUnique: vi.fn(),
+                findFirst: vi.fn(),
                 create: vi.fn(),
                 update: vi.fn(),
             },
@@ -26,6 +27,69 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
 
         expect(prismaMock.payment.findUnique).toHaveBeenCalledWith({where: { idempotencyKey: 'key-1' },});
         expect(result).toEqual(mockPayment);
+    });
+
+    it('findByIdempotencyKey - dùng transaction client khi được truyền vào', async () => {
+        const txMock = {
+            payment: { findUnique: vi.fn().mockResolvedValue({ id: 'p-locked' }) },
+        };
+
+        const result = await repository.findByIdempotencyKey('key-locked', txMock as any);
+
+        expect(txMock.payment.findUnique).toHaveBeenCalledWith({
+            where: { idempotencyKey: 'key-locked' },
+        });
+        expect(result).toEqual({ id: 'p-locked' });
+        expect(prismaMock.payment.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('findProcessingByOrderId - giữ cả PROCESSING và MANUAL_REVIEW trong transaction', async () => {
+        const activePayment = { id: 'p-active', status: PaymentStatus.PROCESSING };
+        const txMock = { payment: { findFirst: vi.fn().mockResolvedValue(activePayment) } };
+
+        const result = await repository.findProcessingByOrderId('order-1', txMock as any);
+
+        expect(txMock.payment.findFirst).toHaveBeenCalledWith({
+            where: { orderId: 'order-1', status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] } },
+            orderBy: { createdAt: 'asc' },
+        });
+        expect(result).toEqual(activePayment);
+        expect(prismaMock.payment.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('findStatusByIdempotencyKeyForUser - chỉ đọc giao dịch thuộc Order của customer hiện tại', async () => {
+        const payment = {
+            orderId: 'order-status',
+            status: PaymentStatus.PROCESSING,
+            gatewayTransactionId: null,
+            failureCode: null,
+            paymentUrl: null,
+        };
+        prismaMock.payment.findFirst.mockResolvedValue(payment);
+        const result = await repository.findStatusByIdempotencyKeyForUser('key-status', 'user-1');
+        expect(prismaMock.payment.findFirst).toHaveBeenCalledWith({
+            where: { idempotencyKey: 'key-status', order: { userId: 'user-1' } },
+            select: {
+                orderId: true,
+                status: true,
+                gatewayTransactionId: true,
+                failureCode: true,
+                paymentUrl: true,
+            },
+        });
+        expect(result).toEqual(payment);
+    });
+
+    it('findByGatewayReference scopes the callback lookup and loads only Order ownership', async () => {
+        const txMock = {
+            payment: { findUnique: vi.fn().mockResolvedValue({ id: 'p-vnpay' }) },
+        };
+        const result = await repository.findByGatewayReference('gateway-ref', txMock as any);
+        expect(txMock.payment.findUnique).toHaveBeenCalledWith({
+            where: { gatewayReference: 'gateway-ref' },
+            include: { order: { select: { userId: true } } },
+        });
+        expect(result).toEqual({ id: 'p-vnpay' });
     });
 
     it('createProcessingPayment - tạo bản ghi trạng thái PROCESSING', async () => {

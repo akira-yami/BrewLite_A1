@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsString, MaxLength, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, Max, MaxLength, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class ValidateCouponDto {
@@ -10,5 +10,6 @@ export class ValidateCouponDto {
 
     @IsInt()
     @Min(0)
+    @Max(Number.MAX_SAFE_INTEGER)
     subtotal!: number;
 }

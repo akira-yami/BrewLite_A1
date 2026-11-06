@@ -86,6 +86,11 @@ export class OrdersService {
             let discountAmount = 0n;
             let couponQuote = null;
 
+/*
+*Theo biên bản phản biện kỹ thuật của Huy (docs/reviews/huy-review-coupon-sd12.md), trong transaction tạo đơn (UC-06),
+  OrdersService bắt buộc phải gọi promotionsService.quoteAndLock trước để khóa dòng coupon và tính discountAmount,
+  sau đó phải tx.order.create trước rồi mới gọi promotionsService.reserve để tránh lỗi vi phạm khóa ngoại FOREIGN KEY (order_id) trên bảng coupon_redemptions
+*/
             if (dto.couponCode) {
               // Khóa hàng coupon trong DB, kiểm tra hạn dùng, lượt dùng và tính tiền giảm
               couponQuote = await this.promotionsService.quoteAndLock(
@@ -421,64 +426,17 @@ export class OrdersService {
     };
   }
 
-  /** Customer cancellation shares the payment/order row lock, so an admitted
-   * gateway request cannot be cancelled while settlement is in flight. */
-  async cancelOrder(orderId: string, userId: string) {
-    await this.prisma.$transaction(async (tx) => {
-      await this.users.assertActiveCustomer(tx, userId);
-      const order = await this.repository.lockById(orderId, tx);
-      if (!order || order.userId !== userId)
-        throw new NotFoundException({
-          error: {
-            code: 'ORDER_NOT_FOUND',
-            message: 'Đơn hàng không tồn tại.',
-          },
-        });
-      assertTransition(order.status, OrderStatus.CANCELLED);
-      if (
-        await tx.payment.findFirst({
-          where: { orderId, status: 'PROCESSING' },
-          select: { id: true },
-        })
-      ) {
-        throw new ConflictException({
-          error: {
-            code: 'PAYMENT_IN_PROGRESS',
-            message: 'Đơn đang xử lý thanh toán. Vui lòng chờ kết quả.',
-          },
-        });
-      }
-      await this.repository.updateStatusWithHistory(
-        orderId,
-        order.status,
-        OrderStatus.CANCELLED,
-        userId,
-        'Khách hủy đơn trước khi pha chế',
-        tx,
-      );
-      // Only ACTIVE reservations are restored. A PAID order has already consumed
-      // stock/coupon and earned points; cancelling it does not simulate a refund.
-      const reservations = await tx.inventoryReservation.findMany({
-        where: { orderId, status: 'ACTIVE' },
-        orderBy: { id: 'asc' },
-      });
-      for (const reservation of reservations) {
-        await this.inventory.releaseInTransaction(
-          tx,
-          reservation.id,
-          reservation.expiresAt <= new Date(),
-        );
-      }
-      await this.promotionsService.releaseByOrderId(
-        orderId,
-        'RELEASED',
-        new Date(),
-        tx,
-      );
-    });
-    return this.getOrderDetail(orderId, userId);
-  }
-
+  /**
+   * Hủy đơn hàng — dùng chung cho cả luồng khách hủy chủ động và cron expiry.
+   *
+   * Khi `tx` được cung cấp (ví dụ: cron expiry gọi từ bên trong transaction của
+   * nó), thao tác chạy trong transaction đó.  Khi không có `tx`, hàm tự mở một
+   * transaction mới (luồng khách hủy qua HTTP).
+   *
+   * @param reason   Lý do hủy ghi vào lịch sử trạng thái.
+   * @param isExpiry true → phân loại reservation là EXPIRED; false → RELEASED.
+   * @param tx       Transaction client tuỳ chọn (cron truyền vào).
+   */
   private normalizeItems(items: CreateOrderItemDto[]): CreateOrderItemDto[] {
     const grouped = new Map<string, CreateOrderItemDto>();
     for (const item of items) {
@@ -714,12 +672,45 @@ export class OrdersService {
     return order;
   }
 
+  async getOrderForPaymentForUpdate(
+    orderId: string,
+    userId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    // Bảo đảm kiểm tra Order và ghi Payment PROCESSING diễn ra dưới cùng khóa dòng.
+    const order = await this.repository.findByIdAndUserIdForUpdate(
+      orderId,
+      userId,
+      tx,
+    );
+    if (!order) {
+      throw new NotFoundException(
+        'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập',
+      );
+    }
+    return order;
+  }
+
   async transitionForPaymentRetry(
     orderId: string,
     userId: string,
     reason: string,
     tx?: Prisma.TransactionClient,
   ) {
+    // Chỉ truyền transaction khi có transaction do PaymentsService quản lý.
+    if (tx) {
+      await this.repository.updateStatusWithHistory(
+        orderId,
+        OrderStatus.PAYMENT_FAILED,
+        OrderStatus.PENDING,
+        userId,
+        reason,
+        tx,
+      );
+      return;
+    }
+
+    // Giữ nguyên lời gọi 5 tham số cho các luồng và test cũ không dùng transaction.
     await this.repository.updateStatusWithHistory(
       orderId,
       OrderStatus.PAYMENT_FAILED,
@@ -736,6 +727,7 @@ export class OrdersService {
     orderTotal: bigint,
     tx: Prisma.TransactionClient,
   ) {
+    // 1. Đánh dấu đơn hàng là PAID và xử lý Loyalty, Inventory (bên trong repository)
     await this.repository.markAsPaid(
       orderId,
       OrderStatus.PENDING,
@@ -743,6 +735,9 @@ export class OrdersService {
       orderTotal,
       tx,
     );
+
+    // 2. Quyết toán Coupon: Gọi chéo sang PromotionsService theo đúng chuẩn Dependency Map (ADR-001)
+    await this.promotionsService.consumeRedemption(tx, orderId);
   }
 
   async markOrderPaymentFailed(
@@ -759,5 +754,103 @@ export class OrdersService {
       reason,
       tx,
     );
+  }
+
+  // =====================================================================
+  // 4. HỦY ĐƠN HÀNG VÀ GIẢI PHÓNG TÀI NGUYÊN (UC-06 / CRONJOB)
+  // =====================================================================
+  async cancelOrder(
+    orderId: string,
+    userId: string,
+    reason: string,
+    isExpired: boolean,
+    tx?: Prisma.TransactionClient,
+  ) {
+    // Khóa Order trong transaction để đồng bộ thao tác hủy với Payment và Cron expiry.
+    const execute = async (client: Prisma.TransactionClient) => {
+      const order = await this.repository.findByIdAndUserIdForUpdate(
+        orderId,
+        userId,
+        client,
+      );
+
+      if (!order) {
+        throw new NotFoundException({
+          error: {
+            code: 'ORDER_NOT_FOUND',
+            message: 'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập.',
+          },
+        });
+      }
+
+      // Không cho hủy đơn đã thanh toán; luồng hoàn tiền cần được xử lý riêng.
+      if (
+        order.status !== OrderStatus.PENDING &&
+        order.status !== OrderStatus.PAYMENT_FAILED
+      ) {
+        throw new ConflictException({
+          code: 'ORDER_INVALID_TRANSITION',
+          message: 'Trạng thái đơn hàng không cho phép hủy.',
+        });
+      }
+
+      // Payment đang PROCESSING phải hoàn tất trước khi Order được phép hủy.
+      const processingPayment = await client.payment.findFirst({
+        where: {
+          orderId,
+          status: { in: ['PROCESSING', 'MANUAL_REVIEW'] },
+        },
+        select: { id: true },
+      });
+      if (processingPayment) {
+        throw new ConflictException({
+          code: 'PAYMENT_IN_PROGRESS',
+          message: 'Đơn hàng đang được thanh toán, không thể hủy lúc này.',
+        });
+      }
+
+      // Lấy reservation còn ACTIVE để giải phóng kho trong cùng transaction.
+      const reservations = await client.inventoryReservation.findMany({
+        where: { orderId, status: 'ACTIVE' },
+        select: { id: true, expiresAt: true },
+      });
+      const now = new Date();
+      const couponExpired = isExpired || order.reservationExpiresAt <= now;
+
+      await this.repository.updateStatusWithHistory(
+        orderId,
+        order.status,
+        OrderStatus.CANCELLED,
+        userId,
+        reason,
+        client,
+      );
+
+      // Coupon được RELEASED khi hủy chủ động, hoặc EXPIRED nếu đã quá deadline.
+      await this.promotionsService.releaseRedemption(
+        client,
+        orderId,
+        couponExpired,
+      );
+
+      // Chỉ reservation còn ACTIVE mới được release/restore stock đúng một lần.
+      for (const reservation of reservations) {
+        const reservationExpired =
+          isExpired ||
+          order.reservationExpiresAt <= now ||
+          reservation.expiresAt <= now;
+        await this.inventory.releaseInTransaction(
+          client,
+          reservation.id,
+          reservationExpired,
+        );
+      }
+    };
+
+    // Tôn trọng transaction từ caller; nếu không có thì tự tạo transaction nguyên tử.
+    if (tx) {
+      return execute(tx);
+    }
+    return this.prisma.$transaction(execute);
   }
 }

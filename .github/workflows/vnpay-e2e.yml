@@ -1,0 +1,109 @@
+﻿name: VNPAY E2E Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  vnpay-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    env:
+      # This CI suite verifies signed callbacks against a local test database.
+      # These are deliberately fake credentials; no real VNPay transaction is made.
+      VNPAY_ENABLED: 'true'
+      VNPAY_TMN_CODE: 'TEST0001'
+      VNPAY_HASH_SECRET: '0123456789abcdef0123456789abcdef'
+      WEB_ORIGIN: http://localhost:3100
+      NEXT_PUBLIC_VNPAY_ENABLED: 'true'
+      NEXT_PUBLIC_API_URL: http://localhost:3101/api/v1
+      NEXT_TELEMETRY_DISABLED: '1'
+      JWT_SECRET: vnpay-e2e-ci-test-only-very-long-isolated-key
+      VNPAY_PAYMENT_URL: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+      VNPAY_QUERY_URL: https://sandbox.vnpayment.vn/merchant_webapi/api/transaction
+      # Callback addresses must be HTTPS even when the gateway is simulated in CI.
+      VNPAY_RETURN_URL: https://e2e.invalid/api/v1/payments/vnpay/return
+      VNPAY_IPN_URL: https://e2e.invalid/api/v1/payments/vnpay/ipn
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brewlite_vnpay_e2e?schema=public
+      E2E_API_URL: http://localhost:3101/api/v1
+      E2E_WEB_PORT: 3100
+      E2E_API_PORT: 3101
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brewlite_vnpay_e2e
+        options: >-
+          --health-cmd "pg_isready -U postgres -d brewlite_vnpay_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install API dependencies
+        run: npm ci --prefix apps/api
+
+      - name: Install Web dependencies
+        run: npm ci --prefix apps/web
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate --prefix apps/api
+
+      - name: Run database migrations
+        run: npm run prisma:deploy --prefix apps/api
+
+      - name: Seed isolated E2E catalog
+        working-directory: apps/api
+        run: node --import=tsx prisma/seed-e2e.ts
+
+      - name: Build backend
+        run: npm run build --prefix apps/api
+
+      - name: Use HTTPS Ubuntu package mirror
+        # The Azure mirror can take minutes to download Playwright's font packages.
+        run: sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+
+      - name: Run VNPAY E2E tests
+        # Fail quickly on regressions instead of waiting 60 s for every broken browser test.
+        run: npm run test:e2e:vnpay --prefix apps/web -- --max-failures=2
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: playwright-report-vnpay
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results-vnpay
+          path: apps/web/test-results/
+          retention-days: 7

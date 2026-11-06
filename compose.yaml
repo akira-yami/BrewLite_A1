@@ -80,7 +80,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      WEB_ORIGIN: ${WEB_ORIGIN_BACKEND:-https://web-production-b910e.up.railway.app}
       DATABASE_URL: ${DATABASE_URL_DOCKER:?DATABASE_URL_DOCKER must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set to a private random secret}
       JWT_ISSUER: ${JWT_ISSUER:-brewlite-api}
@@ -88,6 +88,14 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
       MOCK_PAYMENT_MODE: ${MOCK_PAYMENT_MODE:-deterministic}
       ORDER_RESERVATION_TTL_MINUTES: ${ORDER_RESERVATION_TTL_MINUTES:-15}
+      VNPAY_ENABLED: ${VNPAY_ENABLED:-false}
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-}
+      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET:-}
+      VNPAY_PAYMENT_URL: ${VNPAY_PAYMENT_URL:-}
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-}
+      VNPAY_IPN_URL: ${VNPAY_IPN_URL:-}
+      VNPAY_QUERY_URL: ${VNPAY_QUERY_URL:-}
+      VNPAY_QUERY_SERVER_IP: ${VNPAY_QUERY_SERVER_IP:-}
     ports:
       - "${API_PORT:-3001}:3001"
     depends_on:

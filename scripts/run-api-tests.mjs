@@ -17,9 +17,28 @@ const runLogPath = resolve(logsDir, 'api-test-run.log');
 const errorLogPath = resolve(logsDir, 'api-test-errors.log');
 const reportJsonPath = resolve(logsDir, 'newman-report.json');
 
+// Determine target port dynamically from apps/api/.env, process.env.PORT, or fallback to 3001
+let targetPort = 3001;
+const apiEnvPath = resolve(apiDir, '.env');
+if (existsSync(apiEnvPath)) {
+  const envContent = readFileSync(apiEnvPath, 'utf-8');
+  const match = envContent.match(/^\s*PORT\s*=\s*(\d+)/m) || envContent.match(/^\s*API_PORT\s*=\s*(\d+)/m);
+  if (match) {
+    targetPort = Number(match[1]);
+  }
+}
+if (process.env.PORT) {
+  targetPort = Number(process.env.PORT);
+} else if (process.env.API_PORT) {
+  targetPort = Number(process.env.API_PORT);
+}
+
+const baseUrl = `http://localhost:${targetPort}/api/v1`;
+
 console.log('=====================================================');
 console.log('   BrewLite API Test Suite & Diagnostics Runner      ');
 console.log('=====================================================');
+console.log(`Target API  : ${baseUrl} (Port ${targetPort})`);
 console.log(`Collection  : ${collectionPath}`);
 console.log(`Environment : ${environmentPath}`);
 console.log(`Logs Dir    : ${logsDir}`);
@@ -45,7 +64,7 @@ function ensurePostgresRunning() {
   }
 }
 
-async function checkHealth(url = 'http://localhost:3001/api/v1/health') {
+async function checkHealth(url = `${baseUrl}/health`) {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
     if (res.ok) {
@@ -98,7 +117,7 @@ try {
   let isReady = await checkHealth();
 
   if (!isReady) {
-    console.log('[INFO] API server is not running on http://localhost:3001.');
+    console.log(`[INFO] API server is not running on ${baseUrl}.`);
     console.log('[INFO] Attempting to auto-start NestJS API server...');
 
     const distMainPath = resolve(apiDir, 'dist/main.js');
@@ -123,18 +142,18 @@ try {
       process.stderr.write(d.toString());
     });
 
-    isReady = await waitForServer(30000);
+    isReady = await waitForServer(35000);
     if (!isReady) {
       throw new Error(
-        'Could not start API server within 30s. Please ensure PostgreSQL is running (e.g., docker compose up -d postgres) and apps/api/.env is configured.',
+        `Could not start API server on port ${targetPort} within 35s. Please ensure PostgreSQL is running (e.g., docker compose up -d postgres) and apps/api/.env is configured.`,
       );
     }
   } else {
-    console.log('[INFO] Connected to existing API server running on http://localhost:3001 [OK]');
+    console.log(`[INFO] Connected to existing API server running on ${baseUrl} [OK]`);
   }
 
   const startTime = new Date();
-  const logHeader = `[${startTime.toISOString()}] Starting BrewLite API test run...\n`;
+  const logHeader = `[${startTime.toISOString()}] Starting BrewLite API test run against ${baseUrl}...\n`;
   writeFileSync(runLogPath, logHeader, 'utf-8');
 
   // Newman runner: prefer local newman binary in node_modules/.bin, fallback to npx newman
@@ -149,8 +168,8 @@ try {
     newmanBin = `"${unixNewman}"`;
   }
 
-  const command = `${newmanBin} run "${collectionPath}" -e "${environmentPath}" --reporters cli,json --reporter-json-export "${reportJsonPath}"`;
-  console.log('Executing Postman collection via Newman...\n');
+  const command = `${newmanBin} run "${collectionPath}" -e "${environmentPath}" --env-var "baseUrl=${baseUrl}" --reporters cli,json --reporter-json-export "${reportJsonPath}"`;
+  console.log(`Executing Postman collection via Newman targeting ${baseUrl}...\n`);
 
   let output = '';
   try {

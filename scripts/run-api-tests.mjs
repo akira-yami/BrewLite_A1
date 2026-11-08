@@ -25,6 +25,26 @@ console.log(`Environment : ${environmentPath}`);
 console.log(`Logs Dir    : ${logsDir}`);
 console.log('-----------------------------------------------------');
 
+function ensurePostgresRunning() {
+  try {
+    execSync('pg_isready -h localhost -p 5432', { stdio: 'pipe' });
+    return true;
+  } catch {
+    const pgDataDir = resolve(process.env.HOME || '/home/antigravity', '.pgdata');
+    const pgCtl = '/usr/lib/postgresql/15/bin/pg_ctl';
+    if (existsSync(pgCtl) && existsSync(pgDataDir)) {
+      try {
+        console.log('[INFO] Starting local PostgreSQL service...');
+        execSync(`${pgCtl} -D ${pgDataDir} -o "-p 5432 -k /tmp" -l ${resolve(logsDir, 'postgres.log')} start`, { stdio: 'pipe' });
+        return true;
+      } catch (err) {
+        console.warn('[WARN] Failed to auto-start postgres:', err.message);
+      }
+    }
+    return false;
+  }
+}
+
 async function checkHealth(url = 'http://localhost:3001/api/v1/health') {
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(1500) });
@@ -38,7 +58,7 @@ async function checkHealth(url = 'http://localhost:3001/api/v1/health') {
   return false;
 }
 
-async function waitForServer(timeoutMs = 25000) {
+async function waitForServer(timeoutMs = 35000) {
   const start = Date.now();
   process.stdout.write('Waiting for API server to be healthy');
   while (Date.now() - start < timeoutMs) {
@@ -74,6 +94,7 @@ process.on('SIGTERM', () => {
 });
 
 try {
+  ensurePostgresRunning();
   let isReady = await checkHealth();
 
   if (!isReady) {
@@ -192,6 +213,15 @@ TEST SUMMARY:
       console.log('>>> ALL API TESTS PASSED SUCCESSFULLY! (0 failures) <<<');
       const successLog = `[${new Date().toISOString()}] ALL API TESTS PASSED! (Executed: ${stats.requests.total} requests, ${stats.assertions.total} assertions, 0 failures)\n`;
       appendFileSync(runLogPath, successLog, 'utf-8');
+      writeFileSync(
+        errorLogPath,
+        `=====================================================\n` +
+        `BrewLite API Test Error Log - ${new Date().toISOString()}\n` +
+        `Status: ALL TESTS PASSED (0 failures, 0 errors)\n` +
+        `Total Requests: ${stats.requests.total} | Total Assertions: ${stats.assertions.total}\n` +
+        `=====================================================\n`,
+        'utf-8',
+      );
     }
   }
 } catch (error) {

@@ -1,11 +1,11 @@
-[2026-11-08T16:02:59.354Z] Starting BrewLite API test run...
+[2026-11-08T16:19:34.530Z] Starting BrewLite API test run...
 newman
 
 BrewLite API Collection
 
 ❏ 1. System & Health
 ↳ 01. Root Welcome API
-  GET http://localhost:3001/api/v1/ [200 OK, 293B, 21ms]
+  GET http://localhost:3001/api/v1/ [200 OK, 293B, 22ms]
   ✓  Status code is 200
   ✓  Response body contains Welcome message
 
@@ -16,7 +16,7 @@ BrewLite API Collection
 
 ❏ 2. Auth & Access Control
 ↳ 01. Register New Customer Account
-  POST http://localhost:3001/api/v1/auth/register [201 Created, 868B, 133ms]
+  POST http://localhost:3001/api/v1/auth/register [201 Created, 868B, 153ms]
   ✓  Status code is 201 Created
   ✓  Customer registered successfully
 
@@ -26,16 +26,16 @@ BrewLite API Collection
   ✓  Returns user conflict error
 
 ↳ 03. Register Invalid Payload (400 Bad Request)
-  POST http://localhost:3001/api/v1/auth/register [400 Bad Request, 463B, 2ms]
+  POST http://localhost:3001/api/v1/auth/register [400 Bad Request, 463B, 3ms]
   ✓  Status code is 400 Bad Request
 
 ↳ 04. Login as Customer (customer01)
-  POST http://localhost:3001/api/v1/auth/login [200 OK, 842B, 81ms]
+  POST http://localhost:3001/api/v1/auth/login [200 OK, 845B, 82ms]
   ✓  Status code is 200 OK
   ✓  Saves customer token & ID
 
 ↳ 05. Login as Barista (barista01)
-  POST http://localhost:3001/api/v1/auth/login [200 OK, 837B, 82ms]
+  POST http://localhost:3001/api/v1/auth/login [200 OK, 837B, 83ms]
   ✓  Status code is 200 OK
   ✓  Saves barista token & ID
 
@@ -45,11 +45,11 @@ BrewLite API Collection
   ✓  Saves operator token & ID
 
 ↳ 07. Login Invalid Credentials (401 Unauthorized)
-  POST http://localhost:3001/api/v1/auth/login [401 Unauthorized, 461B, 83ms]
+  POST http://localhost:3001/api/v1/auth/login [401 Unauthorized, 461B, 86ms]
   ✓  Status code is 401 Unauthorized
 
 ↳ 08. Get Profile Me (Customer)
-  GET http://localhost:3001/api/v1/auth/me [200 OK, 499B, 6ms]
+  GET http://localhost:3001/api/v1/auth/me [200 OK, 502B, 6ms]
   ✓  Status code is 200 OK
   ✓  Profile matches current customer
 
@@ -58,7 +58,7 @@ BrewLite API Collection
   ✓  Status code is 401 Unauthorized
 
 ↳ 10. Get User by ID - Own ID (OwnershipGuard)
-  GET http://localhost:3001/api/v1/auth/users/432d90ce-9c21-4f33-87ca-f1aacaf3ba0e [200 OK, 499B, 3ms]
+  GET http://localhost:3001/api/v1/auth/users/432d90ce-9c21-4f33-87ca-f1aacaf3ba0e [200 OK, 502B, 4ms]
   ✓  Status code is 200 OK
   ✓  Returns user data
 
@@ -77,12 +77,12 @@ BrewLite API Collection
 
 ❏ 3. Catalog & Products
 ↳ 01. List Products
-  GET http://localhost:3001/api/v1/products [200 OK, 40kB, 38ms]
+  GET http://localhost:3001/api/v1/products [200 OK, 40kB, 42ms]
   ✓  Status code is 200 OK
   ✓  Products returned with variants and toppings
 
 ↳ 02. Get Product Detail by ID
-  GET http://localhost:3001/api/v1/products/74583df6-dc82-47a5-a911-3b9bb587bf2f [200 OK, 1.65kB, 9ms]
+  GET http://localhost:3001/api/v1/products/74583df6-dc82-47a5-a911-3b9bb587bf2f [200 OK, 1.65kB, 11ms]
   ✓  Status code is 200 OK
   ✓  Returns correct product detail
 
@@ -92,12 +92,12 @@ BrewLite API Collection
 
 ❏ 4. Coupons & Promotions
 ↳ 01. Validate Coupon - Valid Code (BREW10-DEMO)
-  POST http://localhost:3001/api/v1/coupons/validate [200 OK, 342B, 10ms]
+  POST http://localhost:3001/api/v1/coupons/validate [200 OK, 342B, 15ms]
   ✓  Status code is 200 OK
   ✓  Coupon is valid and calculates discount
 
 ↳ 02. Validate Coupon - Invalid Code (422 Unprocessable Entity)
-  POST http://localhost:3001/api/v1/coupons/validate [422 Unprocessable Entity, 497B, 4ms]
+  POST http://localhost:3001/api/v1/coupons/validate [422 Unprocessable Entity, 497B, 5ms]
   ✓  Status code is 422 Unprocessable Entity
   ✓  Coupon validation returns COUPON_NOT_APPLICABLE error code
 
@@ -107,7 +107,7 @@ BrewLite API Collection
 
 ❏ 5. Orders
 ↳ 01. Create Order (Success - PENDING)
-  POST http://localhost:3001/api/v1/orders [201 Created, 1.01kB, 56ms]
+  POST http://localhost:3001/api/v1/orders [201 Created, 1.01kB, 54ms]
   ✓  Status code is 201 Created
   ✓  Order created in PENDING status
 
@@ -116,90 +116,90 @@ BrewLite API Collection
   ✓  Status code is 400 Bad Request
 
 ↳ 03. Get My Orders List
-  GET http://localhost:3001/api/v1/orders/me [200 OK, 1.03kB, 5ms]
+  GET http://localhost:3001/api/v1/orders/me [200 OK, 2.12kB, 5ms]
   ✓  Status code is 200 OK
   ✓  Contains created orders
 
 ↳ 04. Get Order Detail by ID
-  GET http://localhost:3001/api/v1/orders/5e483abd-9a32-45c9-98ed-731ff193db06 [200 OK, 1.21kB, 14ms]
+  GET http://localhost:3001/api/v1/orders/5ce67e66-2b36-4bd4-8a47-7b9949eefaa4 [200 OK, 1.21kB, 14ms]
   ✓  Status code is 200 OK
   ✓  Returns correct order detail
 
 ↳ 05. Create Order for Cancellation Test
-  POST http://localhost:3001/api/v1/orders [201 Created, 902B, 29ms]
+  POST http://localhost:3001/api/v1/orders [201 Created, 902B, 34ms]
   ✓  Status code is 201 Created
   ✓  Saves cancelOrderId
 
 ↳ 06. Cancel Order (Success - CANCELLED)
-  POST http://localhost:3001/api/v1/orders/242973ba-baa2-4211-ab7a-b87f2960e52b/cancel [200 OK, 1.28kB, 27ms]
+  POST http://localhost:3001/api/v1/orders/45f64c44-108b-4fcb-8605-c956644b2f79/cancel [200 OK, 1.28kB, 31ms]
   ✓  Status code is 200 OK
   ✓  Order status changed to CANCELLED
 
 ↳ 07. Cancel Already Cancelled Order (Expected 400 / Conflict)
-  POST http://localhost:3001/api/v1/orders/242973ba-baa2-4211-ab7a-b87f2960e52b/cancel [409 Conflict, 519B, 5ms]
+  POST http://localhost:3001/api/v1/orders/45f64c44-108b-4fcb-8605-c956644b2f79/cancel [409 Conflict, 519B, 5ms]
   ✓  Status code indicates invalid state (400 or 409)
 
 ❏ 6. Payments
 ↳ 01. Process Payment - E_WALLET (Success)
-  POST http://localhost:3001/api/v1/payments [200 OK, 421B, 32ms]
+  POST http://localhost:3001/api/v1/payments [200 OK, 421B, 33ms]
   ✓  Status code is 200 OK
   ✓  Payment processed successfully and order is PAID
 
 ↳ 02. Process Payment - Idempotent Replay (Same Key)
-  POST http://localhost:3001/api/v1/payments [200 OK, 420B, 3ms]
+  POST http://localhost:3001/api/v1/payments [200 OK, 420B, 4ms]
   ✓  Status code is 200 OK
   ✓  Returns idempotent payment replay without error
 
 ↳ 03. Get Payment Status by Idempotency Key
-  GET http://localhost:3001/api/v1/payments/status [200 OK, 420B, 4ms]
+  GET http://localhost:3001/api/v1/payments/status [200 OK, 420B, 3ms]
   ✓  Status code is 200 OK
   ✓  Returns accurate payment record
 
 ↳ 04. Fetch Order Detail to Extract Payment ID
-  GET http://localhost:3001/api/v1/orders/5e483abd-9a32-45c9-98ed-731ff193db06 [200 OK, 1.61kB, 4ms]
+  GET http://localhost:3001/api/v1/orders/5ce67e66-2b36-4bd4-8a47-7b9949eefaa4 [200 OK, 1.61kB, 5ms]
   ✓  Status code is 200 OK
   ✓  Extracts payment ID from payment summary
 
 ↳ 05. Get Payment Status - Missing Idempotency Key (400)
-  GET http://localhost:3001/api/v1/payments/status [400 Bad Request, 433B, 1ms]
+  GET http://localhost:3001/api/v1/payments/status [400 Bad Request, 433B, 2ms]
   ✓  Status code is 400 Bad Request
 
 ↳ 06. Process Payment - Re-pay Already Paid Order (400/409)
-  POST http://localhost:3001/api/v1/payments [409 Conflict, 380B, 5ms]
+  POST http://localhost:3001/api/v1/payments [409 Conflict, 380B, 6ms]
   ✓  Status code is 400 or 409
 
 ↳ 07. VNPay Return Redirect Endpoint
-  GET http://localhost:3001/api/v1/payments/vnpay/return?vnp_ResponseCode=00 [503 Service Unavailable, 374B, 2ms]
+  GET http://localhost:3001/api/v1/payments/vnpay/return?vnp_ResponseCode=00 [503 Service Unavailable, 374B, 1ms]
   ✓  Status code is 503 (VNPay not configured in dev) or 302/200
 
 ↳ 08. VNPay IPN Webhook Endpoint
-  GET http://localhost:3001/api/v1/payments/vnpay/ipn [200 OK, 343B, 1ms]
+  GET http://localhost:3001/api/v1/payments/vnpay/ipn [200 OK, 343B, 2ms]
   ✓  Status code is 200 OK
   ✓  Response includes RspCode
 
 ↳ 09. Operator Recovery - Customer Forbidden (403)
-  POST http://localhost:3001/api/v1/payments/139bdaff-27b6-416d-8652-f6ba77d0b7f2/recovery [403 Forbidden, 467B, 2ms]
+  POST http://localhost:3001/api/v1/payments/d7afb4c2-bae4-4e16-bd1c-31ce25b9763c/recovery [403 Forbidden, 467B, 2ms]
   ✓  Status code is 403 Forbidden
 
 ↳ 10. Operator Recovery - Missing Idempotency-Key (400)
-  POST http://localhost:3001/api/v1/payments/139bdaff-27b6-416d-8652-f6ba77d0b7f2/recovery [400 Bad Request, 405B, 2ms]
+  POST http://localhost:3001/api/v1/payments/d7afb4c2-bae4-4e16-bd1c-31ce25b9763c/recovery [400 Bad Request, 405B, 2ms]
   ✓  Status code is 400 Bad Request
 
 ↳ 11. Operator Recovery - Non-VNPAY Payment Conflict (409)
-  POST http://localhost:3001/api/v1/payments/139bdaff-27b6-416d-8652-f6ba77d0b7f2/recovery [409 Conflict, 406B, 5ms]
+  POST http://localhost:3001/api/v1/payments/d7afb4c2-bae4-4e16-bd1c-31ce25b9763c/recovery [409 Conflict, 406B, 5ms]
   ✓  Status code is 409 Conflict (PAYMENT_NOT_RECONCILABLE)
 
 ↳ 12. Operator Recovery Resolution - Customer Forbidden (403)
-  POST http://localhost:3001/api/v1/payments/139bdaff-27b6-416d-8652-f6ba77d0b7f2/recovery/resolve [403 Forbidden, 467B, 2ms]
+  POST http://localhost:3001/api/v1/payments/d7afb4c2-bae4-4e16-bd1c-31ce25b9763c/recovery/resolve [403 Forbidden, 467B, 2ms]
   ✓  Status code is 403 Forbidden
 
 ↳ 13. Operator Recovery Resolution - Non-VNPAY Payment Conflict (409)
-  POST http://localhost:3001/api/v1/payments/139bdaff-27b6-416d-8652-f6ba77d0b7f2/recovery/resolve [409 Conflict, 415B, 6ms]
+  POST http://localhost:3001/api/v1/payments/d7afb4c2-bae4-4e16-bd1c-31ce25b9763c/recovery/resolve [409 Conflict, 415B, 7ms]
   ✓  Status code is 409 Conflict (PAYMENT_NOT_RECONCILABLE)
 
 ❏ 7. Staff Orders (Barista Flow)
 ↳ 01. Get Staff Orders Queue (Barista)
-  GET http://localhost:3001/api/v1/staff/orders [200 OK, 957B, 18ms]
+  GET http://localhost:3001/api/v1/staff/orders [200 OK, 957B, 8ms]
   ✓  Status code is 200 OK
   ✓  Barista queue contains active orders
 
@@ -208,17 +208,17 @@ BrewLite API Collection
   ✓  Status code is 403 Forbidden
 
 ↳ 03. Advance Order to PREPARING
-  PATCH http://localhost:3001/api/v1/staff/orders/5e483abd-9a32-45c9-98ed-731ff193db06/status [200 OK, 960B, 22ms]
+  PATCH http://localhost:3001/api/v1/staff/orders/5ce67e66-2b36-4bd4-8a47-7b9949eefaa4/status [200 OK, 960B, 41ms]
   ✓  Status code is 200 OK
   ✓  Order advanced to PREPARING
 
 ↳ 04. Advance Order to READY
-  PATCH http://localhost:3001/api/v1/staff/orders/5e483abd-9a32-45c9-98ed-731ff193db06/status [200 OK, 956B, 13ms]
+  PATCH http://localhost:3001/api/v1/staff/orders/5ce67e66-2b36-4bd4-8a47-7b9949eefaa4/status [200 OK, 956B, 13ms]
   ✓  Status code is 200 OK
   ✓  Order advanced to READY
 
 ↳ 05. Advance Order to COMPLETED
-  PATCH http://localhost:3001/api/v1/staff/orders/5e483abd-9a32-45c9-98ed-731ff193db06/status [200 OK, 960B, 10ms]
+  PATCH http://localhost:3001/api/v1/staff/orders/5ce67e66-2b36-4bd4-8a47-7b9949eefaa4/status [200 OK, 960B, 19ms]
   ✓  Status code is 200 OK
   ✓  Order completed and finalized
 
@@ -229,7 +229,7 @@ BrewLite API Collection
   ✓  Ingredients returned
 
 ↳ 02. Get Ingredient Detail by ID
-  GET http://localhost:3001/api/v1/staff/inventory/01dbcdd3-f95e-4160-aa47-74d5086c32eb [200 OK, 499B, 5ms]
+  GET http://localhost:3001/api/v1/staff/inventory/01dbcdd3-f95e-4160-aa47-74d5086c32eb [200 OK, 499B, 4ms]
   ✓  Status code is 200 OK
   ✓  Ingredient detail matches ID
 
@@ -255,11 +255,11 @@ BrewLite API Collection
 ├─────────────────────────┼───────────────────┼──────────────────┤
 │              assertions │                81 │                0 │
 ├─────────────────────────┴───────────────────┴──────────────────┤
-│ total run duration: 1526ms                                     │
+│ total run duration: 1610ms                                     │
 ├────────────────────────────────────────────────────────────────┤
-│ total data received: 59.78kB (approx)                          │
+│ total data received: 60.87kB (approx)                          │
 ├────────────────────────────────────────────────────────────────┤
-│ average response time: 17ms [min: 1ms, max: 133ms, s.d.: 28ms] │
+│ average response time: 18ms [min: 1ms, max: 153ms, s.d.: 30ms] │
 └────────────────────────────────────────────────────────────────┘
 
 
@@ -267,8 +267,8 @@ BrewLite API Collection
 TEST SUMMARY:
 - Total Requests   : 50 (Executed: 50, Failed: 0)
 - Total Assertions : 81 (Passed: 81, Failed: 0)
-- Total Duration   : 1526 ms
+- Total Duration   : 1610 ms
 - Failures Count   : 0
 -----------------------------------------------------
 
-[2026-11-08T16:03:01.641Z] ALL API TESTS PASSED! (Executed: 50 requests, 81 assertions, 0 failures)
+[2026-11-08T16:19:36.914Z] ALL API TESTS PASSED! (Executed: 50 requests, 81 assertions, 0 failures)

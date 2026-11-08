@@ -117,8 +117,16 @@ try {
   writeFileSync(runLogPath, logHeader, 'utf-8');
 
   // Newman runner: prefer local newman binary in node_modules/.bin, fallback to npx newman
-  const localNewman = resolve(apiDir, 'node_modules/.bin/newman');
-  const newmanBin = existsSync(localNewman) ? `"${localNewman}"` : 'npx --yes newman';
+  const isWin = process.platform === 'win32';
+  const winNewman = resolve(apiDir, 'node_modules/.bin/newman.cmd');
+  const unixNewman = resolve(apiDir, 'node_modules/.bin/newman');
+  let newmanBin = 'npx --yes newman';
+
+  if (isWin && existsSync(winNewman)) {
+    newmanBin = `"${winNewman}"`;
+  } else if (!isWin && existsSync(unixNewman)) {
+    newmanBin = `"${unixNewman}"`;
+  }
 
   const command = `${newmanBin} run "${collectionPath}" -e "${environmentPath}" --reporters cli,json --reporter-json-export "${reportJsonPath}"`;
   console.log('Executing Postman collection via Newman...\n');

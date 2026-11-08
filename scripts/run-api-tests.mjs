@@ -1,5 +1,5 @@
 import { execSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, unlinkSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -51,8 +51,27 @@ function ensurePostgresRunning() {
   } catch {
     const pgDataDir = resolve(process.env.HOME || '/home/antigravity', '.pgdata');
     const pgCtl = '/usr/lib/postgresql/15/bin/pg_ctl';
+    const pidFile = resolve(pgDataDir, 'postmaster.pid');
+
     if (existsSync(pgCtl) && existsSync(pgDataDir)) {
       try {
+        if (existsSync(pidFile)) {
+          try {
+            const pidContent = readFileSync(pidFile, 'utf-8');
+            const pid = parseInt(pidContent.split('\n')[0].trim(), 10);
+            if (pid && !isNaN(pid)) {
+              try {
+                process.kill(pid, 0);
+              } catch {
+                unlinkSync(pidFile);
+              }
+            } else {
+              unlinkSync(pidFile);
+            }
+          } catch {
+            try { unlinkSync(pidFile); } catch {}
+          }
+        }
         console.log('[INFO] Starting local PostgreSQL service...');
         execSync(`${pgCtl} -D ${pgDataDir} -o "-p 5432 -k /tmp" -l ${resolve(logsDir, 'postgres.log')} start`, { stdio: 'pipe' });
         return true;

@@ -22,6 +22,7 @@ yarn-error.log*
 pnpm-debug.log*
 !logs/*.log
 logs/newman-report.json
+logs/postgres.log
 
 # IDE / OS
 .idea/

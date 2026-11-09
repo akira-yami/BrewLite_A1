@@ -121,12 +121,14 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
+        NEXT_PUBLIC_VNPAY_ENABLED: ${NEXT_PUBLIC_VNPAY_ENABLED:-false}
     image: brewlite-web:local
     environment:
       NODE_ENV: production
       PORT: 3000
       API_INTERNAL_URL: http://backend:3001/api/v1
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
+      NEXT_PUBLIC_VNPAY_ENABLED: ${NEXT_PUBLIC_VNPAY_ENABLED:-false}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

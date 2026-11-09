@@ -22,11 +22,29 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  const configuredOrigins = (process.env.WEB_ORIGIN ?? 'http://localhost:3000')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const localOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+  ];
+
+  const allowedOrigins = Array.from(
+    new Set([
+      ...configuredOrigins,
+      ...(process.env.NODE_ENV !== 'production' ? localOrigins : []),
+    ]),
+  );
+
   app.enableCors({
     credentials: true,
-    origin: (process.env.WEB_ORIGIN ?? 'http://localhost:3000')
-      .split(',')
-      .map((origin) => origin.trim()),
+    origin: allowedOrigins,
   });
   app.enableShutdownHooks();
 

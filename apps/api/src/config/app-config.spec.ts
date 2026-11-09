@@ -199,7 +199,7 @@ describe('app-config and AuthModule dynamic configuration (TDD)', () => {
     });
   });
 
-  it('allows signed Sandbox Return settlement only for local development', () => {
+  it('allows loopback HTTP URLs only for non-production Sandbox configuration', () => {
     const values = {
       WEB_ORIGIN: 'http://localhost:3100',
       VNPAY_ENABLED: 'true',
@@ -213,7 +213,6 @@ describe('app-config and AuthModule dynamic configuration (TDD)', () => {
     expect(loadAppConfig({ ...values, NODE_ENV: 'development' }).vnpay).toMatchObject({
       frontendOrigin: values.WEB_ORIGIN,
       returnUrl: values.VNPAY_RETURN_URL,
-      settleLocalSandboxReturn: true,
     });
     expect(() => loadAppConfig({ ...values, NODE_ENV: 'production' }))
       .toThrow(/VNPAY_RETURN_URL must be a valid HTTPS URL/);
@@ -221,8 +220,6 @@ describe('app-config and AuthModule dynamic configuration (TDD)', () => {
       .toThrow(/VNPAY_RETURN_URL must be a valid HTTPS URL/);
     expect(() => loadAppConfig({ ...values, NODE_ENV: 'test', WEB_ORIGIN: 'http://example.com' }))
       .toThrow(/WEB_ORIGIN must be a valid HTTPS URL/);
-    expect(loadAppConfig({ ...values, VNPAY_RETURN_URL: 'https://e2e.invalid/vnpay/return' })
-      .vnpay.settleLocalSandboxReturn).toBe(false);
   });
 
   it('keeps AuthModule JwtService signOptions synchronized with AuthService expiresIn when env changes after module import', async () => {

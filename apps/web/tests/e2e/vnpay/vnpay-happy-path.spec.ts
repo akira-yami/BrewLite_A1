@@ -1,4 +1,5 @@
 import { enrichVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '../fixtures/vnpay-fixtures.js';
 import { setupCartWithProduct, proceedToCheckout } from '../helpers/cart-helper.js';
 
@@ -80,4 +81,31 @@ test('VNPAY happy path: checkout → payment → confirmation', async ({
   await expect(
     page.getByRole('heading', { name: 'Giỏ hàng đang trống' }),
   ).toBeVisible();
+});
+
+test('signed Sandbox Return confirms the order on the first status check', async ({ page, testUser, vnpayHelper }) => {
+  test.skip(Boolean(process.env.E2E_EXTERNAL_BASE_URL), 'Uses the isolated Sandbox configuration');
+  await page.route(/^https:\/\/sandbox\.vnpayment\.vn\/paymentv2\/vpcpay\.html\?/, async route => {
+    const gateway = new URL(route.request().url()).searchParams;
+    const destination = new URL(gateway.get('vnp_ReturnUrl')!);
+    const result = {
+      vnp_TmnCode: gateway.get('vnp_TmnCode')!,
+      vnp_TxnRef: gateway.get('vnp_TxnRef')!,
+      vnp_Amount: gateway.get('vnp_Amount')!,
+      vnp_ResponseCode: '00',
+      vnp_TransactionStatus: '00',
+      vnp_TransactionNo: randomUUID().replaceAll('-', ''),
+    };
+    destination.search = new URLSearchParams({ ...result, vnp_SecureHash: vnpayHelper.computeSignature(result) }).toString();
+    await route.fulfill({ status: 302, headers: { location: destination.toString() }, body: '' });
+  });
+
+  await setupCartWithProduct(page, testUser.accessToken);
+  await proceedToCheckout(page);
+  const firstStatus = page.waitForResponse(response => response.url().endsWith('/payments/status'));
+  await page.getByRole('button', { name: /^Thanh toán / }).click();
+
+  const statusResponse = await firstStatus;
+  expect((await statusResponse.json()).data).toMatchObject({ status: 'SUCCEEDED', success: true });
+  await expect(page).toHaveURL(/\/orders\/confirmation\?orderId=/);
 });

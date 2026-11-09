@@ -10,7 +10,6 @@ export interface VnpayConfig {
   returnUrl: string | null;
   ipnUrl: string | null;
   frontendOrigin: string;
-  settleLocalSandboxReturn: boolean;
 }
 
 export interface AppConfig {
@@ -140,7 +139,6 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
       returnUrl: null,
       ipnUrl: null,
       frontendOrigin,
-      settleLocalSandboxReturn: false,
     };
   }
 
@@ -207,8 +205,6 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
     returnUrl: returnUrl.toString(),
     ipnUrl: ipnUrl.toString(),
     frontendOrigin: frontend.origin,
-    settleLocalSandboxReturn:
-      localSandbox && isLoopbackUrl(returnUrl.origin) && isLoopbackUrl(frontend.origin),
   };
 }
 

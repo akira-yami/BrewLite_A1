@@ -482,11 +482,17 @@ export class PaymentsService {
     return this.applyVnpayResult(callback);
   }
 
-  private async applyVnpayResult(callback: VerifiedVnpayCallback): Promise<{ RspCode: string; Message: string }> {
+  private async applyVnpayResult(
+    callback: VerifiedVnpayCallback,
+    source: 'ipn' | 'sandbox-return' = 'ipn',
+  ): Promise<{ RspCode: string; Message: string }> {
     try {
       const initialPayment = await this.paymentsRepository.findByGatewayReference(callback.vnp_TxnRef);
       if (!initialPayment || initialPayment.method !== PaymentMethod.VNPAY) {
         return { RspCode: '01', Message: 'Order not found' };
+      }
+      if (source === 'sandbox-return' && !this.vnpayGateway?.isSandboxPaymentUrl(initialPayment.paymentUrl)) {
+        return { RspCode: '01', Message: 'Sandbox payment not found' };
       }
       const outcome = await this.prisma.$transaction(async (tx) => {
         const lockedOrder = await this.ordersService.getOrderForPaymentForUpdate(
@@ -508,6 +514,7 @@ export class PaymentsService {
               afterState: payment.status,
               providerOutcome: 'IPN_AMOUNT_MISMATCH_REJECTED',
               details: {
+                source,
                 reportedAmount: callback.vnp_Amount,
                 expectedAmount: (payment.amount * 100n).toString(),
                 responseCode: callback.vnp_ResponseCode,
@@ -546,6 +553,7 @@ export class PaymentsService {
                 afterState: PaymentStatus.MANUAL_REVIEW,
                 providerOutcome: 'LATE_SUCCESS_AFTER_FAILURE_REQUIRES_REFUND_REVIEW',
                 details: {
+                  source,
                   responseCode: callback.vnp_ResponseCode,
                   transactionStatus: callback.vnp_TransactionStatus,
                   transactionNo,
@@ -572,6 +580,7 @@ export class PaymentsService {
                 ? 'DUPLICATE_IPN'
                 : 'OUT_OF_ORDER_IPN_IGNORED',
               details: {
+                source,
                 responseCode: callback.vnp_ResponseCode,
                 transactionStatus: callback.vnp_TransactionStatus,
                 transactionNo,
@@ -609,6 +618,7 @@ export class PaymentsService {
                 afterState: PaymentStatus.MANUAL_REVIEW,
                 providerOutcome: 'LATE_SUCCESS_REQUIRES_REFUND_REVIEW',
                 details: {
+                  source,
                   responseCode: callback.vnp_ResponseCode,
                   transactionStatus: callback.vnp_TransactionStatus,
                   transactionNo,
@@ -669,9 +679,9 @@ export class PaymentsService {
     const callback = this.vnpayGateway.verifyCallback(query);
     if (!callback) {
       this.logger.warn('VNPay Return has invalid signature; redirecting to Checkout.');
-    } else if (this.vnpayGateway.canSettleLocalSandboxReturn()) {
-      // VNPay cannot send a server-to-server IPN to the local development API.
-      await this.applyVnpayResult(callback);
+    } else if (this.vnpayGateway.isSandboxPaymentUrl()) {
+      // Settle verified Sandbox results before redirecting, even when Sandbox IPN is delayed.
+      await this.applyVnpayResult(callback, 'sandbox-return');
     }
     return this.vnpayGateway.frontendReturnUrl();
   }

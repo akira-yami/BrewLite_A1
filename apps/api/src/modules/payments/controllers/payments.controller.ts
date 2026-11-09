@@ -72,7 +72,7 @@ export class PaymentsController {
     return this.paymentsService.handleVnpayIpn(query);
   }
 
-  // Browser Return is display-only. Payment settlement happens only through verified IPN.
+  // Browser Return is display-only outside the local Sandbox flow.
   @Get('vnpay/return')
   async vnpayReturn(
     @Query() query: Record<string, unknown>,
@@ -156,6 +156,14 @@ export class PaymentsController {
       throw new BadRequestException(
         'Header Idempotency-Key là bắt buộc để chống double-charge',
       );
+    }
+
+    // Legacy methods remain available to the isolated mock-gateway test suites.
+    if (dto.method !== PaymentMethod.VNPAY && process.env.NODE_ENV !== 'test') {
+      throw new BadRequestException({
+        code: 'PAYMENT_METHOD_UNSUPPORTED',
+        message: 'BrewLite chỉ hỗ trợ thanh toán qua VNPay.',
+      });
     }
 
     const order = await this.ordersService.getOrderForPayment(dto.orderId, user.sub);

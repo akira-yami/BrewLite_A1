@@ -15,7 +15,6 @@ test('VNPAY happy path: checkout → payment → confirmation', async ({
 
   // Step 3: Select VNPAY payment method
   await expect(page).toHaveURL(/\/checkout/);
-  await page.getByRole('button', { name: /vnpay/i }).click();
 
   // Step 4: Click thanh toán and capture POST /payments response
   const paymentPromise = page.waitForResponse(

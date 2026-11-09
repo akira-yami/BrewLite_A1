@@ -1,5 +1,5 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { vi } from 'vitest';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { loadAppConfig } from '../src/config/app-config.js';
@@ -11,6 +11,7 @@ import { OrderExpiryJob } from '../src/modules/orders/services/order-expiry.job.
 import { PaymentsRepository } from '../src/modules/payments/repositories/payments.repository.js';
 import { PaymentsService } from '../src/modules/payments/services/payments.service.js';
 import { PaymentRecoveryService } from '../src/modules/payments/services/payment-recovery.service.js';
+import { VnpayGatewayService } from '../src/modules/payments/services/vnpay.gateway.js';
 import { PromotionsRepository } from '../src/modules/promotions/repositories/promotions.repository.js';
 import { PromotionsService } from '../src/modules/promotions/services/promotions.service.js';
 
@@ -196,6 +197,61 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
     });
   }
 
+  it.each([false, true])('handles a signed local Return after expiry (cancelled=%s)', async (cancelled) => {
+    const config = loadAppConfig({
+      NODE_ENV: 'test',
+      VNPAY_ENABLED: 'true',
+      WEB_ORIGIN: 'http://localhost:3000',
+      VNPAY_RETURN_URL: 'http://localhost:3001/api/v1/payments/vnpay/return',
+      VNPAY_IPN_URL: 'https://example.invalid/api/v1/payments/vnpay/ipn',
+      VNPAY_TMN_CODE: 'TEST0001',
+      VNPAY_HASH_SECRET: '0123456789abcdef0123456789abcdef',
+    });
+    const payments = new PaymentsService(
+      new PaymentsRepository(prisma as never), orders, {} as never, prisma as never, new VnpayGatewayService(config),
+    );
+    const f = await fixture();
+    const payment = await createVnpayPayment(f.order.id, f.params.amount);
+    await f.expire();
+    await job().handleExpiredOrders();
+
+    if (cancelled) {
+      await orders.cancelOrder(f.order.id, f.user.id, 'Customer cancellation', false);
+      await expect(orders.cancelOrder(f.order.id, f.user.id, 'Customer cancellation retry', false))
+        .rejects.toMatchObject({ response: { code: 'ORDER_INVALID_TRANSITION' } });
+      expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('FAILED');
+    }
+
+    const params = new URLSearchParams({
+      vnp_TxnRef: payment.gatewayReference!,
+      vnp_Amount: (payment.amount * 100n).toString(),
+      vnp_TmnCode: config.vnpay.tmnCode!,
+      vnp_ResponseCode: '00',
+      vnp_TransactionStatus: '00',
+      vnp_TransactionNo: randomUUID().replaceAll('-', ''),
+    });
+    params.sort();
+    const callback = Object.fromEntries(params);
+    await payments.getVnpayReturnRedirect({ ...callback, vnp_SecureHash: '0'.repeat(128) });
+    expect((await f.state()).order.status).toBe(cancelled ? 'CANCELLED' : 'PENDING');
+    const signed = {
+      ...callback,
+      vnp_SecureHash: createHmac('sha512', config.vnpay.hashSecret!).update(params.toString()).digest('hex'),
+    };
+    await expect(payments.getVnpayReturnRedirect(signed)).resolves.toBe('http://localhost:3000/checkout?paymentReturn=1');
+    await payments.getVnpayReturnRedirect(signed);
+
+    const state = await f.state();
+    expect(state.order.status).toBe(cancelled ? 'CANCELLED' : 'PAID');
+    expect(state.reservation.status).toBe(cancelled ? 'EXPIRED' : 'CONSUMED');
+    expect(state.coupon.status).toBe(cancelled ? 'EXPIRED' : 'CONSUMED');
+    expect(state.stock.stockQuantity).toBe(cancelled ? 20 : 10);
+    expect(state.cancellations).toBe(cancelled ? 1 : 0);
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status)
+      .toBe(cancelled ? 'MANUAL_REVIEW' : 'SUCCEEDED');
+    expect(await prisma.loyaltyTransaction.count({ where: { orderId: f.order.id } })).toBe(cancelled ? 0 : 1);
+  });
+
   function recoveryService(query: ReturnType<typeof vi.fn>) {
     return new PaymentRecoveryService(
       prisma as never,
@@ -278,7 +334,7 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
     expect(await prisma.paymentRecoveryAudit.count({ where: { paymentId: payment.id } })).toBe(2);
   });
 
-  it('moves late provider SUCCESS to MANUAL_REVIEW and retains expired Order assets', async () => {
+  it('settles a late provider SUCCESS while the order still holds its reservations', async () => {
     const f = await fixture();
     const payment = await createVnpayPayment(f.order.id, f.params.amount);
     await f.expire();
@@ -291,14 +347,14 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
       actorUserId: f.user.id,
     });
 
-    expect(result).toMatchObject({ status: 'COMPLETED', paymentStatus: 'MANUAL_REVIEW' });
+    expect(result).toMatchObject({ status: 'COMPLETED', paymentStatus: 'SUCCEEDED' });
     await job().handleExpiredOrders();
     const state = await f.state();
-    expect(state.order.status).toBe('PENDING');
-    expect(state.reservation.status).toBe('ACTIVE');
-    expect(state.coupon.status).toBe('RESERVED');
+    expect(state.order.status).toBe('PAID');
+    expect(state.reservation.status).toBe('CONSUMED');
+    expect(state.coupon.status).toBe('CONSUMED');
     expect(state.stock.stockQuantity).toBe(10);
-    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('MANUAL_REVIEW');
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } })).status).toBe('SUCCEEDED');
   });
 
   it('persists audit after a rolled-back settlement and rejects audit UPDATE/DELETE in PostgreSQL', async () => {
@@ -340,7 +396,9 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
     });
     const payment = await createVnpayPayment(f.order.id, f.params.amount);
     await f.expire();
-    const inquiry = vi.fn().mockResolvedValue(successfulInquiry(payment.gatewayReference!));
+    const inquiry = vi.fn().mockResolvedValue({
+      ...successfulInquiry(payment.gatewayReference!), status: 'MANUAL_REVIEW', transactionStatus: '07',
+    });
     const service = recoveryService(inquiry);
     const review = await service.recover({
       paymentId: payment.id, idempotencyKey: 'recovery-refund-review',

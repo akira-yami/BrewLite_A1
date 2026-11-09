@@ -119,8 +119,9 @@ Environment variables:
 - Replaying the same Idempotency-Key returns the persisted URL; it does not create a second merchant transaction.
 - GET /api/v1/payments/status includes the saved payment URL for the authenticated Order owner.
 - GET /api/v1/payments/vnpay/ipn is the only settlement path. It validates HMAC-SHA512, merchant code, exact amount and processes Payment/Order transition in one transaction.
-- GET /api/v1/payments/vnpay/return redirects to Checkout only. Browser Return parameters never settle Payment.
-- Enable the frontend option at build time with NEXT_PUBLIC_VNPAY_ENABLED=true.
+- GET /api/v1/payments/vnpay/return redirects to Checkout on the first `WEB_ORIGIN`. Production settlement uses the signed IPN.
+- For local Sandbox testing, set `WEB_ORIGIN=http://localhost:3000` and `VNPAY_RETURN_URL=http://localhost:3001/api/v1/payments/vnpay/return`. With both URLs on loopback and `NODE_ENV` outside production, the local API can apply a signed Sandbox Return using the same validation and settlement as IPN.
+- Checkout uses VNPay as its only payment method. Enable `VNPAY_ENABLED` on the API and configure the merchant credentials to accept payments.
 - When API is behind a reverse proxy, configure `TRUSTED_PROXY_CIDRS` with only the exact ingress proxy IP/CIDRs so VNPay receives the client IP rather than the proxy address; never enable blanket proxy trust.
 - A real Sandbox merchant transaction, registered HTTPS IPN URL and gateway inquiry/reconciliation process still require separate acceptance. Code tests do not prove a live merchant transaction.
 
@@ -133,7 +134,7 @@ Environment variables:
 - Recovery uses an `Idempotency-Key` scoped to the Payment. The provider request ID is committed before QueryDr is called; replaying the same recovery key never creates another inquiry.
 - QueryDr runs outside the database transaction. Settlement then locks the Order, re-reads Payment and Order, and commits Payment + Order + inventory/loyalty + coupon consumption + audit atomically.
 - Provider timeout, transport failure, malformed/unsigned response, amount/merchant mismatch, and unknown/pending outcomes never set Payment to FAILED. They keep Payment PROCESSING.
-- Late success or provider outcomes requiring investigation move Payment to MANUAL_REVIEW. Expiry and cancellation retain coupon/inventory reservations while Payment is PROCESSING or MANUAL_REVIEW.
+- Expiry retains coupon and inventory reservations during active payments. A verified success can settle a pending order after its reservation deadline. Customers can cancel a pending VNPay order and release its reservations. If VNPay later confirms a charge for that cancelled order, the payment moves to MANUAL_REVIEW for reconciliation.
 - PostgreSQL trigger rejects UPDATE and DELETE on the recovery audit table. HashSecret and signed request/response payloads are never persisted in audit.
 
 ### Provisioning an operator

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { testVnpayCredentials } from './tests/e2e/helpers/vnpay-test-helper';
 
 const webPort = Number(process.env.E2E_WEB_PORT ?? 3100);
 const apiPort = Number(process.env.E2E_API_PORT ?? 3101);
@@ -29,7 +30,18 @@ export default defineConfig({
     {
       command: 'npm --prefix ../api run start:dev',
       url: `${apiUrl}/api/v1/health`,
-      env: { PORT: String(apiPort), WEB_ORIGIN: webUrl, MOCK_PAYMENT_MODE: 'deterministic' },
+      env: {
+        NODE_ENV: 'test',
+        PORT: String(apiPort),
+        WEB_ORIGIN: webUrl,
+        MOCK_PAYMENT_MODE: 'deterministic',
+        VNPAY_ENABLED: 'true',
+        VNPAY_PAYMENT_URL: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
+        VNPAY_TMN_CODE: process.env.VNPAY_TMN_CODE ?? testVnpayCredentials.tmnCode,
+        VNPAY_HASH_SECRET: process.env.VNPAY_HASH_SECRET ?? testVnpayCredentials.hashSecret,
+        VNPAY_RETURN_URL: `${apiUrl}/api/v1/payments/vnpay/return`,
+        VNPAY_IPN_URL: 'https://e2e.invalid/api/v1/payments/vnpay/ipn',
+      },
       reuseExistingServer: false,
     },
     {
@@ -37,7 +49,6 @@ export default defineConfig({
       url: `${webUrl}/menu`,
       env: {
         NEXT_PUBLIC_API_URL: `${apiUrl}/api/v1`,
-        NEXT_PUBLIC_VNPAY_ENABLED: process.env.NEXT_PUBLIC_VNPAY_ENABLED ?? 'true',
       },
       reuseExistingServer: false,
       timeout: 120000,

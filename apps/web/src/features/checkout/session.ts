@@ -1,3 +1,5 @@
+import type { CreateOrderItemInput } from '../orders/types';
+
 export type CheckoutPaymentMethod = 'E_WALLET' | 'CARD' | 'VNPAY';
 
 export interface CheckoutCouponQuote {
@@ -11,6 +13,22 @@ export interface PendingCheckoutState {
   idempotencyKey: string | null;
   method: CheckoutPaymentMethod | null;
   cartFingerprint: string;
+  cartItemsRemoved?: true;
+}
+
+export function getCheckoutOrderItems(checkout: PendingCheckoutState): CreateOrderItemInput[] {
+  try {
+    const items: unknown = JSON.parse(checkout.cartFingerprint);
+    if (Array.isArray(items) && items.every(item => isRecord(item) &&
+        typeof item.productVariantId === 'string' && Number.isInteger(item.quantity) &&
+        (item.quantity as number) > 0 && (item.toppingIds === undefined ||
+          (Array.isArray(item.toppingIds) && item.toppingIds.every(id => typeof id === 'string'))))) {
+      return items as CreateOrderItemInput[];
+    }
+  } catch {
+    // Older or malformed checkout snapshots may not have recoverable items.
+  }
+  return [];
 }
 
 type StorageReader = Pick<Storage, 'getItem' | 'removeItem'>;
@@ -98,6 +116,7 @@ export function readPendingCheckout(storage: StorageReader): PendingCheckoutStat
       idempotencyKey: value.idempotencyKey as string | null,
       method: value.method as CheckoutPaymentMethod | null,
       cartFingerprint: value.cartFingerprint,
+      ...(value.cartItemsRemoved === true ? { cartItemsRemoved: true as const } : {}),
     };
   } catch {
     return null;
@@ -139,10 +158,9 @@ export function transitionPaymentAttempt(
       return null;
     case 'FAILED':
       return {
-        orderId: attempt.orderId,
+        ...attempt,
         idempotencyKey: null,
         method: null,
-        cartFingerprint: attempt.cartFingerprint,
       };
     case 'PROCESSING':
     case 'UNKNOWN':

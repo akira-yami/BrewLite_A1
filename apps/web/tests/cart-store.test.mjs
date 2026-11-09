@@ -20,6 +20,19 @@ async function setup(storedItems = []) {
   return { cartStore, read: () => JSON.parse(values.get(storageKey)) };
 }
 
+test('removing order items subtracts only ordered quantities and matching options', async () => {
+  const { cartStore, read } = await setup();
+  cartStore.addItem({ ...input, quantity: 2, note: 'Mang đi' });
+  const orderItems = cartStore.getOrderItems();
+  cartStore.addItem({ ...input, note: 'Mang đi' });
+  cartStore.addItem({ ...input, note: 'Tại quán' });
+
+  assert.equal(cartStore.removeOrderItems(orderItems), true);
+  assert.deepEqual(read().map(({ quantity, note }) => ({ quantity, note })), [
+    { quantity: 1, note: 'Mang đi' }, { quantity: 1, note: 'Tại quán' },
+  ]);
+});
+
 test('different sugar/ice preferences stay separate; identical options merge without changing price', async () => {
   const { cartStore, read } = await setup();
   cartStore.addItem({ ...input, sugarLevel: 0, iceLevel: 50 });

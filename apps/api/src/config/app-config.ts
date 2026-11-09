@@ -10,6 +10,7 @@ export interface VnpayConfig {
   returnUrl: string | null;
   ipnUrl: string | null;
   frontendOrigin: string;
+  settleLocalSandboxReturn: boolean;
 }
 
 export interface AppConfig {
@@ -82,6 +83,10 @@ function requireHttpsUrl(name: string, value: string): URL {
   return url;
 }
 
+function isLoopbackUrl(value: string): boolean {
+  return /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:[/?]|$)/.test(value);
+}
+
 function parseTrustedProxyCidrs(value: string | undefined): string[] {
   const normalized = value?.trim();
   if (!normalized) return [];
@@ -135,6 +140,7 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
       returnUrl: null,
       ipnUrl: null,
       frontendOrigin,
+      settleLocalSandboxReturn: false,
     };
   }
 
@@ -176,19 +182,18 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
     throw new Error('VNPAY_QUERY_SERVER_IP must be a valid literal IPv4 or IPv6 address');
   }
 
-  const returnUrl = requireHttpsUrl(
-    'VNPAY_RETURN_URL',
-    requiredValue('VNPAY_RETURN_URL', env.VNPAY_RETURN_URL),
-  );
+  const localSandbox = env.NODE_ENV !== 'production' && paymentHost === 'sandbox.vnpayment.vn';
+  const returnUrlValue = requiredValue('VNPAY_RETURN_URL', env.VNPAY_RETURN_URL);
+  const returnUrl = localSandbox && isLoopbackUrl(returnUrlValue)
+    ? new URL(returnUrlValue)
+    : requireHttpsUrl('VNPAY_RETURN_URL', returnUrlValue);
+  if (returnUrl.hash) throw new Error('VNPAY_RETURN_URL must not contain a fragment');
   const ipnUrl = requireHttpsUrl(
     'VNPAY_IPN_URL',
     requiredValue('VNPAY_IPN_URL', env.VNPAY_IPN_URL),
   );
-  // Only isolated test runners may use a loopback HTTP frontend.
-  // Production and development gateways still require HTTPS for WEB_ORIGIN.
   const frontend =
-    env.NODE_ENV === 'test' &&
-    /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/?$/.test(frontendOrigin)
+    localSandbox && isLoopbackUrl(frontendOrigin)
       ? new URL(frontendOrigin)
       : requireHttpsUrl('WEB_ORIGIN', frontendOrigin);
 
@@ -202,6 +207,8 @@ function loadVnpayConfig(env: Environment, webOrigin: string): VnpayConfig {
     returnUrl: returnUrl.toString(),
     ipnUrl: ipnUrl.toString(),
     frontendOrigin: frontend.origin,
+    settleLocalSandboxReturn:
+      localSandbox && isLoopbackUrl(returnUrl.origin) && isLoopbackUrl(frontend.origin),
   };
 }
 

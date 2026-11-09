@@ -476,7 +476,7 @@ export class PaymentRecoveryService {
         if (!transactionNo) {
           recoveryStatus = PaymentRecoveryRequestStatus.UNKNOWN;
           providerOutcome = 'SUCCESS_WITHOUT_TRANSACTION_NUMBER';
-        } else if (order.status !== OrderStatus.PENDING || order.reservationExpiresAt <= processedAt) {
+        } else if (order.status !== OrderStatus.PENDING) {
           afterState = PaymentStatus.MANUAL_REVIEW;
           failureCode = 'LATE_SUCCESS_REQUIRES_REVIEW';
           await tx.payment.update({

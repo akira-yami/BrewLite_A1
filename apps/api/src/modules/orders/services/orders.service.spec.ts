@@ -73,6 +73,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
       payment: {
         findFirst: vi.fn(),
+        updateMany: vi.fn(),
       },
 
       orderStatusHistory: {
@@ -408,6 +409,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
     const paymentTxMock = {
       payment: {
         findFirst: vi.fn(),
+        updateMany: vi.fn(),
       },
       inventoryReservation: {
         findMany: vi.fn(),
@@ -578,7 +580,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
 
     });
 
-    it('cancelOrder - không hủy Order khi Payment vẫn PROCESSING', async () => {
+    it('cancelOrder - chặn hủy khi giao dịch cần đối soát hoặc phương thức khác đang xử lý', async () => {
       repository.findByIdAndUserIdForUpdate.mockResolvedValue({
         id: 'o-1',
         userId: 'u-1',
@@ -592,6 +594,7 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
       ).rejects.toThrow(ConflictException);
 
       expect(repository.updateStatusWithHistory).not.toHaveBeenCalled();
+      expect(paymentTxMock.payment.updateMany).not.toHaveBeenCalled();
       expect(promotionsServiceMock.releaseRedemption).not.toHaveBeenCalled();
 
       expect(paymentTxMock.ingredient.update).not.toHaveBeenCalled();

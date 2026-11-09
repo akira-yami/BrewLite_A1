@@ -68,6 +68,27 @@ function normalizeNote(value: unknown): string | null {
   return typeof value === 'string' ? value.trim() || null : null;
 }
 
+function orderItemKey(item: CreateOrderItemInput): string {
+  return JSON.stringify([
+    item.productVariantId,
+    [...(item.toppingIds ?? [])].sort(),
+    normalizeLevel(item.sugarLevel),
+    normalizeLevel(item.iceLevel),
+    normalizeNote(item.note),
+  ]);
+}
+
+function toOrderItem(item: CartItem): CreateOrderItemInput {
+  return {
+    productVariantId: item.variantId,
+    quantity: item.quantity,
+    toppingIds: item.toppings.map(topping => topping.id),
+    sugarLevel: item.sugarLevel,
+    iceLevel: item.iceLevel,
+    note: item.note,
+  };
+}
+
 function formatCartItemId(
   input: Pick<CartItem, 'productId' | 'variantId' | 'toppings' | 'sugarLevel' | 'iceLevel' | 'note'>,
 ) {
@@ -213,14 +234,29 @@ export const cartStore = {
 
   getOrderItems(): CreateOrderItemInput[] {
     hydrateCart();
-    return currentSnapshot.items.map((item) => ({
-      productVariantId: item.variantId,
-      quantity: item.quantity,
-      toppingIds: item.toppings.map((topping) => topping.id),
-      sugarLevel: item.sugarLevel,
-      iceLevel: item.iceLevel,
-      note: item.note,
-    }));
+    return currentSnapshot.items.map(toOrderItem);
+  },
+
+  removeOrderItems(orderItems: CreateOrderItemInput[]): boolean {
+    hydrateCart();
+    const remainingToRemove = new Map<string, number>();
+    for (const item of orderItems) {
+      const key = orderItemKey(item);
+      remainingToRemove.set(key, (remainingToRemove.get(key) ?? 0) + item.quantity);
+    }
+
+    let changed = false;
+    const items = currentSnapshot.items.flatMap(item => {
+      const key = orderItemKey(toOrderItem(item));
+      const removed = Math.min(remainingToRemove.get(key) ?? 0, item.quantity);
+      if (!removed) return [item];
+      changed = true;
+      remainingToRemove.set(key, remainingToRemove.get(key)! - removed);
+      const quantity = item.quantity - removed;
+      return quantity > 0 ? [{ ...item, quantity }] : [];
+    });
+    if (changed) emit(items);
+    return changed;
   },
 
   addItem(input: AddCartItemInput) {

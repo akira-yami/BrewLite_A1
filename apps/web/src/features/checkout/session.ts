@@ -36,6 +36,8 @@ type StorageWriter = Pick<Storage, 'setItem' | 'removeItem'>;
 
 const COUPON_STORAGE_KEY = 'brewlite_checkout_coupon';
 const PENDING_CHECKOUT_STORAGE_KEY = 'brewlite_pending_checkout';
+const PREFERRED_LOYALTY_COUPON_KEY = 'brewlite_preferred_loyalty_coupon';
+const PENDING_LOYALTY_REDEEM_PREFIX = 'brewlite_pending_loyalty_redeem:';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -84,6 +86,54 @@ export function writeCheckoutCoupon(
   } catch {
     // Checkout still validates the coupon on the server when storage is unavailable.
   }
+}
+
+export function readPreferredLoyaltyCoupon(storage: StorageReader): string | null {
+  try {
+    const code = storage.getItem(PREFERRED_LOYALTY_COUPON_KEY)?.trim();
+    if (!code || !/^LYT-[A-Z0-9-]+$/i.test(code)) {
+      storage.removeItem(PREFERRED_LOYALTY_COUPON_KEY);
+      return null;
+    }
+    return code;
+  } catch {
+    return null;
+  }
+}
+
+export function writePreferredLoyaltyCoupon(storage: StorageWriter, code: string | null): void {
+  try {
+    if (code === null) storage.removeItem(PREFERRED_LOYALTY_COUPON_KEY);
+    else if (/^LYT-[A-Z0-9-]+$/i.test(code.trim())) storage.setItem(PREFERRED_LOYALTY_COUPON_KEY, code.trim());
+  } catch {
+    // The coupon can still be copied and entered manually.
+  }
+}
+
+export function readPendingLoyaltyRedeem(storage: StorageReader, userId: string, tierId: string): string | null {
+  try {
+    const key = storage.getItem(pendingLoyaltyStorageKey(userId, tierId));
+    return key && /^[0-9a-f-]{36}$/i.test(key) ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writePendingLoyaltyRedeem(storage: StorageWriter, userId: string, tierId: string, key: string | null): void {
+  try {
+    const storageKey = pendingLoyaltyStorageKey(userId, tierId);
+    if (key === null) {
+      storage.removeItem(storageKey);
+      return;
+    }
+    if (/^[0-9a-f-]{36}$/i.test(key)) storage.setItem(storageKey, key);
+  } catch {
+    // If storage fails, a new key will be generated for the next attempt.
+  }
+}
+
+function pendingLoyaltyStorageKey(userId: string, tierId: string): string {
+  return `${PENDING_LOYALTY_REDEEM_PREFIX}${encodeURIComponent(userId)}:${encodeURIComponent(tierId)}`;
 }
 
 export function readPendingCheckout(storage: StorageReader): PendingCheckoutState | null {

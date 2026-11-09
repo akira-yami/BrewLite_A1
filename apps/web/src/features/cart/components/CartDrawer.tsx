@@ -1,9 +1,17 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 import { CouponApiError, validateCoupon } from '@/api/coupons.api';
 import { readCheckoutCoupon, writeCheckoutCoupon, type CheckoutCouponQuote } from '@/features/checkout/session';
+import { AuthApiError, getMeApi } from '@/features/auth/api';
+import { authSession } from '@/features/auth/session';
+import { useAuthSession } from '@/features/auth/use-auth-session';
+import { getLoyaltyOverview, getLoyaltyTiers, redeemLoyalty } from '@/features/loyalty/api';
+import type { LoyaltyOverview, LoyaltyTier } from '@/features/loyalty/types';
+import { chooseQuickRedeemTier } from '@/features/loyalty/cart';
+import { readPendingLoyaltyRedeem, readPreferredLoyaltyCoupon, writePendingLoyaltyRedeem, writePreferredLoyaltyCoupon } from '@/features/checkout/session';
 
 interface CartDrawerProps {
   open: boolean;
@@ -19,6 +27,7 @@ export function CartDrawer({
   onCheckout,
 }: CartDrawerProps) {
   const { items, subtotal, totalQuantity } = useCartStore();
+  const session = useAuthSession();
 
   const [couponInput, setCouponInput] = useState('');
   // Lưu subtotal đã được backend xác nhận cùng với coupon để nhận biết quote đã cũ.
@@ -30,6 +39,24 @@ export function CartDrawer({
   const [couponError, setCouponError] = useState<string | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const applyingRef = useRef(false);
+  const lastAutoAttempt = useRef('');
+  const [loyaltyOverview, setLoyaltyOverview] = useState<LoyaltyOverview | null>(null);
+  const [loyaltyTiers, setLoyaltyTiers] = useState<LoyaltyTier[]>([]);
+  const [loyaltyMessage, setLoyaltyMessage] = useState<string | null>(null);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+
+  useEffect(() => {
+    if (!open || session.status !== 'authenticated' || session.user?.role !== 'CUSTOMER') return;
+    let active = true;
+    void Promise.all([getLoyaltyOverview(), getLoyaltyTiers()]).then(([overview, tiers]) => {
+      if (!active) return;
+      setLoyaltyOverview(overview);
+      setLoyaltyTiers(tiers);
+    }).catch(() => {
+      if (active) setLoyaltyMessage('Không thể tải điểm thưởng hoặc voucher lúc này.');
+    });
+    return () => { active = false; };
+  }, [open, session.status, session.user?.role]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -67,15 +94,15 @@ export function CartDrawer({
   const visibleCouponError = couponError
     ?? (couponIsStale ? 'Giỏ hàng thay đổi, vui lòng áp dụng lại mã giảm giá.' : null);
 
-  const handleApplyCoupon = async () => {
+  const handleApplyCoupon = useCallback(async (codeOverride?: string) => {
     if (applyingRef.current) return;
     setCouponError(null);
-    if (!couponInput.trim()) {
+    const requestedCode = (codeOverride ?? couponInput).trim();
+    if (!requestedCode) {
       setCouponError('Vui lòng nhập mã giảm giá.');
       return;
     }
 
-    const requestedCode = couponInput.trim();
     const requestedSubtotal = subtotal;
     applyingRef.current = true;
     setIsApplying(true);
@@ -94,6 +121,9 @@ export function CartDrawer({
       setAppliedCoupon(quote);
       if (typeof window !== 'undefined') {
         writeCheckoutCoupon(window.sessionStorage, quote);
+        if (readPreferredLoyaltyCoupon(window.sessionStorage) === requestedCode) {
+          writePreferredLoyaltyCoupon(window.sessionStorage, null);
+        }
       }
       setCouponInput('');
     } catch (reason: unknown) {
@@ -121,6 +151,74 @@ export function CartDrawer({
     } finally {
       applyingRef.current = false;
       setIsApplying(false);
+    }
+  }, [couponInput, subtotal]);
+
+  useEffect(() => {
+    if (!open || typeof window === 'undefined' || !loyaltyOverview) return;
+    const preferredCode = readPreferredLoyaltyCoupon(window.sessionStorage);
+    if (!preferredCode) return;
+    const coupon = loyaltyOverview.availableCoupons.find((item) => item.code === preferredCode);
+    if (!coupon || subtotal < coupon.minOrderValue) return;
+    const attempt = `${preferredCode}:${subtotal}`;
+    if (lastAutoAttempt.current === attempt) return;
+    lastAutoAttempt.current = attempt;
+    setCouponInput(preferredCode);
+    void handleApplyCoupon(preferredCode);
+  }, [open, subtotal, loyaltyOverview, handleApplyCoupon]);
+
+  const applyStoredVoucher = (code: string, minOrderValue: number) => {
+    setCouponError(null);
+    if (subtotal < minOrderValue) {
+      writePreferredLoyaltyCoupon(window.sessionStorage, code);
+      setCouponError(`Đã lưu mã ${code}. Thêm món để đạt tối thiểu ${formatVnd(minOrderValue)}; mã sẽ được kiểm tra lại khi đủ điều kiện.`);
+      return;
+    }
+    setCouponInput(code);
+    void handleApplyCoupon(code);
+  };
+
+  const handleQuickRedeem = async () => {
+    const user = session.user;
+    if (!user || user.role !== 'CUSTOMER' || isRedeeming || typeof window === 'undefined') return;
+    const balance = loyaltyOverview?.pointsBalance ?? user.loyaltyBalance;
+    const tier = chooseQuickRedeemTier(loyaltyTiers, balance, subtotal);
+    if (!tier) return;
+    setIsRedeeming(true);
+    setLoyaltyMessage(null);
+    let key = readPendingLoyaltyRedeem(window.sessionStorage, user.id, tier.tierId);
+    if (!key) {
+      key = crypto.randomUUID();
+      writePendingLoyaltyRedeem(window.sessionStorage, user.id, tier.tierId, key);
+    }
+    let redeemedCode: string | null = null;
+    try {
+      const result = await redeemLoyalty(tier.tierId, key);
+      redeemedCode = result.coupon.code;
+      writePendingLoyaltyRedeem(window.sessionStorage, user.id, tier.tierId, null);
+      const updated = await getLoyaltyOverview();
+      setLoyaltyOverview(updated);
+      await authSession.restore(getMeApi);
+      try {
+        const quote = await validateCoupon(result.coupon.code, subtotal);
+        if (cartStore.getSnapshot().subtotal !== subtotal) throw new Error('Giỏ hàng đã thay đổi.');
+        const applied = { code: result.coupon.code, subtotal, discountAmount: quote.discountAmount };
+        setAppliedCoupon(applied);
+        writeCheckoutCoupon(window.sessionStorage, applied);
+        setLoyaltyMessage(`Đã đổi nhanh và áp dụng voucher ${result.coupon.code}.`);
+      } catch {
+        setLoyaltyMessage(`Đã đổi voucher ${result.coupon.code}. Voucher vẫn ở trong kho; hãy chọn “Dùng voucher” khi giỏ đạt giá trị tối thiểu.`);
+      }
+    } catch (reason) {
+      const status = reason instanceof AuthApiError ? reason.status : (reason as { status?: number })?.status;
+      if (typeof status === 'number' && status >= 400 && status < 500) {
+        writePendingLoyaltyRedeem(window.sessionStorage, user.id, tier.tierId, null);
+      }
+      setLoyaltyMessage(redeemedCode
+        ? `Đã đổi voucher ${redeemedCode}; không tải được điểm mới. Hãy tải lại trang, voucher vẫn nằm trong kho.`
+        : 'Đổi điểm chưa hoàn tất. Bạn có thể thử lại an toàn; nếu voucher đã được tạo, lần gửi lại sẽ trả kết quả cũ.');
+    } finally {
+      setIsRedeeming(false);
     }
   };
 
@@ -291,6 +389,25 @@ export function CartDrawer({
 
                 {/* Khu vực Coupon */}
                 <div className="py-2">
+                  {session.status === 'authenticated' && session.user?.role === 'CUSTOMER' && (
+                    <div className="mb-3 rounded-xl border border-[#D8CCBA] bg-white p-3">
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <strong className="text-[#163E2B]">{(loyaltyOverview?.pointsBalance ?? session.user.loyaltyBalance).toLocaleString('vi-VN')} điểm</strong>
+                        <Link href="/loyalty" className="font-bold text-[#163E2B] underline">Xem Loyalty</Link>
+                      </div>
+                      {loyaltyOverview?.availableCoupons.map((coupon) => (
+                        <button key={coupon.code} type="button" onClick={() => applyStoredVoucher(coupon.code, coupon.minOrderValue)} className="mt-2 flex w-full items-center justify-between rounded-lg bg-[#E8F1EC] px-3 py-2 text-left text-xs text-[#163E2B]">
+                          <span><strong>{coupon.code}</strong><span className="ml-2">-{formatVnd(coupon.discountAmount)}</span></span><span className="font-bold">Dùng</span>
+                        </button>
+                      ))}
+                      {(() => {
+                        const balance = loyaltyOverview?.pointsBalance ?? session.user.loyaltyBalance;
+                        const quickTier = chooseQuickRedeemTier(loyaltyTiers, balance, subtotal);
+                        return quickTier ? <button type="button" disabled={isRedeeming || isApplying} onClick={() => void handleQuickRedeem()} className="mt-3 w-full rounded-full border border-[#163E2B] px-3 py-2 text-xs font-bold text-[#163E2B] disabled:opacity-50">{isRedeeming ? 'Đang đổi…' : `Đổi nhanh ${quickTier.pointsCost.toLocaleString('vi-VN')} điểm → ${formatVnd(quickTier.discountAmount)}`}</button> : null;
+                      })()}
+                      {loyaltyMessage && <p role="status" className="mt-2 text-xs text-[#756A63]">{loyaltyMessage}</p>}
+                    </div>
+                  )}
                   {!visibleCoupon ? (
                     <div className="flex gap-2">
                       <input
@@ -303,7 +420,7 @@ export function CartDrawer({
                       />
                       <button
                         type="button"
-                        onClick={handleApplyCoupon}
+                        onClick={() => void handleApplyCoupon()}
                         disabled={isApplying}
                         className="rounded-md bg-[#163E2B] px-4 py-1.5 text-xs font-bold text-white transition hover:bg-[#1f4f38] disabled:opacity-50"
                       >

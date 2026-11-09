@@ -42,6 +42,26 @@ test('coupon quote survives route changes and rejects an invalid discount', () =
   assert.equal(storage.getItem('brewlite_checkout_coupon'), null);
 });
 
+test('preferred Loyalty coupon survives navigation and is removed when cleared', () => {
+  const session = loadSession();
+  const storage = makeStorage();
+  session.writePreferredLoyaltyCoupon(storage, 'LYT-ABC123');
+  assert.equal(session.readPreferredLoyaltyCoupon(storage), 'LYT-ABC123');
+  session.writePreferredLoyaltyCoupon(storage, null);
+  assert.equal(session.readPreferredLoyaltyCoupon(storage), null);
+});
+
+test('pending Loyalty redemption key is stable per customer and tier', () => {
+  const session = loadSession();
+  const storage = makeStorage();
+  const key = '00000000-0000-4000-8000-000000000001';
+  session.writePendingLoyaltyRedeem(storage, 'customer-1', '10000', key);
+  assert.equal(session.readPendingLoyaltyRedeem(storage, 'customer-1', '10000'), key);
+  assert.equal(session.readPendingLoyaltyRedeem(storage, 'customer-1', '20000'), null);
+  session.writePendingLoyaltyRedeem(storage, 'customer-1', '10000', null);
+  assert.equal(session.readPendingLoyaltyRedeem(storage, 'customer-1', '10000'), null);
+});
+
 test('pending payment attempt survives reload with order, key and method unchanged', () => {
   const session = loadSession();
   const storage = makeStorage();

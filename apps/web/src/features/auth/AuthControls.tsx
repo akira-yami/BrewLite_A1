@@ -49,6 +49,15 @@ export function AuthControls() {
             Quầy Barista
           </Link>
         )}
+        {session.user.role === 'CUSTOMER' && (
+          <Link
+            href="/loyalty"
+            className="whitespace-nowrap rounded-full bg-[#E8F1EC] px-3 py-2 font-bold text-[#163E2B] hover:bg-[#dcebe3]"
+            aria-label={`Điểm thưởng: ${session.user.loyaltyBalance}`}
+          >
+            {session.user.loyaltyBalance.toLocaleString('vi-VN')} điểm
+          </Link>
+        )}
         <button
           type="button"
           onClick={() => authSession.logout()}

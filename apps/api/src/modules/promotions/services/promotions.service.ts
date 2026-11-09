@@ -49,6 +49,21 @@ export class PromotionsService {
         }
     }
 
+    private async assertLoyaltyCouponOwned(
+        code: string,
+        userId: string,
+        tx?: Prisma.TransactionClient,
+    ): Promise<void> {
+        if (/^LYT-/i.test(code) && !(await this.repository.isLoyaltyCouponOwnedByUser(code, userId, tx))) {
+            throw new UnprocessableEntityException({
+                error: {
+                    code: 'COUPON_NOT_APPLICABLE',
+                    message: 'Mã giảm giá không hợp lệ hoặc không thể áp dụng.',
+                },
+            });
+        }
+    }
+
     // Tính tiền bằng BigInt để tránh sai số số thực; phần trăm được làm tròn xuống theo VND.
     private calculateDiscountAmount(coupon: Coupon, subtotal: bigint): bigint {
         if (coupon.discountType === 'PERCENTAGE') {
@@ -80,6 +95,7 @@ export class PromotionsService {
         const subtotalBigInt = BigInt(subtotal);
         const coupon = await this.repository.findByCode(code);
         this.assertCouponApplicable(coupon, subtotalBigInt, now);
+        await this.assertLoyaltyCouponOwned(coupon.code, userId);
 
         const userRedemptions = await this.repository.countRedemptions(
             coupon.id,
@@ -125,6 +141,7 @@ export class PromotionsService {
     ): Promise<CouponQuoteEntity> {
         const coupon = await this.repository.lockCoupon(code, tx);
         this.assertCouponApplicable(coupon, subtotal, now);
+        await this.assertLoyaltyCouponOwned(coupon.code, userId, tx);
 
         const userRedemptions = await this.repository.countRedemptions(
             coupon.id,

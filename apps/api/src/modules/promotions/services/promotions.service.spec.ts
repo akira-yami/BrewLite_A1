@@ -26,6 +26,7 @@ describe('PromotionsService (Unit Test - TDD)', () => {
     beforeEach(() => {
         repositoryMock = {
             findByCode: vi.fn(),
+            isLoyaltyCouponOwnedByUser: vi.fn(),
             lockCoupon: vi.fn(),
             countRedemptions: vi.fn(),
             countTotalRedemptions: vi.fn(),
@@ -124,6 +125,23 @@ describe('PromotionsService (Unit Test - TDD)', () => {
             expect(lockedQuote.discountAmount).toBe(20000n);
         });
 
+        it('từ chối voucher Loyalty không thuộc user bằng lỗi coupon chung', async () => {
+            repositoryMock.findByCode.mockResolvedValue({ ...validCoupon, code: 'LYT-OTHER' });
+            repositoryMock.isLoyaltyCouponOwnedByUser.mockResolvedValue(false);
+            await expect(service.validateCoupon('LYT-OTHER', 100000, 'user-2', fixedNow))
+                .rejects.toMatchObject({ response: { error: { code: 'COUPON_NOT_APPLICABLE' } } });
+            expect(repositoryMock.isLoyaltyCouponOwnedByUser).toHaveBeenCalledWith('LYT-OTHER', 'user-2', undefined);
+        });
+
+        it('cho phép owner validate voucher Loyalty', async () => {
+            repositoryMock.findByCode.mockResolvedValue({ ...validCoupon, code: 'LYT-MINE' });
+            repositoryMock.isLoyaltyCouponOwnedByUser.mockResolvedValue(true);
+            repositoryMock.countRedemptions.mockResolvedValue(0);
+            repositoryMock.countTotalRedemptions.mockResolvedValue(0);
+            await expect(service.validateCoupon('LYT-MINE', 100000, 'user-1', fixedNow))
+                .resolves.toMatchObject({ code: 'LYT-MINE' });
+        });
+
         it('Chấp nhận coupon đúng thời điểm startsAt nhưng từ chối đúng thời điểm endsAt', async () => {
             const startsNowCoupon = {
                 ...validCoupon,
@@ -174,6 +192,15 @@ describe('PromotionsService (Unit Test - TDD)', () => {
 
         await expect(service.quoteAndLock(txMock, 'u-1', 'NOT_FOUND', 100000n, fixedNow))
             .rejects.toThrow(UnprocessableEntityException);
+        });
+
+        it('kiểm tra owner trong transaction khi khóa voucher Loyalty', async () => {
+            const txMock = {} as any;
+            repositoryMock.lockCoupon.mockResolvedValue({ ...validCoupon, code: 'LYT-MINE' });
+            repositoryMock.isLoyaltyCouponOwnedByUser.mockResolvedValue(false);
+            await expect(service.quoteAndLock(txMock, 'user-2', 'LYT-MINE', 100000n, fixedNow))
+                .rejects.toMatchObject({ response: { error: { code: 'COUPON_NOT_APPLICABLE' } } });
+            expect(repositoryMock.isLoyaltyCouponOwnedByUser).toHaveBeenCalledWith('LYT-MINE', 'user-2', txMock);
         });
     });
 

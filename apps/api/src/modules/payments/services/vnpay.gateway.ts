@@ -2,7 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { isIP } from 'node:net';
 import { APP_CONFIG } from '../../../config/app-config.module.js';
-import type { AppConfig } from '../../../config/app-config.js';
+import { VNPAY_SANDBOX_PAYMENT_URL, type AppConfig } from '../../../config/app-config.js';
+
+const VNPAY_SANDBOX_ORIGIN = new URL(VNPAY_SANDBOX_PAYMENT_URL).origin;
 
 export interface CreateVnpayPaymentInput {
   amount: bigint;
@@ -32,8 +34,8 @@ export class VnpayGatewayService {
     return this.config.vnpay.enabled;
   }
 
-  canSettleLocalSandboxReturn(): boolean {
-    return this.config.vnpay.settleLocalSandboxReturn;
+  isSandboxPaymentUrl(paymentUrl: string | null = this.config.vnpay.paymentUrl): boolean {
+    return paymentUrl !== null && URL.parse(paymentUrl)?.origin === VNPAY_SANDBOX_ORIGIN;
   }
 
   createPaymentUrl(input: CreateVnpayPaymentInput): VnpayPaymentIntent {

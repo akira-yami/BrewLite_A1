@@ -39,7 +39,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
         };
         vnpayGatewayMock = {
             isEnabled: vi.fn().mockReturnValue(true),
-            canSettleLocalSandboxReturn: vi.fn().mockReturnValue(false),
+            isSandboxPaymentUrl: vi.fn().mockReturnValue(false),
             createPaymentUrl: vi.fn().mockReturnValue({ gatewayReference: 'vnp-ref-1', paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1' }),
             verifyCallback: vi.fn(),
             frontendReturnUrl: vi.fn().mockReturnValue('https://brew.example/checkout?paymentReturn=1'),
@@ -665,7 +665,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             });
         });
 
-        it('a verified Return outside local Sandbox only redirects', async () => {
+        it('a verified Return from the live gateway only redirects', async () => {
             vnpayGatewayMock.verifyCallback.mockReturnValue({ vnp_TxnRef: 'vnp-ref-1' });
             await expect(service.getVnpayReturnRedirect({})).resolves.toBe(
                 'https://brew.example/checkout?paymentReturn=1',
@@ -673,6 +673,18 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
             expect(paymentsRepoMock.markFailed).not.toHaveBeenCalled();
             expect(paymentsRepoMock.findByGatewayReference).not.toHaveBeenCalled();
+        });
+
+        it('does not settle a live payment link from a Sandbox Return', async () => {
+            const paymentUrl = 'https://pay.vnpay.vn/vpcpay.html';
+            vnpayGatewayMock.verifyCallback.mockReturnValue({ vnp_TxnRef: 'vnp-ref-1' });
+            vnpayGatewayMock.isSandboxPaymentUrl.mockImplementation((url?: string) => url === undefined);
+            paymentsRepoMock.findByGatewayReference.mockResolvedValue({ method: PaymentMethod.VNPAY, paymentUrl });
+
+            await service.getVnpayReturnRedirect({});
+
+            expect(vnpayGatewayMock.isSandboxPaymentUrl).toHaveBeenCalledWith(paymentUrl);
+            expect(prismaMock.$transaction).not.toHaveBeenCalled();
         });
     });
 });

@@ -193,16 +193,25 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
         status: 'PROCESSING',
         amount,
         gatewayReference: randomUUID().replaceAll('-', ''),
+        paymentUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
       },
     });
   }
 
-  it.each([false, true])('handles a signed local Return after expiry (cancelled=%s)', async (cancelled) => {
+  it.each([
+    { mode: 'test', cancelled: false },
+    { mode: 'test', cancelled: true },
+    { mode: 'production', cancelled: false },
+  ])('handles a signed Sandbox Return after expiry ($mode, cancelled=$cancelled)', async ({ mode, cancelled }) => {
+    const hosted = mode === 'production';
+    const frontendOrigin = hosted ? 'https://brew.example' : 'http://localhost:3000';
+    const apiOrigin = hosted ? 'https://api.brew.example' : 'http://localhost:3001';
     const config = loadAppConfig({
-      NODE_ENV: 'test',
+      NODE_ENV: mode,
+      JWT_SECRET: 'test-only-isolated-jwt-secret',
       VNPAY_ENABLED: 'true',
-      WEB_ORIGIN: 'http://localhost:3000',
-      VNPAY_RETURN_URL: 'http://localhost:3001/api/v1/payments/vnpay/return',
+      WEB_ORIGIN: frontendOrigin,
+      VNPAY_RETURN_URL: `${apiOrigin}/api/v1/payments/vnpay/return`,
       VNPAY_IPN_URL: 'https://example.invalid/api/v1/payments/vnpay/ipn',
       VNPAY_TMN_CODE: 'TEST0001',
       VNPAY_HASH_SECRET: '0123456789abcdef0123456789abcdef',
@@ -238,8 +247,9 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
       ...callback,
       vnp_SecureHash: createHmac('sha512', config.vnpay.hashSecret!).update(params.toString()).digest('hex'),
     };
-    await expect(payments.getVnpayReturnRedirect(signed)).resolves.toBe('http://localhost:3000/checkout?paymentReturn=1');
-    await payments.getVnpayReturnRedirect(signed);
+    await expect(payments.getVnpayReturnRedirect(signed)).resolves.toBe(`${frontendOrigin}/checkout?paymentReturn=1`);
+    expect((await f.state()).order.status).toBe(cancelled ? 'CANCELLED' : 'PAID');
+    expect((await payments.handleVnpayIpn(signed)).RspCode).toBe('02');
 
     const state = await f.state();
     expect(state.order.status).toBe(cancelled ? 'CANCELLED' : 'PAID');

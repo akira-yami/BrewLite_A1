@@ -12,7 +12,7 @@ interface VnpayPendingScreenProps {
 }
 
 export function VnpayPendingScreen({ idempotencyKey, token, onResult }: VnpayPendingScreenProps) {
-  const [message, setMessage] = useState('Trang sẽ tự cập nhật khi BrewLite nhận được kết quả từ VNPay.');
+  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,6 +45,8 @@ export function VnpayPendingScreen({ idempotencyKey, token, onResult }: VnpayPen
       clearTimeout(nextPoll);
     };
   }, [idempotencyKey, token, onResult]);
+
+  if (message === null) return null;
 
   return (
     <div role="status" className="mt-5 rounded-2xl border border-[#D8CCBA] bg-[#FCFAF7] px-4 py-3 text-sm leading-6 text-[#163E2B]">

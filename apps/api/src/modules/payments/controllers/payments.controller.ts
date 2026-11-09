@@ -72,13 +72,14 @@ export class PaymentsController {
     return this.paymentsService.handleVnpayIpn(query);
   }
 
-  // Browser Return is display-only outside the local Sandbox flow.
+  // Live VNPay settlement uses IPN. Sandbox also accepts a verified Return.
   @Get('vnpay/return')
   async vnpayReturn(
     @Query() query: Record<string, unknown>,
     @Res() response: Response,
   ) {
     const destination = await this.paymentsService.getVnpayReturnRedirect(query);
+    response.setHeader('Cache-Control', 'no-store');
     return response.redirect(HttpStatus.FOUND, destination);
   }
 

@@ -16,6 +16,22 @@ env:
   CI: "true"
 
 jobs:
+  web-docker-build:
+    name: Web Railway Docker build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build the exact image used for Railway web
+        run: |
+          docker build \
+            --file apps/web/Dockerfile.railway \
+            --build-arg NEXT_PUBLIC_API_URL=https://api-production-1be6.up.railway.app/api/v1 \
+            --tag brewlite-web:ci \
+            apps/web
+
   checkout-e2e:
     name: Checkout E2E gate
     runs-on: ubuntu-24.04

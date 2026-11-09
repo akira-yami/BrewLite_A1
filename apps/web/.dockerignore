@@ -3,6 +3,11 @@ node_modules
 dist
 coverage
 tests
+# Playwright config imports helpers from tests/, which are intentionally
+# excluded from production images. Exclude the config as well to avoid TS2307.
+playwright.config.ts
+playwright-report
+test-results
 .env
 .env.*
 !.env.example

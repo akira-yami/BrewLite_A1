@@ -12,7 +12,6 @@ test.describe('VNPAY Signature Validation', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -77,7 +76,6 @@ test.describe('VNPAY Signature Validation', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>

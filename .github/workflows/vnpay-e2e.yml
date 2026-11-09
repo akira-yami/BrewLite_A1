@@ -21,7 +21,6 @@ jobs:
       VNPAY_TMN_CODE: 'TEST0001'
       VNPAY_HASH_SECRET: '0123456789abcdef0123456789abcdef'
       WEB_ORIGIN: http://localhost:3100
-      NEXT_PUBLIC_VNPAY_ENABLED: 'true'
       NEXT_PUBLIC_API_URL: http://localhost:3101/api/v1
       NEXT_TELEMETRY_DISABLED: '1'
       JWT_SECRET: vnpay-e2e-ci-test-only-very-long-isolated-key

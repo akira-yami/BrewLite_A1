@@ -13,7 +13,7 @@ import {
 import { loadAppConfig, type AppConfig } from '../../../config/app-config.js';
 import { APP_CONFIG } from '../../../config/app-config.module.js';
 import { PrismaService } from '../../../database/prisma.service.js';
-import { OrderStatus, Prisma } from '../../../generated/prisma/client.js';
+import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '../../../generated/prisma/client.js';
 import { CatalogService } from '../../catalog/services/catalog.service.js';
 import {
   InventoryService,
@@ -783,7 +783,6 @@ export class OrdersService {
         });
       }
 
-      // Không cho hủy đơn đã thanh toán; luồng hoàn tiền cần được xử lý riêng.
       if (
         order.status !== OrderStatus.PENDING &&
         order.status !== OrderStatus.PAYMENT_FAILED
@@ -794,15 +793,20 @@ export class OrdersService {
         });
       }
 
-      // Payment đang PROCESSING phải hoàn tất trước khi Order được phép hủy.
-      const processingPayment = await client.payment.findFirst({
+      const blockingPayment = await client.payment.findFirst({
         where: {
           orderId,
-          status: { in: ['PROCESSING', 'MANUAL_REVIEW'] },
+          OR: [
+            { status: PaymentStatus.MANUAL_REVIEW },
+            {
+              status: PaymentStatus.PROCESSING,
+              ...(isExpired ? {} : { method: { not: PaymentMethod.VNPAY } }),
+            },
+          ],
         },
         select: { id: true },
       });
-      if (processingPayment) {
+      if (blockingPayment) {
         throw new ConflictException({
           code: 'PAYMENT_IN_PROGRESS',
           message: 'Đơn hàng đang được thanh toán, không thể hủy lúc này.',
@@ -816,6 +820,14 @@ export class OrdersService {
       });
       const now = new Date();
       const couponExpired = isExpired || order.reservationExpiresAt <= now;
+
+      if (!isExpired) {
+        // Close the VNPay attempt with the order. A later success goes to reconciliation.
+        await client.payment.updateMany({
+          where: { orderId, method: PaymentMethod.VNPAY, status: PaymentStatus.PROCESSING },
+          data: { status: PaymentStatus.FAILED, failureCode: 'ORDER_CANCELLED', processedAt: now },
+        });
+      }
 
       await this.repository.updateStatusWithHistory(
         orderId,
@@ -835,14 +847,10 @@ export class OrdersService {
 
       // Chỉ reservation còn ACTIVE mới được release/restore stock đúng một lần.
       for (const reservation of reservations) {
-        const reservationExpired =
-          isExpired ||
-          order.reservationExpiresAt <= now ||
-          reservation.expiresAt <= now;
         await this.inventory.releaseInTransaction(
           client,
           reservation.id,
-          reservationExpired,
+          reservation.expiresAt <= now,
         );
       }
     };

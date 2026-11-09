@@ -78,9 +78,9 @@ services:
       dockerfile: Dockerfile
     image: brewlite-api:local
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: 3001
-      WEB_ORIGIN: ${WEB_ORIGIN_BACKEND:-https://web-production-b910e.up.railway.app}
+      WEB_ORIGIN: ${WEB_ORIGIN_BACKEND:-${WEB_ORIGIN:-http://localhost:3000}}
       DATABASE_URL: ${DATABASE_URL_DOCKER:?DATABASE_URL_DOCKER must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set to a private random secret}
       JWT_ISSUER: ${JWT_ISSUER:-brewlite-api}
@@ -121,14 +121,12 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
-        NEXT_PUBLIC_VNPAY_ENABLED: ${NEXT_PUBLIC_VNPAY_ENABLED:-false}
     image: brewlite-web:local
     environment:
       NODE_ENV: production
       PORT: 3000
       API_INTERNAL_URL: http://backend:3001/api/v1
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
-      NEXT_PUBLIC_VNPAY_ENABLED: ${NEXT_PUBLIC_VNPAY_ENABLED:-false}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

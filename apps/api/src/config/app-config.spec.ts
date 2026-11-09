@@ -199,24 +199,30 @@ describe('app-config and AuthModule dynamic configuration (TDD)', () => {
     });
   });
 
-  it('allows loopback HTTP frontend only in isolated VNPay tests, never production', () => {
+  it('allows signed Sandbox Return settlement only for local development', () => {
     const values = {
       WEB_ORIGIN: 'http://localhost:3100',
       VNPAY_ENABLED: 'true',
       VNPAY_TMN_CODE: 'TEST0001',
       VNPAY_HASH_SECRET: '0123456789abcdef0123456789abcdef',
-      VNPAY_RETURN_URL: 'https://e2e.invalid/api/v1/payments/vnpay/return',
+      VNPAY_RETURN_URL: 'http://localhost:3101/api/v1/payments/vnpay/return',
       VNPAY_IPN_URL: 'https://e2e.invalid/api/v1/payments/vnpay/ipn',
+      JWT_SECRET: TEST_SECRET,
     };
 
-    expect(loadAppConfig({ ...values, NODE_ENV: 'test' }).vnpay.frontendOrigin)
-      .toBe('http://localhost:3100');
-    for (const nodeEnv of ['production', 'development']) {
-      expect(() => loadAppConfig({ ...values, NODE_ENV: nodeEnv, JWT_SECRET: TEST_SECRET }))
-        .toThrow(/WEB_ORIGIN must be a valid HTTPS URL/);
-    }
+    expect(loadAppConfig({ ...values, NODE_ENV: 'development' }).vnpay).toMatchObject({
+      frontendOrigin: values.WEB_ORIGIN,
+      returnUrl: values.VNPAY_RETURN_URL,
+      settleLocalSandboxReturn: true,
+    });
+    expect(() => loadAppConfig({ ...values, NODE_ENV: 'production' }))
+      .toThrow(/VNPAY_RETURN_URL must be a valid HTTPS URL/);
+    expect(() => loadAppConfig({ ...values, VNPAY_PAYMENT_URL: 'https://pay.vnpay.vn/vpcpay.html' }))
+      .toThrow(/VNPAY_RETURN_URL must be a valid HTTPS URL/);
     expect(() => loadAppConfig({ ...values, NODE_ENV: 'test', WEB_ORIGIN: 'http://example.com' }))
       .toThrow(/WEB_ORIGIN must be a valid HTTPS URL/);
+    expect(loadAppConfig({ ...values, VNPAY_RETURN_URL: 'https://e2e.invalid/vnpay/return' })
+      .vnpay.settleLocalSandboxReturn).toBe(false);
   });
 
   it('keeps AuthModule JwtService signOptions synchronized with AuthService expiresIn when env changes after module import', async () => {

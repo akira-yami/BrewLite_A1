@@ -11,6 +11,8 @@ import {
 } from "@/features/orders/api";
 import { OrderDetailView } from "@/features/orders/components/OrderDetailView";
 import { useAuthSession } from "@/features/auth/use-auth-session";
+import { getCheckoutOrderItems, readPendingCheckout, writeCheckoutCoupon, writePendingCheckout } from "@/features/checkout/session";
+import { cartStore } from "@/stores/cart-store";
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -25,8 +27,16 @@ export default function OrderDetailPage() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const cancel = useMutation({
     mutationFn: () => cancelOrderApi(token!, params.id),
-    onSuccess: async () => {
+    onSuccess: async (order) => {
       setConfirmCancel(false);
+      const storage = window.sessionStorage;
+      const checkout = readPendingCheckout(storage);
+      if (checkout?.orderId === order.id) {
+        if (!checkout.cartItemsRemoved && cartStore.removeOrderItems(getCheckoutOrderItems(checkout))) {
+          writeCheckoutCoupon(storage, null);
+        }
+        writePendingCheckout(storage, null);
+      }
       await client.invalidateQueries({
         queryKey: ["order-detail", token, params.id],
       });
@@ -78,12 +88,10 @@ export default function OrderDetailPage() {
         {order && (
           <div className="mt-6">
             <OrderDetailView order={order} />
-            {["PENDING", "PAYMENT_FAILED", "PAID"].includes(order.status) && (
+            {["PENDING", "PAYMENT_FAILED"].includes(order.status) && (
               <section className="mt-5 rounded-2xl border border-[#E8DFC8] bg-white p-5 text-sm">
                 <p className="text-[#756A63]">
-                  Bạn có thể hủy trước khi quầy bắt đầu pha chế.
-                  {order.status === "PAID" &&
-                    " Đơn đã thanh toán sẽ không được hoàn tiền giả lập; nguyên liệu, coupon và điểm đã ghi nhận được giữ nguyên."}
+                  Bạn có thể hủy đơn chưa thanh toán.
                 </p>
                 {confirmCancel ? (
                   <div className="mt-4 flex flex-wrap gap-3">

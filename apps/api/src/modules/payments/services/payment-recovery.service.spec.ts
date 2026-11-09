@@ -37,8 +37,6 @@ function setup(options: {
     id: ORDER_ID,
     userId: ACTOR_ID,
     status: options.orderStatus ?? OrderStatus.PENDING,
-    // Default: 1 hour in the future from test execution time so the "settles a valid success"
-    // and "settlement rollback" cases don't accidentally fall into the late-success branch.
     reservationExpiresAt: options.reservationExpiresAt ?? new Date(Date.now() + 60 * 60_000),
   };
   const request = {
@@ -253,9 +251,9 @@ describe('PaymentRecoveryService', () => {
     expect(h.tx.paymentRecoveryAudit.create).toHaveBeenCalledTimes(2);
   });
 
-  it('sends a late success to MANUAL_REVIEW without marking Order PAID', async () => {
+  it('sends success after order cancellation to MANUAL_REVIEW', async () => {
     const h = setup({
-      reservationExpiresAt: new Date(Date.now() - 60_000),
+      orderStatus: OrderStatus.CANCELLED,
       inquiryResult: {
         requestId: 'request123', gatewayReference: 'vnp-ref-123',
         status: 'SUCCESS', responseCode: '00', transactionStatus: '00',

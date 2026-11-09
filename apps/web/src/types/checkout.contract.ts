@@ -14,9 +14,9 @@ export interface ValidateCouponResponse {
 // ==========================================
 // PAYMENT DOMAIN
 // ==========================================
-export type PaymentMethod = 'E_WALLET' | 'CARD' | 'VNPAY';
+export type PaymentMethod = 'VNPAY';
 
-export type PaymentStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
+export type PaymentStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'MANUAL_REVIEW' | 'REFUNDED';
 
 export interface CreatePaymentPayload {
     orderId: string;

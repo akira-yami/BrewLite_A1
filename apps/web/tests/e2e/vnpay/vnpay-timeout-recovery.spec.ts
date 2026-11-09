@@ -1,16 +1,14 @@
 import { enrichVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
 import { test, expect } from '../fixtures/vnpay-fixtures.js';
 import { setupCartWithProduct, proceedToCheckout } from '../helpers/cart-helper.js';
-import { assertCountdownVisible } from '../helpers/assertion-helper.js';
 
 test.describe('VNPAY Timeout Recovery', () => {
-  test('countdown timer displays correctly and enters urgent state', async ({
+  test('checkout keeps order actions available while awaiting VNPay', async ({
     page,
     testUser,
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -20,13 +18,9 @@ test.describe('VNPAY Timeout Recovery', () => {
     await page.getByRole('button', { name: /^Thanh toán / }).click();
     await paymentPromise;
 
-    await assertCountdownVisible(page, 'normal');
-
-    const timerText = await page
-      .locator('[role="status"]')
-      .filter({ hasText: /\d{2}:\d{2}/ })
-      .textContent();
-    expect(timerText).toMatch(/\d{2}:\d{2}/);
+    await expect(page.getByRole('heading', { name: 'Đang chờ xác nhận thanh toán' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Hủy đơn đang chờ' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Kiểm tra trạng thái giao dịch' })).toBeEnabled();
   });
 
   test('manual recovery after payment completes late', async ({
@@ -38,7 +32,6 @@ test.describe('VNPAY Timeout Recovery', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -87,7 +80,6 @@ test.describe('VNPAY Timeout Recovery', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -111,13 +103,14 @@ test.describe('VNPAY Timeout Recovery', () => {
     await expect(errorAlert).toContainText('Thanh toán chưa thành công', { timeout: 15000 });
   });
 
-  test('countdown persists after page reload', async ({
+  test('can cancel the pending order after reloading checkout', async ({
     page,
+    request,
     testUser,
+    apiUrl,
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -125,23 +118,45 @@ test.describe('VNPAY Timeout Recovery', () => {
         response.request().method() === 'POST',
     );
     await page.getByRole('button', { name: /^Thanh toán / }).click();
-    await paymentPromise;
-
-    await page.waitForTimeout(2000);
-
-    const timerBefore = await page
-      .locator('[role="status"]')
-      .filter({ hasText: /\d{2}:\d{2}/ })
-      .textContent();
-
+    const { data: { orderId } } = enrichVnpayPaymentResponse(undefined, await paymentPromise);
+    await expect(page.getByRole('heading', { name: 'Đang chờ xác nhận thanh toán' })).toBeVisible();
     await page.reload();
 
-    const timerAfter = await page
-      .locator('[role="status"]')
-      .filter({ hasText: /\d{2}:\d{2}/ })
-      .textContent();
+    await page.getByRole('button', { name: 'Hủy đơn đang chờ' }).click();
+    await expect(page.getByRole('heading', { name: 'Giỏ hàng đang trống' })).toBeVisible();
+    const order = await request.get(`${apiUrl}/orders/${orderId}`, {
+      headers: { Authorization: 'Bearer ' + testUser.accessToken },
+    });
+    expect((await order.json()).data.status).toBe('CANCELLED');
+  });
 
-    expect(timerAfter).toBeTruthy();
-    expect(timerAfter).toMatch(/\d{2}:\d{2}/);
+  test('replaces a pending VNPay order and pays only for the remaining cart', async ({ page, request, testUser, apiUrl, vnpayHelper }) => {
+    await setupCartWithProduct(page, testUser.accessToken);
+    await proceedToCheckout(page);
+    const firstPayment = page.waitForResponse(response =>
+      response.url().endsWith('/payments') && response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: /^Thanh toán / }).click();
+    const { data: { orderId, amount } } = enrichVnpayPaymentResponse(undefined, await firstPayment);
+    await expect(page.getByRole('heading', { name: 'Đang chờ xác nhận thanh toán' })).toBeVisible();
+
+    await setupCartWithProduct(page, testUser.accessToken);
+    await proceedToCheckout(page);
+    const nextAttempt = page.waitForResponse(response =>
+      response.url().endsWith('/payments') && response.request().method() === 'POST',
+    );
+    await page.getByRole('button', { name: /^Thanh toán giỏ mới/ }).click();
+    const { data: replacement } = enrichVnpayPaymentResponse(undefined, await nextAttempt);
+    expect(replacement.amount).toBe(amount);
+    await vnpayHelper.simulateIpn(request, {
+      gatewayReference: replacement.gatewayReference, amount: BigInt(replacement.amount),
+      responseCode: '00', transactionStatus: '00',
+    });
+    await page.waitForURL(/\/orders\/confirmation\?orderId=/);
+    expect(new URL(page.url()).searchParams.get('orderId')).not.toBe(orderId);
+    const previousOrder = await request.get(`${apiUrl}/orders/${orderId}`, {
+      headers: { Authorization: 'Bearer ' + testUser.accessToken },
+    });
+    expect((await previousOrder.json()).data.status).toBe('CANCELLED');
   });
 });

@@ -9,7 +9,6 @@ test.describe('VNPAY Double-Click Protection', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     let postCount = 0;
     page.on('response', (response) => {
@@ -40,7 +39,6 @@ test.describe('VNPAY Double-Click Protection', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -83,7 +81,6 @@ test.describe('VNPAY Double-Click Protection', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>

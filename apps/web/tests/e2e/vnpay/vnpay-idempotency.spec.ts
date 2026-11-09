@@ -13,7 +13,6 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const firstPaymentPromise = page.waitForResponse(
       (response) =>
@@ -36,8 +35,11 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
     expect(failIpn.RspCode).toBe('00');
 
     // Wait for the signed failure to reach the UI through status polling.
-    const retryButton = page.getByRole('button', { name: /^Thử thanh toán lại / });
+    const retryButton = page.getByRole('button', { name: 'Thanh toán lại' });
     await expect(retryButton).toBeVisible({ timeout: 15000 });
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('brewlite_cart_storage') ?? '[]'))).toEqual([]);
+    await page.reload();
+    await expect(retryButton).toBeEnabled();
 
     const retryPaymentPromise = page.waitForResponse(
       (response) =>
@@ -81,7 +83,6 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const firstPaymentPromise = page.waitForResponse(
       (response) =>
@@ -116,7 +117,6 @@ test.describe('VNPAY Idempotency & Retry Safety', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const firstPaymentPromise = page.waitForResponse(
       (response) =>

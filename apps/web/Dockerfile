@@ -9,11 +9,9 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM dependencies AS build
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
-ARG NEXT_PUBLIC_VNPAY_ENABLED=false
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
-    NEXT_PUBLIC_VNPAY_ENABLED=${NEXT_PUBLIC_VNPAY_ENABLED}
+    NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 COPY . .
 RUN npm run build

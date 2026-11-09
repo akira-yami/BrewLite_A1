@@ -2,34 +2,28 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { createOrderApi, getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { cancelOrderApi, createOrderApi, getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
 import type { OrderDetail } from '@/features/orders/types';
 import {
   createPaymentApi,
   getPaymentStatusApi,
   PaymentApiError,
-  type PaymentMethod,
+  type PaymentResponse,
 } from '@/features/payments/api';
 import { VnpayPendingScreen } from '@/features/payments/components/VnpayPendingScreen';
 import { cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
 import {
+  getCheckoutOrderItems,
   readCheckoutCoupon,
   readPendingCheckout,
   transitionPaymentAttempt,
   writeCheckoutCoupon,
   writePendingCheckout,
+  type ActivePendingPaymentAttempt,
   type CheckoutCouponQuote,
   type PendingCheckoutState,
 } from '@/features/checkout/session';
-
-const paymentOptions: Array<{ method: PaymentMethod; title: string; description: string; icon: string }> = [
-  { method: 'E_WALLET', title: 'Ví điện tử', description: 'Thanh toán nhanh qua ví BrewLite', icon: '◉' },
-  { method: 'CARD', title: 'Thẻ ngân hàng', description: 'Thẻ nội địa hoặc quốc tế', icon: '▣' },
-  ...(process.env.NEXT_PUBLIC_VNPAY_ENABLED === 'true'
-    ? [{ method: 'VNPAY' as const, title: 'VNPay', description: 'Thanh toán qua cổng VNPay bảo mật', icon: 'V' }]
-    : []),
-];
 
 const subscribeVnpayReturn = () => () => {};
 const getVnpayReturnSnapshot = () =>
@@ -49,30 +43,32 @@ function newIdempotencyKey() {
 }
 
 function paymentFailureMessage(failureCode?: string | null, message?: string) {
+  if (failureCode === 'VNPAY_24_02') {
+    return 'Bạn đã hủy giao dịch trên VNPay. Bạn có thể thanh toán lại đơn hàng.';
+  }
+  if (failureCode === 'VNPAY_11_02') {
+    return 'Liên kết thanh toán VNPay đã hết hạn. Bạn có thể thử thanh toán lại.';
+  }
   if (failureCode === 'INSUFFICIENT_FUNDS' || failureCode === 'VNPAY_51_02' || failureCode === 'VNPAY_65_02') {
-    return 'Số dư hoặc hạn mức thanh toán không đủ. Giỏ hàng của bạn vẫn được giữ nguyên.';
+    return 'Số dư hoặc hạn mức thanh toán không đủ.';
   }
   if (failureCode === 'PAYMENT_DECLINED') {
-    return 'Ngân hàng hoặc ví điện tử từ chối giao dịch. Bạn có thể chọn phương thức khác để thử lại.';
+    return 'Giao dịch bị từ chối. Bạn có thể thanh toán lại đơn hàng.';
   }
   return message && !/^[A-Z][A-Z0-9_]+$/.test(message)
     ? message
-    : 'Thanh toán chưa thành công. Đơn hàng và giỏ hàng của bạn vẫn được giữ nguyên để thử lại.';
+    : 'Thanh toán chưa thành công. Bạn có thể thanh toán lại đơn hàng.';
 }
 
 export default function CheckoutPage() {
   const router = useRouter();
   const cart = useCartStore();
-  const [method, setMethod] = useState<PaymentMethod>('E_WALLET');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [couponQuote, setCouponQuote] = useState<CheckoutCouponQuote | null>(null);
   const [orderSummary, setOrderSummary] = useState<OrderDetail | null>(null);
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState | null>(null);
-  // When user returns from VNPay with ?paymentReturn=1 and payment is still PROCESSING,
-  // show the full-screen waiting UI with countdown instead of the checkout form.
-  const [showVnpayPending, setShowVnpayPending] = useState(false);
   const isVnpayReturn = useSyncExternalStore(
     subscribeVnpayReturn,
     getVnpayReturnSnapshot,
@@ -81,13 +77,18 @@ export default function CheckoutPage() {
   const pendingCheckoutRef = useRef<PendingCheckoutState | null>(null);
   const submitLock = useRef(false);
 
-  const persistPendingCheckout = (next: PendingCheckoutState | null) => {
+  const persistPendingCheckout = useCallback((next: PendingCheckoutState | null) => {
     pendingCheckoutRef.current = next;
     setPendingCheckout(next);
-    if (typeof window !== 'undefined') {
-      writePendingCheckout(window.sessionStorage, next);
+    writePendingCheckout(window.sessionStorage, next);
+  }, []);
+
+  const removeCheckoutItems = useCallback((checkout: PendingCheckoutState) => {
+    if (!checkout.cartItemsRemoved && cartStore.removeOrderItems(getCheckoutOrderItems(checkout))) {
+      writeCheckoutCoupon(window.sessionStorage, null);
+      setCouponQuote(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -102,18 +103,31 @@ export default function CheckoutPage() {
       if (savedCheckout) {
         pendingCheckoutRef.current = savedCheckout;
         setPendingCheckout(savedCheckout);
-        if (savedCheckout.method) setMethod(savedCheckout.method);
 
         const token = window.localStorage.getItem('brewlite_token');
         if (token) {
           void getOrderDetailApi(token, savedCheckout.orderId)
             .then((order) => {
-              if (active) setOrderSummary(order);
+              if (!active || submitLock.current || pendingCheckoutRef.current?.orderId !== order.id) return;
+              if (order.status === 'CANCELLED') {
+                removeCheckoutItems(savedCheckout);
+                persistPendingCheckout(null);
+              } else {
+                setOrderSummary(order);
+                if (order.status === 'PAYMENT_FAILED' && !savedCheckout.idempotencyKey && !savedCheckout.cartItemsRemoved) {
+                  removeCheckoutItems(savedCheckout);
+                  persistPendingCheckout({ ...savedCheckout, cartItemsRemoved: true });
+                }
+              }
             })
-            .catch(() => {
-              // The same idempotency key remains available if this read-only refresh fails.
+            .catch((reason: unknown) => {
+              if (active && pendingCheckoutRef.current?.orderId === savedCheckout.orderId &&
+                  reason instanceof OrdersApiError && reason.status === 404) {
+                persistPendingCheckout(null);
+              }
             });
-        }      }
+        }
+      }
 
       setIsRestoring(false);
     });
@@ -121,74 +135,60 @@ export default function CheckoutPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [persistPendingCheckout, removeCheckoutItems]);
 
-  // Returning from the gateway must resume the stored payment attempt
-  // automatically. The browser Return URL never settles a payment; only
-  // the signed IPN can do that on the server.
-  useEffect(() => {
-    if (isRestoring || !isVnpayReturn) return;
+  const applyPaymentResult = useCallback((idempotencyKey: string, payment: PaymentResponse) => {
     const checkout = pendingCheckoutRef.current;
-    if (!checkout?.idempotencyKey || checkout.method !== 'VNPAY') return;
+    if (!checkout?.method || checkout.idempotencyKey !== idempotencyKey) return;
 
-    const token = window.localStorage.getItem('brewlite_token');
-    if (!token) return;
-    let active = true;
-    void getPaymentStatusApi(token, checkout.idempotencyKey).then((payment) => {
-      if (!active) return;
-      if (payment.status === 'SUCCEEDED' && payment.success === true) {
-        pendingCheckoutRef.current = null;
-        setPendingCheckout(null);
-        writePendingCheckout(window.sessionStorage, null);
-        cartStore.clearCart();
-        writeCheckoutCoupon(window.sessionStorage, null);
-        router.replace('/orders/confirmation?orderId=' + encodeURIComponent(checkout.orderId));
-      } else if (payment.status === 'FAILED') {
-        const reset = transitionPaymentAttempt({
-          ...checkout,
-          idempotencyKey: checkout.idempotencyKey!,
-          method: 'VNPAY',
-        }, 'FAILED');
-        pendingCheckoutRef.current = reset;
-        setPendingCheckout(reset);
-        writePendingCheckout(window.sessionStorage, reset);
-        setError(paymentFailureMessage(payment.errorCode, payment.message));
-      } else {
-        setShowVnpayPending(true);
-      }
-    }).catch(() => {
-      // An unknown response is not a failure; keep polling with the same key.
-      if (active) setShowVnpayPending(true);
-    });
+    if (payment.status === 'SUCCEEDED' && payment.success === true) {
+      persistPendingCheckout(null);
+      setOrderSummary(null);
+      removeCheckoutItems(checkout);
+      router.replace(`/orders/confirmation?orderId=${encodeURIComponent(checkout.orderId)}`);
+    } else if (payment.status === 'FAILED' || payment.status === 'REFUNDED') {
+      removeCheckoutItems(checkout);
+      persistPendingCheckout(payment.errorCode === 'ORDER_CANCELLED'
+        ? null
+        : transitionPaymentAttempt({ ...checkout, cartItemsRemoved: true, idempotencyKey, method: checkout.method }, 'FAILED'));
+      if (payment.errorCode === 'ORDER_CANCELLED') setOrderSummary(null);
+      setError(payment.errorCode === 'ORDER_CANCELLED'
+        ? 'Đơn hàng đã được hủy. Bạn có thể thanh toán giỏ hiện tại.'
+        : paymentFailureMessage(payment.errorCode, payment.message));
+    } else if (payment.status === 'MANUAL_REVIEW') {
+      setError('Giao dịch đang cần đối soát. Bạn có thể theo dõi kết quả trong chi tiết đơn hàng.');
+    }
+  }, [persistPendingCheckout, removeCheckoutItems, router]);
 
-    return () => { active = false; };
-  }, [isRestoring, isVnpayReturn, router]);
+  const applyPolledPaymentResult = useCallback((key: string, payment: PaymentResponse) => {
+    if (!submitLock.current) applyPaymentResult(key, payment);
+  }, [applyPaymentResult]);
 
-  const hasUnresolvedPayment = Boolean(pendingCheckout?.idempotencyKey);
+  const pendingKey = pendingCheckout?.idempotencyKey;
   const cartFingerprint = JSON.stringify(cartStore.getOrderItems());
   const pendingCartChanged = Boolean(
-    pendingCheckout && pendingCheckout.cartFingerprint !== cartFingerprint,
+    pendingCheckout && !pendingCheckout.cartItemsRemoved && pendingCheckout.cartFingerprint !== cartFingerprint,
   );
+  const hasUnresolvedPayment = Boolean(pendingKey && !pendingCartChanged);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('brewlite_token') : null;
   const couponMatchesCart = Boolean(
     couponQuote && couponQuote.subtotal === cart.subtotal,
   );
   const previewDiscount = couponMatchesCart ? couponQuote?.discountAmount ?? 0 : 0;
-  const displayedSubtotal = orderSummary?.subtotal ?? cart.subtotal;
-  const displayedDiscount = orderSummary?.discountAmount ?? previewDiscount;
-  const displayedTotal = orderSummary?.total ?? Math.max(0, cart.subtotal - previewDiscount);
+  const currentOrder = pendingCartChanged ? null : orderSummary;
+  const displayedSubtotal = currentOrder?.subtotal ?? cart.subtotal;
+  const displayedDiscount = currentOrder?.discountAmount ?? previewDiscount;
+  const displayedTotal = currentOrder?.total ?? Math.max(0, cart.subtotal - previewDiscount);
 
-  const handlePayment = async () => {
-    if (submitLock.current || isRestoring || cart.items.length === 0) return;
-    if (pendingCartChanged) {
-      setError('Giỏ hàng đã thay đổi so với đơn hàng đang chờ thanh toán. Không tạo giao dịch mới để tránh thanh toán nhầm đơn.');
-      return;
-    }
+  const handlePayment = async (action: 'pay' | 'cancel' | 'new' = 'pay') => {
+    if (submitLock.current || isRestoring) return;
 
     // Lock synchronously; React state alone does not stop two clicks in the same event turn.
     submitLock.current = true;
     setIsSubmitting(true);
     setError(null);
 
+    let cancelling = false;
     try {
       const token = localStorage.getItem('brewlite_token');
       if (!token) {
@@ -197,9 +197,44 @@ export default function CheckoutPage() {
       }
 
       let checkout = pendingCheckoutRef.current;
+      const cancelOnly = action === 'cancel';
+      const replaceOrder = action === 'new' || Boolean(checkout && !checkout.cartItemsRemoved &&
+        checkout.cartFingerprint !== JSON.stringify(cartStore.getOrderItems()));
+      const expiredOrder = checkout && !checkout.idempotencyKey && currentOrder?.reservationExpiresAt &&
+        Date.parse(currentOrder.reservationExpiresAt) <= Date.now();
+      const retryItems = expiredOrder && checkout?.cartItemsRemoved && !replaceOrder && !cancelOnly
+        ? getCheckoutOrderItems(checkout)
+        : null;
+      if (checkout && (cancelOnly || replaceOrder || expiredOrder)) {
+        cancelling = true;
+        try {
+          await cancelOrderApi(token, checkout.orderId);
+          removeCheckoutItems(checkout);
+        } catch (reason) {
+          if (!(reason instanceof OrdersApiError)) throw reason;
+          if (reason.code === 'ORDER_INVALID_TRANSITION') {
+            // The old order might have completed while the customer changed the cart.
+            const order = await getOrderDetailApi(token, checkout.orderId);
+            const canReplaceCompletedOrder = replaceOrder && !cancelOnly &&
+              order.status !== 'PENDING' && order.status !== 'PAYMENT_FAILED';
+            if (order.status !== 'CANCELLED' && !canReplaceCompletedOrder) throw reason;
+            removeCheckoutItems(checkout);
+          } else if (reason.status !== 404) {
+            throw reason;
+          }
+        }
+        persistPendingCheckout(null);
+        setOrderSummary(null);
+        checkout = null;
+        cancelling = false;
+      }
+      if (cancelOnly) return;
+
       if (!checkout) {
-        const items = cartStore.getOrderItems();
-        const couponCode = couponMatchesCart ? couponQuote?.code : undefined;
+        const items = retryItems ?? cartStore.getOrderItems();
+        if (!items.length) return;
+        const quote = readCheckoutCoupon(window.sessionStorage);
+        const couponCode = !retryItems && quote?.subtotal === cartStore.getSnapshot().subtotal ? quote.code : undefined;
         const order = await createOrderApi(token, {
           items,
           ...(couponCode ? { couponCode } : {}),
@@ -211,20 +246,21 @@ export default function CheckoutPage() {
           idempotencyKey: null,
           method: null,
           cartFingerprint: JSON.stringify(items),
+          ...(retryItems ? { cartItemsRemoved: true } : {}),
         };
         persistPendingCheckout(checkout);
       }
 
       const idempotencyKey = checkout.idempotencyKey ?? newIdempotencyKey();
-      const attempt: PendingCheckoutState & {
-        idempotencyKey: string;
-        method: PaymentMethod;
-      } = {
+      const attempt: ActivePendingPaymentAttempt = {
         ...checkout,
         idempotencyKey,
-        method,
+        method: checkout.method ?? 'VNPAY',
       };
 
+      if (!checkout.idempotencyKey && getVnpayReturnSnapshot()) {
+        window.history.replaceState(null, '', '/checkout');
+      }
       // Persist before POST so reload/network loss replays the same order and key.
       persistPendingCheckout(attempt);
       let payment: Awaited<ReturnType<typeof createPaymentApi>>;
@@ -239,18 +275,23 @@ export default function CheckoutPage() {
           ) {
             throw statusError;
           }
+          if (attempt.method !== 'VNPAY') {
+            persistPendingCheckout({ ...checkout, idempotencyKey: null, method: null });
+            setError('Bạn có thể tiếp tục thanh toán đơn hàng bằng VNPay.');
+            return;
+          }
           // The original request may have failed before its row was committed.
           // Replaying the exact same key is safe; rotating it here would not be.
           payment = await createPaymentApi(
             token,
-            { orderId: attempt.orderId, method: attempt.method as PaymentMethod },
+            { orderId: attempt.orderId, method: attempt.method },
             idempotencyKey,
           );
         }
       } else {
         payment = await createPaymentApi(
           token,
-          { orderId: attempt.orderId, method: attempt.method as PaymentMethod },
+          { orderId: attempt.orderId, method: 'VNPAY' },
           idempotencyKey,
         );
       }
@@ -271,45 +312,14 @@ export default function CheckoutPage() {
         return;
       }
 
-      // User returned from VNPay and payment is still PROCESSING — show countdown screen.
-      if (returnedFromVnpay && payment.status === 'PROCESSING') {
-        setShowVnpayPending(true);
-        return;
+      applyPaymentResult(idempotencyKey, payment);
+      if (payment.status === 'PROCESSING' && !returnedFromVnpay) {
+        setError('Giao dịch đang được xử lý. Bạn có thể kiểm tra lại trạng thái thanh toán.');
       }
-
-      const resolution = payment.status === 'SUCCEEDED' && payment.success === true
-        ? 'SUCCEEDED'
-        : payment.status === 'FAILED'
-          ? 'FAILED'
-          : 'PROCESSING';
-      const nextAttempt = transitionPaymentAttempt(attempt, resolution);
-      persistPendingCheckout(nextAttempt);
-
-      if (resolution === 'SUCCEEDED') {
-        cartStore.clearCart();
-        writeCheckoutCoupon(window.sessionStorage, null);
-        router.replace(`/orders/confirmation?orderId=${encodeURIComponent(attempt.orderId)}`);
-        return;
-      }
-
-      if (resolution === 'FAILED') {
-        // Only a definitive failure permits a new key; retry the same Order.
-        setError(paymentFailureMessage(payment.errorCode, payment.message));
-        return;
-      }
-
-      // PROCESSING or an inconsistent response is not a confirmed failure.
-      // If the user was on VNPay and returned, show the countdown pending screen.
-      // Otherwise retain the idempotency key and show a warning.
-      if (returnedFromVnpay) {
-        setShowVnpayPending(true);
-        return;
-      }
-      setError(
-        'Giao dịch đang được xử lý hoặc chưa có kết quả xác nhận. Hãy kiểm tra lại bằng cùng khóa thanh toán; không tạo đơn mới.',
-      );
     } catch (reason) {
-      if (reason instanceof OrdersApiError) {
+      if (cancelling) {
+        setError(reason instanceof OrdersApiError ? reason.message : 'Chưa thể xác nhận hủy đơn hàng. Vui lòng thử lại.');
+      } else if (reason instanceof OrdersApiError) {
         if (reason.status === 401) {
           setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         } else if (reason.status === 409) {
@@ -319,11 +329,16 @@ export default function CheckoutPage() {
         }
       } else if (reason instanceof PaymentApiError) {
         if (reason.code === 'ORDER_EXPIRED') {
-          setError('Đơn hàng đã hết hạn thanh toán do quá thời gian giữ chỗ. Vui lòng đặt lại đơn mới.');
-          persistPendingCheckout(null);
-          setOrderSummary(null);
+          const checkout = pendingCheckoutRef.current;
+          if (checkout) {
+            removeCheckoutItems(checkout);
+            persistPendingCheckout({ ...checkout, idempotencyKey: null, method: null, cartItemsRemoved: true });
+          }
+          setError('Đơn đã hết hạn giữ chỗ. Hãy chọn Thanh toán lại để tạo đơn mới.');
         } else if (reason.code === 'PAYMENT_IN_PROGRESS') {
           setError('Giao dịch đang được xử lý. Hãy chờ rồi kiểm tra lại bằng cùng khóa thanh toán.');
+        } else if (reason.code === 'VNPAY_NOT_CONFIGURED') {
+          setError(reason.message);
         } else if (reason.status === 401) {
           setError('Phiên đăng nhập đã hết hạn. Khóa thanh toán được giữ để tiếp tục an toàn sau khi đăng nhập.');
         } else {
@@ -340,7 +355,7 @@ export default function CheckoutPage() {
     }
   };
 
-  if (cart.items.length === 0) {
+  if (cart.items.length === 0 && !pendingCheckout) {
     return (
       <main className="min-h-screen bg-[#FBF8F3] px-4 py-16 text-[#1A1612]">
         <section className="mx-auto max-w-lg rounded-3xl border border-[#E5DCD2] bg-white p-8 text-center shadow-sm">
@@ -355,114 +370,30 @@ export default function CheckoutPage() {
     );
   }
 
-  // Show VNPay waiting screen with countdown when user returned from VNPay
-  // and payment is still PROCESSING (IPN not yet received).
-  const pendingKey = pendingCheckout?.idempotencyKey;
-  const pendingExpiresAt = orderSummary?.reservationExpiresAt;
-  const token = typeof window !== 'undefined' ? localStorage.getItem('brewlite_token') : null;
-
-  if (showVnpayPending && pendingKey && pendingExpiresAt && token) {
-    return (
-      <main className="min-h-screen bg-[#FBF8F3] px-4 py-8 text-[#1A1612] sm:py-16">
-        <section className="mx-auto max-w-md rounded-3xl border border-[#E5DCD2] bg-white p-6 shadow-sm sm:p-8">
-          <VnpayPendingScreen
-            reservationExpiresAt={pendingExpiresAt}
-            idempotencyKey={pendingKey}
-            token={token}
-            displayTotal={formatVnd(displayedTotal)}
-            onSucceeded={() => {
-              persistPendingCheckout(null);
-              cartStore.clearCart();
-              writeCheckoutCoupon(window.sessionStorage, null);
-              router.replace(
-                `/orders/confirmation?orderId=${encodeURIComponent(pendingCheckout?.orderId ?? '')}`,
-              );
-            }}
-            onFailed={(errorCode) => {
-              setShowVnpayPending(false);
-              const checkout = pendingCheckoutRef.current;
-              if (checkout?.idempotencyKey && checkout.method === 'VNPAY') {
-                persistPendingCheckout(transitionPaymentAttempt({
-                  ...checkout,
-                  idempotencyKey: checkout.idempotencyKey,
-                  method: checkout.method,
-                }, 'FAILED'));
-              }
-              setError(paymentFailureMessage(errorCode));
-            }}
-            onReservationExpired={() => {
-              setShowVnpayPending(false);
-              setError(
-                'Đơn hàng đã hết thời gian giữ chỗ trong khi chờ VNPay xác nhận. Vui lòng đặt lại đơn mới.',
-              );
-              persistPendingCheckout(null);
-              setOrderSummary(null);
-            }}
-          />
-          {/* Safety escape hatch — lets user dismiss without data loss */}
-          <button
-            type="button"
-            onClick={() => {
-              setShowVnpayPending(false);
-              setError(
-                'Đã quay lại từ VNPay. Đơn hàng và khóa giao dịch vẫn còn hiệu lực — nhấn "Kiểm tra trạng thái" bên dưới để tra cứu.',
-              );
-            }}
-            className="mt-4 w-full text-center text-xs text-[#9E9189] underline underline-offset-2 hover:text-[#756A63]"
-          >
-            Quay về trang thanh toán
-          </button>
-        </section>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-[#FBF8F3] px-4 py-8 text-[#1A1612] sm:py-12">
       <section className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1.1fr_.9fr]">
         <div className="rounded-3xl border border-[#E5DCD2] bg-white p-5 shadow-sm sm:p-8">
-          {hasUnresolvedPayment ? (
-            <p className="text-sm font-bold text-[#163E2B]">Đang xác minh giao dịch trước đó. Không đổi phương thức hoặc tạo đơn mới trong lúc này.</p>
-          ) : (
-            <Link href="/menu" className="text-sm font-bold text-[#163E2B] hover:underline">← Quay lại giỏ hàng</Link>
-          )}
+          <Link href="/menu" className="text-sm font-bold text-[#163E2B] hover:underline">← Quay lại giỏ hàng</Link>
           <p className="mt-6 text-xs font-black uppercase tracking-[0.2em] text-[#B85D36]">BrewLite checkout</p>
-          <h1 className="mt-2 text-3xl font-black text-[#163E2B] sm:text-4xl">Chọn phương thức thanh toán</h1>
+          <h1 className="mt-2 text-3xl font-black text-[#163E2B] sm:text-4xl">Thanh toán qua VNPay</h1>
           <p className="mt-2 text-sm leading-6 text-[#756A63]">Đơn hàng được máy chủ tạo và tính lại giá, coupon, tồn kho trước khi bắt đầu thanh toán.</p>
 
-          <div className="mt-6 space-y-3">
-            {paymentOptions.map((option) => {
-              const selected = method === option.method;
-              return (
-                <button
-                  key={option.method}
-                  type="button"
-                  onClick={() => setMethod(option.method)}
-                  disabled={hasUnresolvedPayment || isSubmitting || isRestoring}
-                  className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition ${
-                    selected ? 'border-[#163E2B] bg-[#E8F1EC]' : 'border-[#E5DCD2] bg-[#FCFAF7] hover:border-[#9fb9ab]'
-                  } disabled:cursor-not-allowed disabled:opacity-60`}
-                  aria-pressed={selected}
-                >
-                  <span className={`flex h-11 w-11 items-center justify-center rounded-full text-xl ${
-                    selected ? 'bg-[#163E2B] text-white' : 'bg-white text-[#163E2B]'
-                  }`} aria-hidden="true">{option.icon}</span>
-                  <span className="flex-1">
-                    <span className="block text-sm font-black text-[#1E1813]">{option.title}</span>
-                    <span className="mt-1 block text-xs text-[#756A63]">{option.description}</span>
-                  </span>
-                  <span className={`h-5 w-5 rounded-full border-2 ${
-                    selected ? 'border-[#163E2B] bg-[#163E2B] shadow-[inset_0_0_0_3px_#E8F1EC]' : 'border-[#B9AEA4]'
-                  }`} />
-                </button>
-              );
-            })}
+          <div className="mt-6 flex items-center gap-4 rounded-2xl border border-[#163E2B] bg-[#E8F1EC] p-4">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#163E2B] text-xl text-white" aria-hidden="true">V</span>
+            <div>
+              <p className="text-sm font-black text-[#1E1813]">VNPay</p>
+              <p className="mt-1 text-xs text-[#756A63]">Thanh toán qua cổng VNPay</p>
+            </div>
           </div>
 
-          {isVnpayReturn && !showVnpayPending && (
-            <div role="status" className="mt-5 rounded-2xl border border-[#D8CCBA] bg-[#FCFAF7] px-4 py-3 text-sm leading-6 text-[#163E2B]">
-              Bạn đã quay lại từ VNPay. Trạng thái chỉ được xác nhận khi IPN của VNPay cập nhật trên máy chủ BrewLite.
-            </div>
+          {isVnpayReturn && !isSubmitting && pendingCheckout?.method === 'VNPAY' && pendingKey && token && (
+            <VnpayPendingScreen
+              key={pendingKey}
+              idempotencyKey={pendingKey}
+              token={token}
+              onResult={applyPolledPaymentResult}
+            />
           )}
           {error && (
             <div role="alert" className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-800">
@@ -471,15 +402,14 @@ export default function CheckoutPage() {
           )}
           {pendingCartChanged && (
             <div role="alert" className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-              Giỏ hàng đã thay đổi so với đơn hàng đang chờ. Hãy xử lý đơn hàng cũ trong mục Đơn hàng trước khi thanh toán giỏ mới.
-              <Link href="/orders" className="ml-1 font-bold underline">Mở Đơn hàng</Link>
+              Khi tiếp tục, đơn cũ sẽ được hủy và các món của đơn đó sẽ được xóa khỏi giỏ. Bạn có thể thanh toán các món còn lại.
             </div>
           )}
 
           <button
             type="button"
-            onClick={handlePayment}
-            disabled={isSubmitting || isRestoring || pendingCartChanged}
+            onClick={() => void handlePayment()}
+            disabled={isSubmitting || isRestoring || (!pendingCheckout && cart.items.length === 0)}
             className="mt-6 w-full rounded-full bg-[#163E2B] px-5 py-3.5 text-sm font-black text-white shadow-md transition hover:bg-[#1f4f38] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isRestoring
@@ -488,13 +418,36 @@ export default function CheckoutPage() {
                 ? 'Đang xử lý thanh toán...'
                 : hasUnresolvedPayment
                   ? 'Kiểm tra trạng thái giao dịch'
-                  : pendingCheckout
-                    ? `Thử thanh toán lại ${formatVnd(displayedTotal)}`
-                    : `Thanh toán ${formatVnd(displayedTotal)}`}
+                  : pendingCartChanged
+                    ? 'Thanh toán giỏ mới'
+                    : pendingCheckout
+                      ? 'Thanh toán lại'
+                      : `Thanh toán ${formatVnd(displayedTotal)}`}
           </button>
+          {pendingCheckout?.cartItemsRemoved && !pendingKey && cart.items.length > 0 && (
+            <button type="button" onClick={() => void handlePayment('new')} disabled={isSubmitting || isRestoring}
+              className="mt-3 w-full text-sm font-bold text-[#163E2B] underline disabled:opacity-50">
+              Thanh toán giỏ mới
+            </button>
+          )}
+          {pendingCheckout && (
+            <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
+              <button
+                type="button"
+                onClick={() => void handlePayment('cancel')}
+                disabled={isSubmitting || isRestoring}
+                className="font-bold text-rose-700 underline disabled:opacity-50"
+              >
+                Hủy đơn đang chờ
+              </button>
+              <Link href={`/orders/${encodeURIComponent(pendingCheckout.orderId)}`} className="font-bold text-[#163E2B] underline">
+                Xem đơn hàng
+              </Link>
+            </div>
+          )}
           <p className="mt-3 text-center text-xs leading-5 text-[#756A63]">
             {hasUnresolvedPayment
-              ? 'Ưu tiên GET trạng thái đã lưu; chỉ replay POST bằng cùng Idempotency-Key nếu server chưa có bản ghi.'
+              ? 'Bạn có thể kiểm tra kết quả của giao dịch hiện tại.'
               : 'Tổng tiền cuối cùng do máy chủ xác nhận theo giá, coupon và tồn kho hiện tại.'}
           </p>
         </div>
@@ -502,10 +455,10 @@ export default function CheckoutPage() {
         <aside className="h-fit rounded-3xl border border-[#E5DCD2] bg-white p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-black text-[#163E2B]">Tóm tắt đơn hàng</h2>
           <div className="mt-4 space-y-3 border-b border-[#EDE6DD] pb-4">
-            {cart.items.map((item) => (
+            {(pendingCheckout?.cartItemsRemoved ? currentOrder?.items ?? [] : cart.items).map((item) => (
               <div key={item.id} className="flex items-start justify-between gap-4 text-sm">
                 <div>
-                  <p className="font-bold text-[#1E1813]">{item.name} <span className="text-[#756A63]">× {item.quantity}</span></p>
+                  <p className="font-bold text-[#1E1813]">{'productName' in item ? item.productName : item.name} <span className="text-[#756A63]">× {item.quantity}</span></p>
                   <p className="mt-1 text-xs text-[#756A63]">Size {item.size}{item.toppings.length ? ` · ${item.toppings.map((topping) => topping.name).join(', ')}` : ''}</p>
                 </div>
                 <strong className="shrink-0 font-mono text-[#163E2B]">{formatVnd(item.lineTotal)}</strong>
@@ -513,7 +466,7 @@ export default function CheckoutPage() {
             ))}
           </div>
           <div className="mt-4 flex items-center justify-between text-sm">
-            <span className="text-[#756A63]">Tạm tính ({cart.totalQuantity} món)</span>
+            <span className="text-[#756A63]">Tạm tính</span>
             <strong className="font-mono text-[#163E2B]">{formatVnd(displayedSubtotal)}</strong>
           </div>
           {(displayedDiscount > 0 || Boolean(couponQuote?.code)) && (
@@ -528,7 +481,7 @@ export default function CheckoutPage() {
             <span className="font-black text-[#163E2B]">Tổng thanh toán</span>
             <strong className="font-mono text-lg text-[#163E2B]">{formatVnd(displayedTotal)}</strong>
           </div>
-          {couponQuote && !couponMatchesCart && !orderSummary && (
+          {couponQuote && !couponMatchesCart && !currentOrder && (
             <p className="mt-2 text-xs text-amber-700">Giỏ hàng đã thay đổi sau khi báo giá coupon được tạo. Máy chủ sẽ không áp dụng báo giá cũ.</p>
           )}
         </aside>

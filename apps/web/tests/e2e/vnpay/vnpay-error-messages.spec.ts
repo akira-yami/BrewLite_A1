@@ -11,7 +11,6 @@ test.describe('Vietnamese Error Messages', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -37,13 +36,14 @@ test.describe('Vietnamese Error Messages', () => {
     await expect(errorMessage).toBeVisible({ timeout: 10000 });
   });
 
-  test('timeout message displays in Vietnamese', async ({
+  test('an expired VNPay link shows a Vietnamese retry message', async ({
     page,
+    request,
+    vnpayHelper,
     testUser,
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -51,13 +51,15 @@ test.describe('Vietnamese Error Messages', () => {
         response.request().method() === 'POST',
     );
     await page.getByRole('button', { name: /^Thanh toán / }).click();
-    await paymentPromise;
-
-    await page.waitForTimeout(3000);
-
-    const timeoutText = page.getByText(/thời gian|giữ chỗ/i);
-    const hasVietnameseText = await timeoutText.count();
-    expect(hasVietnameseText).toBeGreaterThan(0);
+    const { data: { gatewayReference, amount } } = enrichVnpayPaymentResponse(undefined, await paymentPromise);
+    await vnpayHelper.simulateIpn(request, {
+      gatewayReference,
+      amount: BigInt(amount),
+      responseCode: '11',
+      transactionStatus: '02',
+    });
+    await expect(page.getByRole('main').getByRole('alert')).toContainText('Liên kết thanh toán VNPay đã hết hạn.');
+    await expect(page.getByRole('button', { name: 'Thanh toán lại' })).toBeEnabled();
   });
 
   test('amount formatting with thousand separators', async ({
@@ -81,7 +83,6 @@ test.describe('Vietnamese Error Messages', () => {
   }) => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
-    await page.getByRole('button', { name: /vnpay/i }).click();
 
     const paymentPromise = page.waitForResponse(
       (response) =>
@@ -98,7 +99,7 @@ test.describe('Vietnamese Error Messages', () => {
       page.getByRole('heading', { name: 'Đang chờ xác nhận thanh toán' }),
     ).toBeVisible({ timeout: 15000 });
     await expect(
-      page.getByText(/Nếu bạn đã thanh toán thành công trên VNPay/i),
+      page.getByText('Trang sẽ tự cập nhật khi BrewLite nhận được kết quả từ VNPay.'),
     ).toBeVisible();
   });
 
@@ -109,10 +110,7 @@ test.describe('Vietnamese Error Messages', () => {
     await setupCartWithProduct(page, testUser.accessToken);
     await proceedToCheckout(page);
 
-    const vnpayButton = page.getByRole('button', { name: /vnpay/i });
-    await expect(vnpayButton).toBeVisible();
-
-    await vnpayButton.click();
+    await expect(page.getByRole('heading', { name: 'Thanh toán qua VNPay' })).toBeVisible();
 
     const payButton = page.getByRole('button', { name: /^Thanh toán / });
     await expect(payButton).toBeVisible();

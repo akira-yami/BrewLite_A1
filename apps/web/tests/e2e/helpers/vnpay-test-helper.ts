@@ -1,6 +1,11 @@
 import { createHmac } from 'node:crypto';
 import type { APIRequestContext, Response as PlaywrightResponse } from '@playwright/test';
 
+export const testVnpayCredentials = {
+  tmnCode: 'TEST0001',
+  hashSecret: '0123456789abcdef0123456789abcdef',
+};
+
 export interface VnpayIpnParams {
   gatewayReference: string;
   amount: bigint;

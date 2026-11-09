@@ -1,5 +1,5 @@
 import { test as base } from '@playwright/test';
-import { VnpayTestHelper, captureVnpayPaymentResponse } from '../helpers/vnpay-test-helper.js';
+import { VnpayTestHelper, captureVnpayPaymentResponse, testVnpayCredentials } from '../helpers/vnpay-test-helper.js';
 import { createTestUser, type TestUser } from '../helpers/auth-helper.js';
 
 interface VnpayFixtures {
@@ -53,8 +53,9 @@ export const test = base.extend<VnpayFixtures>({
 
   vnpayHelper: async ({ apiUrl }, use) => {
     // Load VNPAY credentials from env
-    const hashSecret = process.env.VNPAY_HASH_SECRET;
-    const tmnCode = process.env.VNPAY_TMN_CODE;
+    const local = !process.env.E2E_EXTERNAL_BASE_URL;
+    const hashSecret = process.env.VNPAY_HASH_SECRET ?? (local ? testVnpayCredentials.hashSecret : undefined);
+    const tmnCode = process.env.VNPAY_TMN_CODE ?? (local ? testVnpayCredentials.tmnCode : undefined);
 
     // Skip tests gracefully when sandbox credentials are not configured
     if (!hashSecret || !tmnCode) {

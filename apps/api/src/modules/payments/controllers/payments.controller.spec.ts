@@ -50,6 +50,18 @@ describe('PaymentsController (Unit Test - TDD)', () => {
         await expect(controller.getStatus('', mockUser)).rejects.toThrow(BadRequestException);
     });
 
+    it.each(['E_WALLET', 'CARD'] as const)('rejects new %s payments in the running application', async method => {
+        vi.stubEnv('NODE_ENV', 'production');
+        try {
+            await expect(controller.create({ orderId: 'o-1', method } as any, 'key', '127.0.0.1', {
+                sub: 'u-1', username: 'customer', role: 'CUSTOMER',
+            })).rejects.toMatchObject({ response: { code: 'PAYMENT_METHOD_UNSUPPORTED' } });
+            expect(paymentsServiceMock.processPayment).not.toHaveBeenCalled();
+        } finally {
+            vi.unstubAllEnvs();
+        }
+    });
+
     it('tra cứu Payment status theo key và user đã xác thực, không gọi OrdersService', async () => {
         const mockUser = { sub: 'u-1', username: 'testuser', role: 'CUSTOMER' };
         const paymentStatus = { success: false, isRetried: true, status: 'PROCESSING' };

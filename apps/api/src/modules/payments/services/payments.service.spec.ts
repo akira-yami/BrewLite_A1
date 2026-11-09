@@ -39,6 +39,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
         };
         vnpayGatewayMock = {
             isEnabled: vi.fn().mockReturnValue(true),
+            canSettleLocalSandboxReturn: vi.fn().mockReturnValue(false),
             createPaymentUrl: vi.fn().mockReturnValue({ gatewayReference: 'vnp-ref-1', paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=1' }),
             verifyCallback: vi.fn(),
             frontendReturnUrl: vi.fn().mockReturnValue('https://brew.example/checkout?paymentReturn=1'),
@@ -561,7 +562,10 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                 status: PaymentStatus.PROCESSING,
                 order: { userId },
             });
-            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({ status: OrderStatus.PENDING });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                reservationExpiresAt: new Date(Date.now() - 60_000),
+            });
             const first = await service.handleVnpayIpn(callback);
             expect(first).toEqual({ RspCode: '00', Message: 'Confirm Success' });
             expect(paymentsRepoMock.markSucceeded).toHaveBeenCalledWith(
@@ -661,13 +665,14 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             });
         });
 
-        it('Return redirect never settles a Payment', async () => {
-            vnpayGatewayMock.verifyCallback.mockReturnValue(null);
+        it('a verified Return outside local Sandbox only redirects', async () => {
+            vnpayGatewayMock.verifyCallback.mockReturnValue({ vnp_TxnRef: 'vnp-ref-1' });
             await expect(service.getVnpayReturnRedirect({})).resolves.toBe(
                 'https://brew.example/checkout?paymentReturn=1',
             );
             expect(paymentsRepoMock.markSucceeded).not.toHaveBeenCalled();
             expect(paymentsRepoMock.markFailed).not.toHaveBeenCalled();
+            expect(paymentsRepoMock.findByGatewayReference).not.toHaveBeenCalled();
         });
     });
 });

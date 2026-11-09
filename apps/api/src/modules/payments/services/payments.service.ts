@@ -12,7 +12,7 @@ import { isIP } from 'node:net';
 import { PaymentsRepository } from '../repositories/payments.repository.js';
 import { OrdersService } from '../../orders/services/orders.service.js';
 import { MockGatewayService } from './mock-gateway.service.js';
-import { VnpayGatewayService } from './vnpay.gateway.js';
+import { VnpayGatewayService, type VerifiedVnpayCallback } from './vnpay.gateway.js';
 import { VnpayInquiryService, VnpayInquiryError } from './vnpay-inquiry.service.js';
 import { PrismaService } from '../../../database/prisma.service.js';
 import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
@@ -416,6 +416,7 @@ export class PaymentsService {
       }
 
       await this.prisma.$transaction(async (tx) => {
+        await this.ordersService.getOrderForPaymentForUpdate(fullPayment.orderId, fullPayment.order.userId, tx);
         const lockedPayment = await tx.payment.findUnique({ where: { id: payment.id } });
         if (!lockedPayment || lockedPayment.status !== PaymentStatus.PROCESSING) return; // đã settle bởi IPN
 
@@ -434,6 +435,7 @@ export class PaymentsService {
 
     if (inquiryResult.status === 'DEFINITIVE_FAILURE') {
       await this.prisma.$transaction(async (tx) => {
+        await this.ordersService.getOrderForPaymentForUpdate(fullPayment.orderId, fullPayment.order.userId, tx);
         const lockedPayment = await tx.payment.findUnique({ where: { id: payment.id } });
         if (!lockedPayment || lockedPayment.status !== PaymentStatus.PROCESSING) return;
 
@@ -477,7 +479,10 @@ export class PaymentsService {
       this.logger.warn('VNPay IPN rejected: invalid signature or callback fields.');
       return { RspCode: '97', Message: 'Invalid signature' };
     }
+    return this.applyVnpayResult(callback);
+  }
 
+  private async applyVnpayResult(callback: VerifiedVnpayCallback): Promise<{ RspCode: string; Message: string }> {
     try {
       const initialPayment = await this.paymentsRepository.findByGatewayReference(callback.vnp_TxnRef);
       if (!initialPayment || initialPayment.method !== PaymentMethod.VNPAY) {
@@ -581,10 +586,9 @@ export class PaymentsService {
           const transactionNo = callback.vnp_TransactionNo || callback.vnp_BankTranNo;
           if (!transactionNo) return 'missing-transaction' as const;
           const processedAt = new Date();
-          if (
-            lockedOrder.status !== OrderStatus.PENDING ||
-            lockedOrder.reservationExpiresAt <= processedAt
-          ) {
+          // Expiry leaves active payment reservations intact. Only the order state
+          // determines whether a verified success can still settle the order.
+          if (lockedOrder.status !== OrderStatus.PENDING) {
             await tx.payment.update({
               where: { id: payment.id },
               data: {
@@ -648,7 +652,7 @@ export class PaymentsService {
       return { RspCode: '00', Message: 'Confirm Success' };
     } catch (error) {
       this.logger.error(
-        'VNPay IPN processing failed. reference=' + callback.vnp_TxnRef,
+        'VNPay callback processing failed. reference=' + callback.vnp_TxnRef,
         error instanceof Error ? error.stack : undefined,
       );
       return { RspCode: '99', Message: 'Internal error' };
@@ -662,8 +666,12 @@ export class PaymentsService {
         message: 'VNPay is not configured.',
       });
     }
-    if (!this.vnpayGateway.verifyCallback(query)) {
-      this.logger.warn('VNPay Return has invalid signature; redirecting to read-only Checkout.');
+    const callback = this.vnpayGateway.verifyCallback(query);
+    if (!callback) {
+      this.logger.warn('VNPay Return has invalid signature; redirecting to Checkout.');
+    } else if (this.vnpayGateway.canSettleLocalSandboxReturn()) {
+      // VNPay cannot send a server-to-server IPN to the local development API.
+      await this.applyVnpayResult(callback);
     }
     return this.vnpayGateway.frontendReturnUrl();
   }

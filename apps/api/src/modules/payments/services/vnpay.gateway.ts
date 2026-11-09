@@ -32,6 +32,10 @@ export class VnpayGatewayService {
     return this.config.vnpay.enabled;
   }
 
+  canSettleLocalSandboxReturn(): boolean {
+    return this.config.vnpay.settleLocalSandboxReturn;
+  }
+
   createPaymentUrl(input: CreateVnpayPaymentInput): VnpayPaymentIntent {
     const settings = this.config.vnpay;
     if (!settings.enabled || !settings.tmnCode || !settings.hashSecret || !settings.returnUrl) {

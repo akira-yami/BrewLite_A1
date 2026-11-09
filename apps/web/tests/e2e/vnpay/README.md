@@ -96,10 +96,10 @@ Workflow tự động chạy khi:
    - Block during PROCESSING (409)
    - Multiple keys per order
 
-4. **vnpay-timeout-recovery.spec.ts** - Countdown timer
-   - Timer display và urgent state
-   - Manual recovery sau timeout
-   - Countdown persistence after reload
+4. **vnpay-timeout-recovery.spec.ts** - Checkout khi VNPay chưa trả kết quả
+   - Kiểm tra trạng thái hoặc hủy đơn ngay tại checkout
+   - Nhận kết quả đến muộn và hủy đơn sau khi tải lại trang
+   - Thanh toán giỏ mới sau khi thay thế đơn cũ
 
 5. **vnpay-ipn-race.spec.ts** - Race conditions
    - IPN arrives before user return
@@ -141,7 +141,6 @@ Workflow tự động chạy khi:
 - `proceedToCheckout()`: Navigate to checkout
 
 **Assertion Helper** (`helpers/assertion-helper.ts`):
-- `assertCountdownVisible()`: Verify countdown timer states
 - `assertPaymentStatus()`: Query API và verify order status
 
 **Fixtures** (`fixtures/vnpay-fixtures.ts`):

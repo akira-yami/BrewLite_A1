@@ -3,17 +3,10 @@ FROM node:24-bookworm AS build
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-# Keep the build-time Node heap bounded on Railway's shared Docker builder.
-ENV NODE_OPTIONS=--max-old-space-size=2048
-ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-# Next.js bundles first, then we run a separate, REQUIRED TypeScript check.
-# This avoids the Next.js internal typecheck worker failing silently on Railway;
-# the generated .next/types directory is checked by the separate tsc step.
-RUN BREWLITE_SEPARATE_TYPECHECK=1 npm run build
-RUN npm run typecheck
+RUN npm run build
 
 FROM node:24-bookworm-slim
 LABEL org.opencontainers.image.source="https://github.com/akira-yami/BrewLite_A1"

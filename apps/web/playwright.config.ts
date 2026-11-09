@@ -1,4 +1,4 @@
-  import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 const webPort = Number(process.env.E2E_WEB_PORT ?? 3100);
 const apiPort = Number(process.env.E2E_API_PORT ?? 3101);
@@ -35,7 +35,10 @@ export default defineConfig({
     {
       command: `npx next dev -p ${webPort}`,
       url: `${webUrl}/menu`,
-      env: { NEXT_PUBLIC_API_URL: `${apiUrl}/api/v1` },
+      env: {
+        NEXT_PUBLIC_API_URL: `${apiUrl}/api/v1`,
+        NEXT_PUBLIC_VNPAY_ENABLED: process.env.NEXT_PUBLIC_VNPAY_ENABLED ?? 'true',
+      },
       reuseExistingServer: false,
       timeout: 120000,
     },

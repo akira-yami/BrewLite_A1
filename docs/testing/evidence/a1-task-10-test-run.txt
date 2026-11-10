@@ -1,0 +1,76 @@
+BrewLite | Assignment 1 | Task 10
+Started: 2026-11-10 20:30:56 +07:00 (Asia/Bangkok)
+Base commit: 100d2d747152649012eecf6e2fcacef6ba64fa8a
+Local test revision: apps/api/test/orders.integration-spec.ts (Git blob c260dde18664005ac40072fdc482c5a4721e98af)
+Runtime: Node.js v24.21.0, PostgreSQL 18.4 (disposable local database)
+Database setup: prisma migrate deploy completed successfully
+Command: npm.cmd --prefix apps/api run test:integration -- order-state-machine.integration-spec.ts inventory-concurrency.integration-spec.ts orders.integration-spec.ts --reporter=verbose
+
+
+> brewlite-api@0.0.1 test:integration
+> vitest run --config ./vitest.config.integration.ts order-state-machine.integration-spec.ts inventory-concurrency.integration-spec.ts orders.integration-spec.ts --reporter=verbose
+
+◇ injected env (8) from .env
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | test/orders.integration-spec.ts
+◇ injected env (0) from .env
+
+[Nest] 32424  - 11/10/2026, 8:31:00 PM   ERROR [OrdersExceptionFilter] Order request failed; requestId=175cd38b-a8f2-4dc1-847b-7f58dd1c9136
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > merges normalized lines, preserves 0/null preferences, snapshots and ownership 242ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > enforces HTTP authentication and role guards on every order route 20ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > restricts Payment recovery to the PAYMENT_OPERATOR role 23ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > rejects invalid preferences, forged prices, duplicate normalized toppings and quantities above 20 29ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > rolls back all order rows, stock/version, reservation and coupon after a late failure 89ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > reserves topping ingredients: prepackaged by portion and prepared from several ingredients 85ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > rejects unavailable catalog options and inactive principals before writes 46ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > different sizes share ingredient stock: mixed basket cannot reserve independent size quantities 96ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > allows exactly one of two concurrent buyers to reserve the last drink 119ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > reserves a limited coupon once under concurrent requests 119ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > enforces per-user coupon limit independently under concurrent orders 105ms
+[Nest] 32424  - 11/10/2026, 8:31:00 PM   ERROR [OrdersExceptionFilter] Order request failed; requestId=1fa07870-7979-42ca-90a2-97f4a89de910
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > enforces global coupon usage limit independently across different users 111ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > uses server-priced subtotal when creating an order after a client-side coupon preview 48ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > fails before committing money outside the JSON integer range 23ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > paginates equal timestamps and validates history queries without leaking other users 94ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > keeps one order and one payment after two requests with the same Idempotency-Key 80ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > Regression: Payment FAILED → retry success consumes coupon once; expired FAILED order releases coupon and stock safely 173ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > customer can cancel an owned order through HTTP and release coupon and inventory exactly once 82ms
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > blocks a second PROCESSING payment for the same order even when its idempotency key differs 68ms
+stderr | test/order-state-machine.integration-spec.ts
+◇ injected env (0) from .env
+
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > luồng chính: PENDING → PAID → PREPARING → READY → COMPLETED, ghi lịch sử và khách thấy được 219ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PAID: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 64ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PAID: đặt COMPLETED bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 52ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PREPARING: đặt PREPARING bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 62ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PREPARING: đặt COMPLETED bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 71ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang READY: đặt PREPARING bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 72ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang COMPLETED: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 89ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn chưa thanh toán (PENDING) không thể nhận 56ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > nhánh lỗi: PENDING → PAYMENT_FAILED → thử lại PENDING → PAID; PAYMENT_FAILED không thể sang PAID trực tiếp 100ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > nhánh hủy: PENDING, PAYMENT_FAILED và PAID → CANCELLED hợp lệ; CANCELLED là trạng thái kết thúc 169ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > customer cancellation API restores unpaid stock exactly once and protects ownership 117ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > cancellation cannot interrupt a payment admitted to the gateway 36ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > repository chặn chuyển tiếp sai ngay cả khi không đi qua API barista 36ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > hai barista nhận cùng một đơn đồng thời: đúng một người thành công 56ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > RBAC: Customer không đổi được trạng thái; barista bị vô hiệu hóa (JWT còn hạn) bị từ chối 51ms
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > hàng đợi chỉ có PAID, PREPARING, READY; đơn PENDING và COMPLETED không xuất hiện 245ms
+stderr | test/inventory-concurrency.integration-spec.ts
+◇ injected env (0) from .env
+
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > release restores the reserved ingredients exactly once 215ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > allows only one of two concurrent releases to restore ingredients 46ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > expires an overdue reservation and restores ingredients exactly once 43ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > release restores the recorded quantity even if the recipe changed after ordering 33ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > consume changes ACTIVE reservation to CONSUMED without restoring ingredients 33ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > two concurrent reservations for the last cup > allows only one to reserve the last cup 13ms
+
+ Test Files  3 passed (3)
+      Tests  41 passed (41)
+   Start at  20:30:57
+   Duration  9.30s (transform 737ms, setup 0ms, import 4.52s, tests 4.22s, environment 0ms)
+
+
+Vitest exit code: 0

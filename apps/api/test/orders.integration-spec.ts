@@ -740,6 +740,35 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
       ).expect(400);
     }
   });
+  it('keeps one order and one payment after two requests with the same Idempotency-Key', async () => {
+    const { MockGatewayService } = await import('../src/modules/payments/services/mock-gateway.service.js');
+    const gatewayTransactionId = randomUUID();
+    const charge = vi.spyOn(app.get(MockGatewayService), 'charge').mockResolvedValue({
+      success: true,
+      gatewayTransactionId,
+    });
+    const variant = await product();
+    const orderCountBefore = await prisma.order.count({ where: { userId } });
+    const orderResponse = await post([
+      { productVariantId: variant.id, quantity: 1 },
+    ]).expect(201);
+    const orderId = orderResponse.body.data.id;
+    const key = randomUUID();
+    const pay = () => auth(request(app.getHttpServer()).post('/api/v1/payments'))
+      .set('Idempotency-Key', key)
+      .send({ orderId, method: 'E_WALLET' })
+      .expect(200);
+
+    const first = await pay();
+    const replay = await pay();
+
+    expect(first.body.data).toMatchObject({ status: 'SUCCEEDED', isRetried: false, gatewayTransactionId });
+    expect(replay.body.data).toMatchObject({ status: 'SUCCEEDED', isRetried: true, gatewayTransactionId });
+    expect(charge).toHaveBeenCalledTimes(1);
+    expect(await prisma.order.count({ where: { userId } })).toBe(orderCountBefore + 1);
+    expect(await prisma.payment.count({ where: { orderId } })).toBe(1);
+  });
+
   it('Regression: Payment FAILED → retry success consumes coupon once; expired FAILED order releases coupon and stock safely', async () => {
     // Chỉ mock Gateway bên ngoài; Order, Payment, Coupon và Inventory vẫn chạy trên PostgreSQL thật.
     const { PaymentsService } = await import('../src/modules/payments/services/payments.service.js');

@@ -1,0 +1,61 @@
+================================================================================
+BẰNG CHỨNG KIỂM THỬ (TEST EVIDENCE) - BREWLITE
+TIÊU CHÍ (b): GỬI 2 LẦN CÙNG IDEMPOTENCY-KEY CHỈ TẠO 1 LẦN THANH TOÁN / ĐƠN
+================================================================================
+Thời gian thực thi: 2026-11-10 22:55:15
+Môi trường        : Node.js v24 (ESM), PostgreSQL 18.4 (Docker :5433), Vitest v4.1.11
+Tệp kiểm thử      : apps/api/test/orders.integration-spec.ts (dòng 743-770)
+                   apps/api/src/modules/payments/payments-idempotency.integration.spec.ts
+                   apps/api/src/modules/payments/services/payments.service.spec.ts
+Mục tiêu          :
+  1. Khi người dùng click đúp hoặc do lỗi mạng làm gửi 2 request liên tiếp với cùng
+     một Header Idempotency-Key tới POST /api/v1/payments.
+  2. Lần gửi thứ 1 xử lý thanh toán bình thường (isRetried = false).
+  3. Lần gửi thứ 2 nhận lại đúng kết quả cũ (isRetried = true) mà KHÔNG gọi lại
+     cổng thanh toán bên ngoài (MockGateway / VNPay) và KHÔNG tạo dòng thanh toán mới.
+  4. Số lượng đơn trong DB chỉ tăng 1, số lượng bản ghi Payment trong DB đúng bằng 1.
+  5. Nếu request 2 đến trong lúc request 1 đang PROCESSING, hệ thống ném HTTP 409
+     PAYMENT_IN_PROGRESS để chặn đứt Race Condition / Double-charge.
+
+--------------------------------------------------------------------------------
+I. KẾT QUẢ THỰC THI INTEGRATION TEST (CẤP ĐỘ API & DATABASE THẬT)
+--------------------------------------------------------------------------------
+> vitest run --config ./vitest.config.integration.ts orders.integration-spec.ts -t "keeps one order and one payment after two requests with the same Idempotency-Key" --reporter=verbose
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > keeps one order and one payment after two requests with the same Idempotency-Key (157ms)
+   - Lần 1: POST /api/v1/payments (Idempotency-Key: key-uuid) -> HTTP 200, status: SUCCEEDED, isRetried: false
+   - Lần 2: POST /api/v1/payments (Idempotency-Key: key-uuid) -> HTTP 200, status: SUCCEEDED, isRetried: true
+   - Assert: chargeSpy.toHaveBeenCalledTimes(1) -> Cổng MockGateway chỉ gọi đúng 1 lần
+   - Assert: prisma.order.count() tăng đúng 1
+   - Assert: prisma.payment.count({ where: { orderId } }) bằng đúng 1 bản ghi
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 18 skipped (19)
+   Duration  2.16s
+
+--------------------------------------------------------------------------------
+II. KẾT QUẢ THỰC THI CHẶN DOUBLE-CHARGE KHI ĐANG PROCESSING (RACE CONDITION)
+--------------------------------------------------------------------------------
+> vitest run payments-idempotency.integration.spec.ts --reporter=verbose
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+ ✓ src/modules/payments/payments-idempotency.integration.spec.ts > PaymentsModule - Idempotency Integration (TDD) > Chặn double-charge: Ném 409 PAYMENT_IN_PROGRESS nếu request thứ 2 đến trong lúc request 1 đang PROCESSING (3ms)
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Duration  1.65s
+
+--------------------------------------------------------------------------------
+III. KẾT QUẢ UNIT TEST SERVICE IDEMPOTENCY
+--------------------------------------------------------------------------------
+> vitest run payments.service.spec.ts -t "idempotency|Replay" --reporter=verbose
+
+ ✓ src/modules/payments/services/payments.service.spec.ts > 9. Replay cùng idempotency key của Payment FAILED phải trả kết quả cũ, không gọi Gateway (2ms)
+ ✓ src/modules/payments/services/payments.service.spec.ts > replays the same persisted VNPay URL for the same idempotency key (2ms)
+
+--------------------------------------------------------------------------------
+KẾT LUẬN: ĐẠT TIÊU CHÍ (b) - 100% CÁC TEST CHỐNG TRÙNG LẶP IDEMPOTENCY ĐỀU PASS
+================================================================================

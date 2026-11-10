@@ -9,6 +9,8 @@
     "env:status": "powershell -ExecutionPolicy Bypass -File ./scripts/switch-env.ps1 status",
     "dev:api": "npm run start:dev --prefix apps/api",
     "dev:web": "npm run dev --prefix apps/web",
+    "test:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/test-demo.ps1",
+    "test:unit": "npm run test --prefix apps/api -- order-state-machine.spec.ts payments-idempotency.integration.spec.ts",
     "zip": "powershell -ExecutionPolicy Bypass -File ./scripts/zip-project.ps1"
   }
 }

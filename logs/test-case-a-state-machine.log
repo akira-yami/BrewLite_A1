@@ -1,0 +1,66 @@
+================================================================================
+BẰNG CHỨNG KIỂM THỬ (TEST EVIDENCE) - BREWLITE
+TIÊU CHÍ (a): CHẶN ĐƯỢC CHUYỂN TRẠNG THÁI SAI (ORDER STATE MACHINE)
+================================================================================
+Thời gian thực thi: 2026-11-10 22:55:04
+Môi trường        : Node.js v24 (ESM), PostgreSQL 18.4 (Docker :5433), Vitest v4.1.11
+Tệp kiểm thử      : apps/api/test/order-state-machine.integration-spec.ts
+                   apps/api/src/modules/orders/state/order-state-machine.spec.ts
+Mục tiêu          :
+  1. Chứng minh hệ thống chặn đứng mọi hành vi chuyển trạng thái đơn hàng sai quy định.
+  2. Khi gửi trạng thái sai (ví dụ: PAID -> READY bỏ qua pha chế), API phải trả về HTTP 409
+     với mã lỗi INVALID_ORDER_TRANSITION.
+  3. Trạng thái và lịch sử đơn hàng trong PostgreSQL (order_status_histories) giữ nguyên vẹn.
+
+--------------------------------------------------------------------------------
+I. KẾT QUẢ THỰC THI CHI TIẾT (INTEGRATION TEST TRÊN POSTGRESQL THẬT)
+--------------------------------------------------------------------------------
+> vitest run --config ./vitest.config.integration.ts order-state-machine.integration-spec.ts --reporter=verbose
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > luồng chính: PENDING → PAID → PREPARING → READY → COMPLETED, ghi lịch sử và khách thấy được (168ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PAID: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (43ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PAID: đặt COMPLETED bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (32ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PREPARING: đặt PREPARING bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (42ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PREPARING: đặt COMPLETED bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (40ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang READY: đặt PREPARING bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (48ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang COMPLETED: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (55ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn chưa thanh toán (PENDING) không thể nhận (20ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > nhánh lỗi: PENDING → PAYMENT_FAILED → thử lại PENDING → PAID; PAYMENT_FAILED không thể sang PAID trực tiếp (40ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > nhánh hủy: PENDING, PAYMENT_FAILED và PAID → CANCELLED hợp lệ; CANCELLED là trạng thái kết thúc (119ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > customer cancellation API restores unpaid stock exactly once and protects ownership (77ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > cancellation cannot interrupt a payment admitted to the gateway (26ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > repository chặn chuyển tiếp sai ngay cả khi không đi qua API barista (23ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > hai barista nhận cùng một đơn đồng thời: đúng một người thành công (37ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > RBAC: Customer không đổi được trạng thái; barista bị vô hiệu hóa (JWT còn hạn) bị từ chối (34ms)
+ ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > hàng đợi chỉ có PAID, PREPARING, READY; đơn PENDING và COMPLETED không xuất hiện (170ms)
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+   Duration  3.30s
+
+--------------------------------------------------------------------------------
+II. KẾT QUẢ THỰC THI UNIT TEST (MA TRẬN CHUYỂN TRẠNG THÁI)
+--------------------------------------------------------------------------------
+> vitest run order-state-machine.spec.ts
+
+ ✓ src/modules/orders/state/order-state-machine.spec.ts (30 tests) 7ms
+   - khai báo luật cho mọi trạng thái
+   - bảng luật khớp đúng các mũi tên của sơ đồ đề bài, không thừa không thiếu
+   - cho phép PENDING → PAID
+   - cho phép PAID → PREPARING
+   - cho phép PREPARING → READY
+   - cho phép READY → COMPLETED
+   - cho phép PENDING → PAYMENT_FAILED
+   - cho phép PAYMENT_FAILED → PENDING
+   - cho phép PENDING → CANCELLED
+   - cho phép PAYMENT_FAILED → CANCELLED
+   - cho phép PAID → CANCELLED
+   - assertTransition ném 409 INVALID_ORDER_TRANSITION cho 16 cặp chuyển sai
+   - COMPLETED và CANCELLED là trạng thái kết thúc
+   - barista chỉ đặt được PREPARING, READY, COMPLETED
+
+--------------------------------------------------------------------------------
+KẾT LUẬN: ĐẠT TIÊU CHÍ (a) - 100% CÁC TEST CHẶN CHUYỂN TRẠNG THÁI SAI ĐỀU PASS
+================================================================================

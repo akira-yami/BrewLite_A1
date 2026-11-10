@@ -1,0 +1,62 @@
+================================================================================
+BẰNG CHỨNG KIỂM THỬ (TEST EVIDENCE) - BREWLITE
+TIÊU CHÍ (c): ĐẶT ĐỒNG THỜI KHÔNG VƯỢT TỒN KHO (INVENTORY CONCURRENCY / OCC)
+================================================================================
+Thời gian thực thi: 2026-11-10 22:55:23
+Môi trường        : Node.js v24 (ESM), PostgreSQL 18.4 (Docker :5433), Vitest v4.1.11
+Tệp kiểm thử      : apps/api/test/inventory-concurrency.integration-spec.ts (dòng 364-432)
+                   apps/api/test/orders.integration-spec.ts (dòng 529-560)
+Mục tiêu          :
+  1. Tình huống: Quán chỉ còn đủ nguyên liệu cho đúng 1 ly duy nhất (ví dụ: 10g cà phê).
+  2. Hai khách hàng đồng thời gửi request tạo đơn (POST /api/v1/orders) vào cùng một mili-giây.
+  3. Cơ chế Khóa Lạc Quan (Optimistic Concurrency Control - OCC) với trường version: Int
+     và Atomic SQL UPDATE đảm bảo:
+       - Đúng 1 đơn thành công (HTTP 201 Created).
+       - Đơn còn lại thất bại (HTTP 409 Conflict: OUT_OF_STOCK hoặc INVENTORY_CONFLICT).
+       - Tồn kho giảm về đúng 0g, version nhảy lên 1, tuyệt đối không bị âm kho (-10g).
+       - Chỉ có đúng 1 bản ghi InventoryReservation được tạo trong database.
+
+--------------------------------------------------------------------------------
+I. KẾT QUẢ THỰC THI KIỂM THỬ ĐỒNG THỜI CẤP SERVICE TRÊN POSTGRESQL THẬT
+--------------------------------------------------------------------------------
+> vitest run --config ./vitest.config.integration.ts inventory-concurrency.integration-spec.ts --reporter=verbose
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > release restores the reserved ingredients exactly once (162ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > allows only one of two concurrent releases to restore ingredients (33ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > expires an overdue reservation and restores ingredients exactly once (34ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > release restores the recorded quantity even if the recipe changed after ordering (26ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > consume changes ACTIVE reservation to CONSUMED without restoring ingredients (24ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 inventory concurrency on PostgreSQL > two concurrent reservations for the last cup > allows only one to reserve the last cup (10ms)
+
+Chi tiết kịch bản "allows only one to reserve the last cup":
+  - Dữ liệu chuẩn bị: 1 món, công thức 10g hạt cà phê, kho có đúng 10g.
+  - Gửi đồng thời qua Promise.allSettled: 2 transaction cùng xin giữ kho 10g.
+  - Kết quả:
+      + successes.length = 1 (1 đơn giữ chỗ thành công)
+      + failures.length = 1 (1 đơn bị từ chối)
+      + ingredient.stockQuantity = 0g (tồn kho an toàn, không bị âm)
+      + ingredient.version = 1 (tem phiên bản tăng đúng 1 lần)
+      + reservations.length = 1, status = 'ACTIVE'
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Duration  1.19s
+
+--------------------------------------------------------------------------------
+II. KẾT QUẢ THỰC THI KIỂM THỬ ĐỒNG THỜI CẤP FULL HTTP API (POST /orders)
+--------------------------------------------------------------------------------
+> vitest run --config ./vitest.config.integration.ts orders.integration-spec.ts -t "allows exactly one of two concurrent buyers to reserve the last drink" --reporter=verbose
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+ ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > allows exactly one of two concurrent buyers to reserve the last drink (142ms)
+   - Kết quả status trả về: [201, 409]
+   - Kho: stockQuantity = 0, version = 1
+   - Bảng inventory_reservations: đúng 1 bản ghi
+   - Bảng order_items: đúng 1 dòng được lưu
+
+--------------------------------------------------------------------------------
+KẾT LUẬN: ĐẠT TIÊU CHÍ (c) - 100% CÁC TEST TRANH CHẤP KHO ĐỒNG THỜI ĐỀU PASS
+================================================================================

@@ -1,0 +1,72 @@
+================================================================================
+BẰNG CHỨNG KIỂM THỬ TỔNG HỢP (MASTER TEST RUN) - BREWLITE
+LỆNH THỰC THI: npm run test:demo
+================================================================================
+Thời gian thực thi: 2026-11-10 22:37:02
+Môi trường        : Node.js v24 (ESM), PostgreSQL 18.4 (Docker localhost:5433)
+Database kiểm thử : brewlite_foundation_smoke_sm (cô lập, tự động dọn dẹp)
+Framework         : Vitest v4.1.11, SuperTest, NestJS v12, Prisma v7
+
+=================================================================
+     BREWLITE - DEMO KIỂM THỬ 3 TIÊU CHÍ CỐT LÕI (VITEST)        
+=================================================================
+ (a) Chặn chuyển trạng thái đơn sai
+ (b) Idempotency-Key chống thanh toán trùng lặp
+ (c) Đặt đồng thời không vượt tồn kho (Race condition)
+-----------------------------------------------------------------
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+--- [PHẦN 1: TEST ĐƠN HÀNG, IDEMPOTENCY VÀ TỒN KHO API (19 TESTS)] ---
+ ✓ test/orders.integration-spec.ts > merges normalized lines, preserves 0/null preferences, snapshots and ownership (168ms)
+ ✓ test/orders.integration-spec.ts > enforces HTTP authentication and role guards on every order route (31ms)
+ ✓ test/orders.integration-spec.ts > restricts Payment recovery to the PAYMENT_OPERATOR role (53ms)
+ ✓ test/orders.integration-spec.ts > rejects invalid preferences, forged prices, duplicate normalized toppings and quantities above 20 (26ms)
+ ✓ test/orders.integration-spec.ts > rolls back all order rows, stock/version, reservation and coupon after a late failure (118ms)
+ ✓ test/orders.integration-spec.ts > reserves topping ingredients: prepackaged by portion and prepared from several ingredients (72ms)
+ ✓ test/orders.integration-spec.ts > rejects unavailable catalog options and inactive principals before writes (23ms)
+ ✓ test/orders.integration-spec.ts > different sizes share ingredient stock: mixed basket cannot reserve independent size quantities (44ms)
+ ✓ test/orders.integration-spec.ts > allows exactly one of two concurrent buyers to reserve the last drink (142ms)  <--- [TIÊU CHÍ C]
+ ✓ test/orders.integration-spec.ts > reserves a limited coupon once under concurrent requests (96ms)
+ ✓ test/orders.integration-spec.ts > enforces per-user coupon limit independently under concurrent orders (71ms)
+ ✓ test/orders.integration-spec.ts > enforces global coupon usage limit independently across different users (70ms)
+ ✓ test/orders.integration-spec.ts > uses server-priced subtotal when creating an order after a client-side coupon preview (38ms)
+ ✓ test/orders.integration-spec.ts > fails before committing money outside the JSON integer range (16ms)
+ ✓ test/orders.integration-spec.ts > paginates equal timestamps and validates history queries without leaking other users (77ms)
+ ✓ test/orders.integration-spec.ts > keeps one order and one payment after two requests with the same Idempotency-Key (157ms)  <--- [TIÊU CHÍ B]
+ ✓ test/orders.integration-spec.ts > Regression: Payment FAILED → retry success consumes coupon once; expired FAILED order releases coupon and stock safely (480ms)
+ ✓ test/orders.integration-spec.ts > customer can cancel an owned order through HTTP and release coupon and inventory exactly once (61ms)
+ ✓ test/orders.integration-spec.ts > blocks a second PROCESSING payment for the same order even when its idempotency key differs (48ms)
+
+--- [PHẦN 2: TEST MA TRẬN CHUYỂN TRẠNG THÁI ĐƠN HÀNG (16 TESTS)] ---
+ ✓ test/order-state-machine.integration-spec.ts > luồng chính: PENDING → PAID → PREPARING → READY → COMPLETED, ghi lịch sử và khách thấy được (170ms)
+ ✓ test/order-state-machine.integration-spec.ts > đơn đang PAID: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (45ms)  <--- [TIÊU CHÍ A]
+ ✓ test/order-state-machine.integration-spec.ts > đơn đang PAID: đặt COMPLETED bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (34ms)  <--- [TIÊU CHÍ A]
+ ✓ test/order-state-machine.integration-spec.ts > đơn đang PREPARING: đặt PREPARING bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (41ms)  <--- [TIÊU CHÍ A]
+ ✓ test/order-state-machine.integration-spec.ts > đơn đang PREPARING: đặt COMPLETED bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (39ms)  <--- [TIÊU CHÍ A]
+ ✓ test/order-state-machine.integration-spec.ts > đơn đang READY: đặt PREPARING bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (48ms)  <--- [TIÊU CHÍ A]
+ ✓ test/order-state-machine.integration-spec.ts > đơn đang COMPLETED: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi (61ms)  <--- [TIÊU CHÍ A]
+ ✓ test/order-state-machine.integration-spec.ts > đơn chưa thanh toán (PENDING) không thể nhận (22ms)
+ ✓ test/order-state-machine.integration-spec.ts > nhánh lỗi: PENDING → PAYMENT_FAILED → thử lại PENDING → PAID; PAYMENT_FAILED không thể sang PAID trực tiếp (43ms)
+ ✓ test/order-state-machine.integration-spec.ts > nhánh hủy: PENDING, PAYMENT_FAILED và PAID → CANCELLED hợp lệ; CANCELLED là trạng thái kết thúc (118ms)
+ ✓ test/order-state-machine.integration-spec.ts > customer cancellation API restores unpaid stock exactly once and protects ownership (79ms)
+ ✓ test/order-state-machine.integration-spec.ts > cancellation cannot interrupt a payment admitted to the gateway (25ms)
+ ✓ test/order-state-machine.integration-spec.ts > repository chặn chuyển tiếp sai ngay cả khi không đi qua API barista (26ms)
+ ✓ test/order-state-machine.integration-spec.ts > hai barista nhận cùng một đơn đồng thời: đúng một người thành công (37ms)
+ ✓ test/order-state-machine.integration-spec.ts > RBAC: Customer không đổi được trạng thái; barista bị vô hiệu hóa (JWT còn hạn) bị từ chối (36ms)
+ ✓ test/order-state-machine.integration-spec.ts > hàng đợi chỉ có PAID, PREPARING, READY; đơn PENDING và COMPLETED không xuất hiện (176ms)
+
+--- [PHẦN 3: TEST KIỂM SOÁT TỒN KHO SONG SONG CẤP DATABASE OCC (6 TESTS)] ---
+ ✓ test/inventory-concurrency.integration-spec.ts > release restores the reserved ingredients exactly once (160ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > allows only one of two concurrent releases to restore ingredients (33ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > expires an overdue reservation and restores ingredients exactly once (34ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > release restores the recorded quantity even if the recipe changed after ordering (27ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > consume changes ACTIVE reservation to CONSUMED without restoring ingredients (23ms)
+ ✓ test/inventory-concurrency.integration-spec.ts > two concurrent reservations for the last cup > allows only one to reserve the last cup (10ms)  <--- [TIÊU CHÍ C]
+
+================================================================================
+TỔNG KẾT:
+  Test Files : 3 passed (3)
+  Total Tests: 41 passed (41)
+  Trạng thái : PASSED (100%)
+================================================================================

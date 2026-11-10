@@ -8,7 +8,8 @@
     "env:prod": "powershell -ExecutionPolicy Bypass -File ./scripts/switch-env.ps1 prod",
     "env:status": "powershell -ExecutionPolicy Bypass -File ./scripts/switch-env.ps1 status",
     "dev:api": "npm run start:dev --prefix apps/api",
-    "dev:web": "npm run dev --prefix apps/web"
+    "dev:web": "npm run dev --prefix apps/web",
+    "zip": "powershell -ExecutionPolicy Bypass -File ./scripts/zip-project.ps1"
   }
 }
 

@@ -1,5 +1,10 @@
 import { authSession } from "../auth/session";
-import type { StaffOrder, StaffQueueStatus, StaffTargetStatus } from "./types";
+import type {
+  DrinkRecipe,
+  StaffOrder,
+  StaffQueueStatus,
+  StaffTargetStatus,
+} from "./types";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
@@ -52,6 +57,10 @@ async function request<T>(
 export function getStaffQueueApi(token: string, status?: StaffQueueStatus) {
   const query = status ? `?status=${encodeURIComponent(status)}` : "";
   return request<StaffOrder[]>(`/staff/orders${query}`, token);
+}
+
+export function getStaffRecipesApi(token: string, signal?: AbortSignal) {
+  return request<DrinkRecipe[]>("/staff/recipes", token, { signal });
 }
 
 export function updateStaffOrderStatusApi(

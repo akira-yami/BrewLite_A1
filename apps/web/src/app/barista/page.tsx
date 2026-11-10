@@ -72,9 +72,10 @@ export default function BaristaPage() {
         </div>
         {isBarista && token ? (
           <>
-            <nav aria-label="Chức năng nhân viên" className="mb-6 flex gap-5 border-b border-[#DDE1D8] pb-4 text-sm font-semibold">
+            <nav aria-label="Chức năng nhân viên" className="mb-6 flex flex-wrap gap-x-5 gap-y-3 border-b border-[#DDE1D8] pb-4 text-sm font-semibold">
               <span aria-current="page">Hàng đợi đơn</span>
               <Link href="/barista/inventory" className="text-[#64755F] hover:underline">Kho nguyên liệu</Link>
+              <Link href="/barista/recipes" className="text-[#64755F] hover:underline">Công thức đồ uống</Link>
             </nav>
             <BaristaBoard token={token} />
           </>

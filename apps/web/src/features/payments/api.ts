@@ -7,6 +7,18 @@ export { CheckoutApiError as PaymentApiError };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
 
+export function newIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
+  }
+  throw new Error('Trình duyệt không hỗ trợ tạo khóa thanh toán an toàn. Vui lòng cập nhật trình duyệt.');
+}
+
 async function readJson(response: Response) {
   try {
     return await response.json();

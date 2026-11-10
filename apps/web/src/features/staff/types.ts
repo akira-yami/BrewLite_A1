@@ -1,4 +1,21 @@
+import type { ProductSize } from '../catalog/types';
 import type { OrderItem, OrderStatus } from '../orders/types';
+
+export interface RecipeIngredient {
+  id: string;
+  name: string;
+  unit: 'G' | 'ML' | 'PCS';
+  quantity: number;
+  isActive: boolean;
+}
+
+export interface DrinkRecipe {
+  id: string;
+  sku: string;
+  name: string;
+  variants: { id: string; size: ProductSize; ingredients: RecipeIngredient[] }[];
+  toppings: { id: string; name: string; ingredients: RecipeIngredient[] }[];
+}
 
 /** Trạng thái hiển thị trong hàng đợi của barista. */
 export type StaffQueueStatus = Extract<OrderStatus, 'PAID' | 'PREPARING' | 'READY'>;

@@ -1500,7 +1500,7 @@
               "script": {
                 "exec": [
                   "",
-                  "const key = \"idem_pay_\" + Date.now();",
+                  "const key = pm.variables.replaceIn(\"{{$guid}}\");",
                   "pm.environment.set(\"paymentIdempotencyKey\", key);",
                   "pm.collectionVariables.set(\"paymentIdempotencyKey\", key);",
                   ""

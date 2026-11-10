@@ -1,0 +1,12 @@
+{
+  "runId": "2026-11-10T11-42-18-938Z",
+  "result": "ERROR",
+  "startedAt": "2026-11-10T11:42:18.941Z",
+  "finishedAt": "2026-11-10T11:42:49.847Z",
+  "error": "Cannot start API server. Check PostgreSQL, apps/api/.env and server.log.",
+  "files": {
+    "runLog": "D:\\HocTap\\Cong_Nghe_Phan_Mem\\BrewLite\\logs\\api-tests\\2026-11-10T11-42-18-938Z\\run.log",
+    "serverLog": "D:\\HocTap\\Cong_Nghe_Phan_Mem\\BrewLite\\logs\\api-tests\\2026-11-10T11-42-18-938Z\\server.log",
+    "errors": "D:\\HocTap\\Cong_Nghe_Phan_Mem\\BrewLite\\logs\\api-tests\\2026-11-10T11-42-18-938Z\\errors.log"
+  }
+}

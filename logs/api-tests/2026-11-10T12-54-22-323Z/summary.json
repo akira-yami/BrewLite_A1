@@ -1,0 +1,25 @@
+{
+  "runId": "2026-11-10T12-54-22-323Z",
+  "result": "FAILED",
+  "startedAt": "2026-11-10T12:54:22.324Z",
+  "finishedAt": "2026-11-10T12:54:28.537Z",
+  "durationMs": 4963,
+  "newmanExitCode": 1,
+  "requests": {
+    "total": 50,
+    "failed": 0,
+    "passed": 50
+  },
+  "assertions": {
+    "total": 81,
+    "failed": 18,
+    "passed": 63
+  },
+  "failureCount": 18,
+  "files": {
+    "runLog": "D:\\HocTap\\Cong_Nghe_Phan_Mem\\BrewLite\\logs\\api-tests\\2026-11-10T12-54-22-323Z\\run.log",
+    "serverLog": "D:\\HocTap\\Cong_Nghe_Phan_Mem\\BrewLite\\logs\\api-tests\\2026-11-10T12-54-22-323Z\\server.log",
+    "report": "D:\\HocTap\\Cong_Nghe_Phan_Mem\\BrewLite\\logs\\api-tests\\2026-11-10T12-54-22-323Z\\report.json",
+    "errors": "D:\\HocTap\\Cong_Nghe_Phan_Mem\\BrewLite\\logs\\api-tests\\2026-11-10T12-54-22-323Z\\errors.log"
+  }
+}

@@ -73,6 +73,7 @@
     "@vitest/coverage-v8": "^4.1.2",
     "@vitest/ui": "^4.1.11",
     "newman": "^6.2.3",
+    "newman-reporter-htmlextra": "^1.23.1",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^7.0.2001",
     "prettier": "^3.4.2",

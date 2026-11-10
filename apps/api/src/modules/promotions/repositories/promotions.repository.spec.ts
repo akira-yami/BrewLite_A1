@@ -18,10 +18,20 @@ describe('PromotionsRepository (Unit Test - TDD)', () => {
             create: vi.fn(),
             updateMany: vi.fn(),
         },
+        loyaltyTransaction: { findFirst: vi.fn() },
         };
         repository = new PromotionsRepository(
         prismaMock as unknown as PrismaService,
         );
+    });
+
+    it('isLoyaltyCouponOwnedByUser checks only the current user redeem ledger', async () => {
+        prismaMock.loyaltyTransaction.findFirst.mockResolvedValue({ id: 'tx-1' });
+        await expect(repository.isLoyaltyCouponOwnedByUser('LYT-ABC', 'u-1')).resolves.toBe(true);
+        expect(prismaMock.loyaltyTransaction.findFirst).toHaveBeenCalledWith({
+            where: { userId: 'u-1', type: 'REDEEM', reason: { startsWith: 'LOYALTY_REDEEM:v1;key=', endsWith: ';coupon=LYT-ABC' } },
+            select: { id: true },
+        });
     });
 
     it('findByCode - nên gọi prisma.coupon.findUnique (hỗ trợ cả tx)', async () => {

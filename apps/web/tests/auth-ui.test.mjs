@@ -88,6 +88,17 @@ test('Menu exposes session loading and a recovery action for network errors', ()
   assert.equal(retries, 1);
 });
 
+test('customer AuthControls displays a Loyalty badge linking to the rewards page', () => {
+  const ui = load('../src/features/auth/AuthControls.tsx', {
+    'use-auth-session': { useAuthSession: () => ({ status: 'authenticated', user: { id: 'u1', username: 'huy', role: 'CUSTOMER', loyaltyBalance: 12500 } }) },
+    './session': { authSession: { logout() {} } },
+    './api': {},
+  });
+  const html = renderToStaticMarkup(React.createElement(ui.AuthControls));
+  assert.match(html, /href="\/loyalty"/);
+  assert.match(html, /12\.500 điểm/);
+});
+
 test('Login explains automatic expiry and intentional logout', () => {
   let snapshot = { reason: 'expired' };
   const ui = load('../src/features/auth/AuthControls.tsx', {

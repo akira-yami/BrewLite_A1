@@ -44,6 +44,26 @@ export class PromotionsRepository {
     });
   }
 
+  async isLoyaltyCouponOwnedByUser(
+    code: string,
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<boolean> {
+    const client = tx ?? this.prisma;
+    const transaction = await client.loyaltyTransaction.findFirst({
+      where: {
+        userId,
+        type: 'REDEEM',
+        reason: {
+          startsWith: 'LOYALTY_REDEEM:v1;key=',
+          endsWith: `;coupon=${code}`,
+        },
+      },
+      select: { id: true },
+    });
+    return transaction !== null;
+  }
+
   async lockCoupon(
     code: string,
     tx: Prisma.TransactionClient,

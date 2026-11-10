@@ -41,6 +41,7 @@ export interface OrderSummary {
   total: number;
   currency: string;
   createdAt: string;
+  reservationExpiresAt?: string | null;
 }
 
 export interface OrderDetail extends OrderSummary {

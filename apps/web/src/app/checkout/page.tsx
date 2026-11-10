@@ -8,6 +8,7 @@ import type { OrderDetail } from '@/features/orders/types';
 import {
   createPaymentApi,
   getPaymentStatusApi,
+  newIdempotencyKey,
   PaymentApiError,
   type PaymentResponse,
 } from '@/features/payments/api';
@@ -29,18 +30,6 @@ const subscribeVnpayReturn = () => () => {};
 const getVnpayReturnSnapshot = () =>
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('paymentReturn') === '1';
 const getServerVnpayReturnSnapshot = () => false;
-
-function newIdempotencyKey() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
-  }
-  throw new Error('Trình duyệt không hỗ trợ tạo khóa thanh toán an toàn. Vui lòng cập nhật trình duyệt.');
-}
 
 function paymentFailureMessage(failureCode?: string | null, message?: string) {
   if (failureCode === 'VNPAY_24_02') {
@@ -67,6 +56,7 @@ export default function CheckoutPage() {
   const [isRestoring, setIsRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [couponQuote, setCouponQuote] = useState<CheckoutCouponQuote | null>(null);
+  const [copiedCard, setCopiedCard] = useState(false);
   const [orderSummary, setOrderSummary] = useState<OrderDetail | null>(null);
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState | null>(null);
   const isVnpayReturn = useSyncExternalStore(
@@ -90,6 +80,28 @@ export default function CheckoutPage() {
     }
   }, []);
 
+  const completeCheckout = useCallback((checkout: PendingCheckoutState) => {
+    persistPendingCheckout(null);
+    setOrderSummary(null);
+    setError(null);
+    removeCheckoutItems(checkout);
+    router.replace(`/orders/confirmation?orderId=${encodeURIComponent(checkout.orderId)}`);
+  }, [persistPendingCheckout, removeCheckoutItems, router]);
+
+  const confirmPaidOrder = useCallback((checkout: PendingCheckoutState, order: OrderDetail) => {
+    if (pendingCheckoutRef.current !== checkout || order.id !== checkout.orderId) return false;
+    if (order.status !== 'PAID' && order.status !== 'PREPARING' &&
+        order.status !== 'READY' && order.status !== 'COMPLETED') return false;
+
+    completeCheckout(checkout);
+    return true;
+  }, [completeCheckout]);
+
+  const checkOrderPayment = useCallback(async (token: string, checkout: PendingCheckoutState) => {
+    const order = await getOrderDetailApi(token, checkout.orderId, AbortSignal.timeout(10_000)).catch(() => null);
+    return order ? confirmPaidOrder(checkout, order) : false;
+  }, [confirmPaidOrder]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -106,9 +118,10 @@ export default function CheckoutPage() {
 
         const token = window.localStorage.getItem('brewlite_token');
         if (token) {
-          void getOrderDetailApi(token, savedCheckout.orderId)
+          void getOrderDetailApi(token, savedCheckout.orderId, AbortSignal.timeout(10_000))
             .then((order) => {
-              if (!active || submitLock.current || pendingCheckoutRef.current?.orderId !== order.id) return;
+              if (!active || submitLock.current || pendingCheckoutRef.current !== savedCheckout || order.id !== savedCheckout.orderId) return;
+              if (confirmPaidOrder(savedCheckout, order)) return;
               if (order.status === 'CANCELLED') {
                 removeCheckoutItems(savedCheckout);
                 persistPendingCheckout(null);
@@ -121,7 +134,7 @@ export default function CheckoutPage() {
               }
             })
             .catch((reason: unknown) => {
-              if (active && pendingCheckoutRef.current?.orderId === savedCheckout.orderId &&
+              if (active && !submitLock.current && pendingCheckoutRef.current === savedCheckout &&
                   reason instanceof OrdersApiError && reason.status === 404) {
                 persistPendingCheckout(null);
               }
@@ -135,17 +148,14 @@ export default function CheckoutPage() {
     return () => {
       active = false;
     };
-  }, [persistPendingCheckout, removeCheckoutItems]);
+  }, [confirmPaidOrder, persistPendingCheckout, removeCheckoutItems]);
 
   const applyPaymentResult = useCallback((idempotencyKey: string, payment: PaymentResponse) => {
     const checkout = pendingCheckoutRef.current;
     if (!checkout?.method || checkout.idempotencyKey !== idempotencyKey) return;
 
     if (payment.status === 'SUCCEEDED' && payment.success === true) {
-      persistPendingCheckout(null);
-      setOrderSummary(null);
-      removeCheckoutItems(checkout);
-      router.replace(`/orders/confirmation?orderId=${encodeURIComponent(checkout.orderId)}`);
+      completeCheckout(checkout);
     } else if (payment.status === 'FAILED' || payment.status === 'REFUNDED') {
       removeCheckoutItems(checkout);
       persistPendingCheckout(payment.errorCode === 'ORDER_CANCELLED'
@@ -158,11 +168,16 @@ export default function CheckoutPage() {
     } else if (payment.status === 'MANUAL_REVIEW') {
       setError('Giao dịch đang cần đối soát. Bạn có thể theo dõi kết quả trong chi tiết đơn hàng.');
     }
-  }, [persistPendingCheckout, removeCheckoutItems, router]);
+  }, [completeCheckout, persistPendingCheckout, removeCheckoutItems]);
 
   const applyPolledPaymentResult = useCallback((key: string, payment: PaymentResponse) => {
     if (!submitLock.current) applyPaymentResult(key, payment);
   }, [applyPaymentResult]);
+
+  const applyPolledOrderResult = useCallback((key: string, order: OrderDetail) => {
+    const checkout = pendingCheckoutRef.current;
+    return !submitLock.current && checkout?.idempotencyKey === key && confirmPaidOrder(checkout, order);
+  }, [confirmPaidOrder]);
 
   const pendingKey = pendingCheckout?.idempotencyKey;
   const cartFingerprint = JSON.stringify(cartStore.getOrderItems());
@@ -179,6 +194,27 @@ export default function CheckoutPage() {
   const displayedSubtotal = currentOrder?.subtotal ?? cart.subtotal;
   const displayedDiscount = currentOrder?.discountAmount ?? previewDiscount;
   const displayedTotal = currentOrder?.total ?? Math.max(0, cart.subtotal - previewDiscount);
+
+  const handleCopyCard = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText('9704198526191432198');
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = '9704198526191432198';
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    setCopiedCard(true);
+    setTimeout(() => setCopiedCard(false), 2000);
+  };
 
   const handlePayment = async (action: 'pay' | 'cancel' | 'new' = 'pay') => {
     if (submitLock.current || isRestoring) return;
@@ -200,6 +236,8 @@ export default function CheckoutPage() {
       const cancelOnly = action === 'cancel';
       const replaceOrder = action === 'new' || Boolean(checkout && !checkout.cartItemsRemoved &&
         checkout.cartFingerprint !== JSON.stringify(cartStore.getOrderItems()));
+      if (checkout && !cancelOnly && !replaceOrder && await checkOrderPayment(token, checkout)) return;
+
       const expiredOrder = checkout && !checkout.idempotencyKey && currentOrder?.reservationExpiresAt &&
         Date.parse(currentOrder.reservationExpiresAt) <= Date.now();
       const retryItems = expiredOrder && checkout?.cartItemsRemoved && !replaceOrder && !cancelOnly
@@ -322,14 +360,25 @@ export default function CheckoutPage() {
       } else if (reason instanceof OrdersApiError) {
         if (reason.status === 401) {
           setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        } else if (reason.code === 'OUT_OF_STOCK') {
+          setError('Không đủ nguyên liệu để pha số lượng bạn đã chọn. Vui lòng giảm số lượng hoặc đổi món trong giỏ hàng.');
+        } else if (reason.code === 'INVENTORY_CONFLICT') {
+          setError('Tồn kho vừa thay đổi. Vui lòng thử đặt hàng lại.');
         } else if (reason.status === 409) {
           setError('Một số món vừa hết hàng hoặc không còn khả dụng. Giỏ hàng vẫn được giữ nguyên.');
         } else {
           setError(reason.message || 'Không thể tạo đơn hàng. Vui lòng kiểm tra lại giỏ hàng.');
         }
       } else if (reason instanceof PaymentApiError) {
-        if (reason.code === 'ORDER_EXPIRED') {
-          const checkout = pendingCheckoutRef.current;
+        const checkout = pendingCheckoutRef.current;
+        const token = localStorage.getItem('brewlite_token');
+        // The order can settle while the status request or same-key replay is in flight.
+        if (checkout && token && reason.status !== 401 && reason.status !== 403 &&
+            await checkOrderPayment(token, checkout)) return;
+
+        if (reason.code === 'ORDER_ALREADY_PAID' || reason.code === 'ORDER_INVALID_TRANSITION') {
+          setError(reason.message);
+        } else if (reason.code === 'ORDER_EXPIRED') {
           if (checkout) {
             removeCheckoutItems(checkout);
             persistPendingCheckout({ ...checkout, idempotencyKey: null, method: null, cartItemsRemoved: true });
@@ -387,12 +436,86 @@ export default function CheckoutPage() {
             </div>
           </div>
 
+          {/* Thông tin thẻ thử nghiệm VNPay Sandbox */}
+          <div className="mt-4 rounded-2xl border border-amber-300/80 bg-[#FFFDF8] p-4 shadow-xs sm:p-5">
+            <div className="flex items-center justify-between border-b border-amber-200/80 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base" aria-hidden="true">💳</span>
+                <span className="text-xs font-black uppercase tracking-wider text-[#B85D36]">
+                  Thông tin thẻ thử nghiệm VNPay (Sandbox)
+                </span>
+              </div>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-850 text-amber-900">
+                Thẻ Test
+              </span>
+            </div>
+
+            <div className="mt-3.5 space-y-2.5 text-xs text-[#1E1813]">
+              <div className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                <span className="font-medium text-[#756A63]">Ngân hàng:</span>
+                <strong className="font-mono text-sm text-[#163E2B]">NCB</strong>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                  <span className="font-medium text-[#756A63]">Số thẻ:</span>
+                  <strong className="font-mono text-sm tracking-wider text-[#163E2B]">
+                    9704198526191432198
+                  </strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyCard()}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#163E2B] px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#1f4f38] active:scale-95"
+                  title="Sao chép số thẻ"
+                >
+                  {copiedCard ? (
+                    <>
+                      <svg className="h-3.5 w-3.5 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>Đã chép!</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      <span>Sao chép số thẻ</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                <div className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                  <span className="font-medium text-[#756A63]">Tên chủ thẻ:</span>
+                  <strong className="font-mono text-xs text-[#1E1813]">NGUYEN VAN A</strong>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                  <span className="font-medium text-[#756A63]">Ngày phát hành:</span>
+                  <strong className="font-mono text-xs text-[#1E1813]">07/15</strong>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                  <span className="font-medium text-[#756A63]">Mã OTP:</span>
+                  <strong className="font-mono text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">123456</strong>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-[11px] leading-4 text-[#756A63]">
+              💡 <em>Tại cổng VNPay: chọn ngân hàng <strong>NCB</strong> → dán số thẻ trên → nhập OTP <strong>123456</strong> để hoàn tất thanh toán.</em>
+            </p>
+          </div>
+
           {isVnpayReturn && !isSubmitting && pendingCheckout?.method === 'VNPAY' && pendingKey && token && (
             <VnpayPendingScreen
               key={pendingKey}
               idempotencyKey={pendingKey}
+              orderId={pendingCheckout.orderId}
               token={token}
               onResult={applyPolledPaymentResult}
+              onOrderResult={applyPolledOrderResult}
             />
           )}
           {error && (

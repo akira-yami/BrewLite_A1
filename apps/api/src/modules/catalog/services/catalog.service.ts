@@ -1,8 +1,25 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { canPrepare } from '../../../common/utils/recipe-capacity.js';
-import type { Prisma } from '../../../generated/prisma/client.js';
+import type { Ingredient, Prisma } from '../../../generated/prisma/client.js';
 import { ProductResponseDto } from '../dto/product.dto.js';
 import { CatalogRepository } from '../repositories/catalog.repository.js';
+
+function recipeIngredients(
+  items: {
+    quantity: number;
+    ingredient: Pick<Ingredient, 'id' | 'name' | 'unit' | 'isActive'>;
+  }[],
+) {
+  return items
+    .map(({ quantity, ingredient }) => ({
+      id: ingredient.id,
+      name: ingredient.name,
+      unit: ingredient.unit,
+      isActive: ingredient.isActive,
+      quantity,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+}
 
 @Injectable()
 export class CatalogService {
@@ -63,6 +80,33 @@ export class CatalogService {
         })),
       };
     });
+  }
+
+  async getRecipes() {
+    const products = await this.repository.findAllProducts();
+    const sizes = ['S', 'M', 'L'];
+
+    return products.map((product) => ({
+      id: product.id,
+      sku: product.sku,
+      name: product.name,
+      variants: product.variants
+        .map((variant) => ({
+          id: variant.id,
+          size: variant.size,
+          ingredients: recipeIngredients(variant.recipeItems),
+        }))
+        .sort((a, b) => sizes.indexOf(a.size) - sizes.indexOf(b.size)),
+      toppings: product.productToppings
+        .map(({ topping }) => topping)
+        .filter((topping) => topping.isActive)
+        .map((topping) => ({
+          id: topping.id,
+          name: topping.name,
+          ingredients: recipeIngredients(topping.recipeItems),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'vi')),
+    }));
   }
 
   async getProductDetailById(id: string): Promise<ProductResponseDto> {

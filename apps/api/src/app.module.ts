@@ -15,6 +15,7 @@ import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { OrdersModule } from './modules/orders/orders.module.js';
 import { PromotionsModule } from './modules/promotions/promotions.module.js';
 import { InventoryModule } from './modules/inventory/inventory.module.js';
+import { LoyaltyModule } from './modules/loyalty/loyalty.module.js';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { InventoryModule } from './modules/inventory/inventory.module.js';
     OrdersModule,
     PromotionsModule,
     InventoryModule,
+    LoyaltyModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],

@@ -60,8 +60,11 @@ export function getMyOrdersApi(token: string) {
   return request<OrderListResponse | OrderDetail[]>('/orders/me', token);
 }
 
-export function getOrderDetailApi(token: string, orderId: string) {
-  return request<OrderDetail>(`/orders/${encodeURIComponent(orderId)}`, token);
+export function getOrderDetailApi(token: string, orderId: string, signal?: AbortSignal) {
+  return request<OrderDetail>(`/orders/${encodeURIComponent(orderId)}`, token, {
+    cache: 'no-store',
+    signal,
+  });
 }
 
 export function cancelOrderApi(token: string, orderId: string) {

@@ -21,6 +21,7 @@ ERD/PlantUML, đặc tả API riêng và các bản audit là tài liệu hỗ t
 
 ## Kiến trúc, API và kiểm thử
 
+- [Bản đồ tri thức hệ thống (Nền tảng, Orders, Tích hợp, Barista, Kho, Luồng chạy & Q&A)](knowledge-map.md)
 - [ERD và nguyên tắc dữ liệu](architecture/erd.md)
 - [Nguồn ERD PlantUML](../database/BrewLite.puml) · [Ảnh PNG](../database/BrewLite.png) · [Ảnh SVG phóng to](../database/BrewLite.svg)
 - [API quản lý kho nguyên liệu](api/staff-inventory.md).

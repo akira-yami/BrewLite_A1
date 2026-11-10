@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
+    "env:local": "powershell -ExecutionPolicy Bypass -File ../../scripts/switch-env.ps1 local",
+    "env:prod": "powershell -ExecutionPolicy Bypass -File ../../scripts/switch-env.ps1 prod",
+    "env:status": "powershell -ExecutionPolicy Bypass -File ../../scripts/switch-env.ps1 status",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

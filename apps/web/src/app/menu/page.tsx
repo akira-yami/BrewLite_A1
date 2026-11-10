@@ -162,6 +162,9 @@ export default function MenuPage() {
               <Link href="/orders" className="transition hover:text-[#153D2C]">
                 Đơn hàng
               </Link>
+              <Link href="/loyalty" className="transition hover:text-[#153D2C]">
+                Loyalty
+              </Link>
             </nav>
 
             {/* Cụm bên phải: SGU Campus + Nút Giỏ hàng chuẩn vừa mắt */}
@@ -444,6 +447,9 @@ export default function MenuPage() {
             </button>
             <Link href="/orders" className="hover:text-[#153D2C]">
               Đơn hàng
+            </Link>
+            <Link href="/loyalty" className="hover:text-[#153D2C]">
+              Loyalty
             </Link>
           </div>
         </footer>

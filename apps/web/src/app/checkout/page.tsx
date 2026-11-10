@@ -8,6 +8,7 @@ import type { OrderDetail } from '@/features/orders/types';
 import {
   createPaymentApi,
   getPaymentStatusApi,
+  newIdempotencyKey,
   PaymentApiError,
   type PaymentResponse,
 } from '@/features/payments/api';
@@ -29,18 +30,6 @@ const subscribeVnpayReturn = () => () => {};
 const getVnpayReturnSnapshot = () =>
   typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('paymentReturn') === '1';
 const getServerVnpayReturnSnapshot = () => false;
-
-function newIdempotencyKey() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
-  }
-  throw new Error('Trình duyệt không hỗ trợ tạo khóa thanh toán an toàn. Vui lòng cập nhật trình duyệt.');
-}
 
 function paymentFailureMessage(failureCode?: string | null, message?: string) {
   if (failureCode === 'VNPAY_24_02') {
@@ -91,6 +80,28 @@ export default function CheckoutPage() {
     }
   }, []);
 
+  const completeCheckout = useCallback((checkout: PendingCheckoutState) => {
+    persistPendingCheckout(null);
+    setOrderSummary(null);
+    setError(null);
+    removeCheckoutItems(checkout);
+    router.replace(`/orders/confirmation?orderId=${encodeURIComponent(checkout.orderId)}`);
+  }, [persistPendingCheckout, removeCheckoutItems, router]);
+
+  const confirmPaidOrder = useCallback((checkout: PendingCheckoutState, order: OrderDetail) => {
+    if (pendingCheckoutRef.current !== checkout || order.id !== checkout.orderId) return false;
+    if (order.status !== 'PAID' && order.status !== 'PREPARING' &&
+        order.status !== 'READY' && order.status !== 'COMPLETED') return false;
+
+    completeCheckout(checkout);
+    return true;
+  }, [completeCheckout]);
+
+  const checkOrderPayment = useCallback(async (token: string, checkout: PendingCheckoutState) => {
+    const order = await getOrderDetailApi(token, checkout.orderId, AbortSignal.timeout(10_000)).catch(() => null);
+    return order ? confirmPaidOrder(checkout, order) : false;
+  }, [confirmPaidOrder]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -107,9 +118,10 @@ export default function CheckoutPage() {
 
         const token = window.localStorage.getItem('brewlite_token');
         if (token) {
-          void getOrderDetailApi(token, savedCheckout.orderId)
+          void getOrderDetailApi(token, savedCheckout.orderId, AbortSignal.timeout(10_000))
             .then((order) => {
-              if (!active || submitLock.current || pendingCheckoutRef.current?.orderId !== order.id) return;
+              if (!active || submitLock.current || pendingCheckoutRef.current !== savedCheckout || order.id !== savedCheckout.orderId) return;
+              if (confirmPaidOrder(savedCheckout, order)) return;
               if (order.status === 'CANCELLED') {
                 removeCheckoutItems(savedCheckout);
                 persistPendingCheckout(null);
@@ -122,7 +134,7 @@ export default function CheckoutPage() {
               }
             })
             .catch((reason: unknown) => {
-              if (active && pendingCheckoutRef.current?.orderId === savedCheckout.orderId &&
+              if (active && !submitLock.current && pendingCheckoutRef.current === savedCheckout &&
                   reason instanceof OrdersApiError && reason.status === 404) {
                 persistPendingCheckout(null);
               }
@@ -136,17 +148,14 @@ export default function CheckoutPage() {
     return () => {
       active = false;
     };
-  }, [persistPendingCheckout, removeCheckoutItems]);
+  }, [confirmPaidOrder, persistPendingCheckout, removeCheckoutItems]);
 
   const applyPaymentResult = useCallback((idempotencyKey: string, payment: PaymentResponse) => {
     const checkout = pendingCheckoutRef.current;
     if (!checkout?.method || checkout.idempotencyKey !== idempotencyKey) return;
 
     if (payment.status === 'SUCCEEDED' && payment.success === true) {
-      persistPendingCheckout(null);
-      setOrderSummary(null);
-      removeCheckoutItems(checkout);
-      router.replace(`/orders/confirmation?orderId=${encodeURIComponent(checkout.orderId)}`);
+      completeCheckout(checkout);
     } else if (payment.status === 'FAILED' || payment.status === 'REFUNDED') {
       removeCheckoutItems(checkout);
       persistPendingCheckout(payment.errorCode === 'ORDER_CANCELLED'
@@ -159,11 +168,16 @@ export default function CheckoutPage() {
     } else if (payment.status === 'MANUAL_REVIEW') {
       setError('Giao dịch đang cần đối soát. Bạn có thể theo dõi kết quả trong chi tiết đơn hàng.');
     }
-  }, [persistPendingCheckout, removeCheckoutItems, router]);
+  }, [completeCheckout, persistPendingCheckout, removeCheckoutItems]);
 
   const applyPolledPaymentResult = useCallback((key: string, payment: PaymentResponse) => {
     if (!submitLock.current) applyPaymentResult(key, payment);
   }, [applyPaymentResult]);
+
+  const applyPolledOrderResult = useCallback((key: string, order: OrderDetail) => {
+    const checkout = pendingCheckoutRef.current;
+    return !submitLock.current && checkout?.idempotencyKey === key && confirmPaidOrder(checkout, order);
+  }, [confirmPaidOrder]);
 
   const pendingKey = pendingCheckout?.idempotencyKey;
   const cartFingerprint = JSON.stringify(cartStore.getOrderItems());
@@ -222,6 +236,8 @@ export default function CheckoutPage() {
       const cancelOnly = action === 'cancel';
       const replaceOrder = action === 'new' || Boolean(checkout && !checkout.cartItemsRemoved &&
         checkout.cartFingerprint !== JSON.stringify(cartStore.getOrderItems()));
+      if (checkout && !cancelOnly && !replaceOrder && await checkOrderPayment(token, checkout)) return;
+
       const expiredOrder = checkout && !checkout.idempotencyKey && currentOrder?.reservationExpiresAt &&
         Date.parse(currentOrder.reservationExpiresAt) <= Date.now();
       const retryItems = expiredOrder && checkout?.cartItemsRemoved && !replaceOrder && !cancelOnly
@@ -344,14 +360,25 @@ export default function CheckoutPage() {
       } else if (reason instanceof OrdersApiError) {
         if (reason.status === 401) {
           setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        } else if (reason.code === 'OUT_OF_STOCK') {
+          setError('Không đủ nguyên liệu để pha số lượng bạn đã chọn. Vui lòng giảm số lượng hoặc đổi món trong giỏ hàng.');
+        } else if (reason.code === 'INVENTORY_CONFLICT') {
+          setError('Tồn kho vừa thay đổi. Vui lòng thử đặt hàng lại.');
         } else if (reason.status === 409) {
           setError('Một số món vừa hết hàng hoặc không còn khả dụng. Giỏ hàng vẫn được giữ nguyên.');
         } else {
           setError(reason.message || 'Không thể tạo đơn hàng. Vui lòng kiểm tra lại giỏ hàng.');
         }
       } else if (reason instanceof PaymentApiError) {
-        if (reason.code === 'ORDER_EXPIRED') {
-          const checkout = pendingCheckoutRef.current;
+        const checkout = pendingCheckoutRef.current;
+        const token = localStorage.getItem('brewlite_token');
+        // The order can settle while the status request or same-key replay is in flight.
+        if (checkout && token && reason.status !== 401 && reason.status !== 403 &&
+            await checkOrderPayment(token, checkout)) return;
+
+        if (reason.code === 'ORDER_ALREADY_PAID' || reason.code === 'ORDER_INVALID_TRANSITION') {
+          setError(reason.message);
+        } else if (reason.code === 'ORDER_EXPIRED') {
           if (checkout) {
             removeCheckoutItems(checkout);
             persistPendingCheckout({ ...checkout, idempotencyKey: null, method: null, cartItemsRemoved: true });
@@ -485,8 +512,10 @@ export default function CheckoutPage() {
             <VnpayPendingScreen
               key={pendingKey}
               idempotencyKey={pendingKey}
+              orderId={pendingCheckout.orderId}
               token={token}
               onResult={applyPolledPaymentResult}
+              onOrderResult={applyPolledOrderResult}
             />
           )}
           {error && (

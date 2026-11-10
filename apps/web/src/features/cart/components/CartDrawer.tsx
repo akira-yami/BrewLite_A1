@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { CartItem, cartStore, formatVnd, useCartStore } from '@/stores/cart-store';
+import { CartItem, cartStore, formatVnd, ITEM_QUANTITY_LIMIT_MESSAGE, MAX_ITEM_QUANTITY, useCartStore } from '@/stores/cart-store';
 import { CouponApiError, validateCoupon } from '@/api/coupons.api';
 import { readCheckoutCoupon, writeCheckoutCoupon, type CheckoutCouponQuote } from '@/features/checkout/session';
 import { AuthApiError, getMeApi } from '@/features/auth/api';
@@ -285,6 +285,7 @@ export function CartDrawer({
             <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
               {items.map((item) => {
                 const toppingsTotal = item.toppings.reduce((sum, topping) => sum + topping.price, 0);
+                const atQuantityLimit = item.quantity >= MAX_ITEM_QUANTITY;
 
                 return (
                   <article
@@ -363,7 +364,7 @@ export function CartDrawer({
                           <button
                             type="button"
                             onClick={() => cartStore.updateQuantity(item.id, item.quantity + 1)}
-                            disabled={item.quantity >= 20}
+                            disabled={atQuantityLimit}
                             className="flex h-8 w-8 items-center justify-center text-sm font-black text-[#163E2B] disabled:cursor-not-allowed disabled:opacity-35"
                             aria-label={`Tăng số lượng ${item.name}`}
                           >
@@ -374,6 +375,9 @@ export function CartDrawer({
                           {formatVnd(item.lineTotal)}
                         </strong>
                       </div>
+                      {atQuantityLimit && (
+                        <p role="status" className="text-xs text-[#756A63]">{ITEM_QUANTITY_LIMIT_MESSAGE}</p>
+                      )}
                     </div>
                   </article>
                 );

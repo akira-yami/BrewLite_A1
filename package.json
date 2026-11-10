@@ -10,6 +10,7 @@
     "dev:api": "npm run start:dev --prefix apps/api",
     "dev:web": "npm run dev --prefix apps/web",
     "test:api": "node scripts/run-api-tests.mjs"
+    "zip": "powershell -ExecutionPolicy Bypass -File ./scripts/zip-project.ps1"
   }
 }
 

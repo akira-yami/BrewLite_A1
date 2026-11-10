@@ -50,7 +50,8 @@ let currentSnapshot = emptySnapshot;
 let hydrated = false;
 const listeners = new Set<() => void>();
 
-const MAX_ITEM_QUANTITY = 20;
+export const MAX_ITEM_QUANTITY = 20;
+export const ITEM_QUANTITY_LIMIT_MESSAGE = `Tối đa ${MAX_ITEM_QUANTITY} ly cho mỗi món có cùng tùy chọn.`;
 
 function assertValidQuantity(quantity: number) {
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_ITEM_QUANTITY) {

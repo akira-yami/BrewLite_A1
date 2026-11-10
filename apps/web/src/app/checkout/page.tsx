@@ -67,6 +67,7 @@ export default function CheckoutPage() {
   const [isRestoring, setIsRestoring] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [couponQuote, setCouponQuote] = useState<CheckoutCouponQuote | null>(null);
+  const [copiedCard, setCopiedCard] = useState(false);
   const [orderSummary, setOrderSummary] = useState<OrderDetail | null>(null);
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckoutState | null>(null);
   const isVnpayReturn = useSyncExternalStore(
@@ -179,6 +180,27 @@ export default function CheckoutPage() {
   const displayedSubtotal = currentOrder?.subtotal ?? cart.subtotal;
   const displayedDiscount = currentOrder?.discountAmount ?? previewDiscount;
   const displayedTotal = currentOrder?.total ?? Math.max(0, cart.subtotal - previewDiscount);
+
+  const handleCopyCard = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText('9704198526191432198');
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = '9704198526191432198';
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+    setCopiedCard(true);
+    setTimeout(() => setCopiedCard(false), 2000);
+  };
 
   const handlePayment = async (action: 'pay' | 'cancel' | 'new' = 'pay') => {
     if (submitLock.current || isRestoring) return;
@@ -385,6 +407,78 @@ export default function CheckoutPage() {
               <p className="text-sm font-black text-[#1E1813]">VNPay</p>
               <p className="mt-1 text-xs text-[#756A63]">Thanh toán qua cổng VNPay</p>
             </div>
+          </div>
+
+          {/* Thông tin thẻ thử nghiệm VNPay Sandbox */}
+          <div className="mt-4 rounded-2xl border border-amber-300/80 bg-[#FFFDF8] p-4 shadow-xs sm:p-5">
+            <div className="flex items-center justify-between border-b border-amber-200/80 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base" aria-hidden="true">💳</span>
+                <span className="text-xs font-black uppercase tracking-wider text-[#B85D36]">
+                  Thông tin thẻ thử nghiệm VNPay (Sandbox)
+                </span>
+              </div>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-850 text-amber-900">
+                Thẻ Test
+              </span>
+            </div>
+
+            <div className="mt-3.5 space-y-2.5 text-xs text-[#1E1813]">
+              <div className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                <span className="font-medium text-[#756A63]">Ngân hàng:</span>
+                <strong className="font-mono text-sm text-[#163E2B]">NCB</strong>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                  <span className="font-medium text-[#756A63]">Số thẻ:</span>
+                  <strong className="font-mono text-sm tracking-wider text-[#163E2B]">
+                    9704198526191432198
+                  </strong>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyCard()}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#163E2B] px-3 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#1f4f38] active:scale-95"
+                  title="Sao chép số thẻ"
+                >
+                  {copiedCard ? (
+                    <>
+                      <svg className="h-3.5 w-3.5 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>Đã chép!</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      <span>Sao chép số thẻ</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                <div className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                  <span className="font-medium text-[#756A63]">Tên chủ thẻ:</span>
+                  <strong className="font-mono text-xs text-[#1E1813]">NGUYEN VAN A</strong>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                  <span className="font-medium text-[#756A63]">Ngày phát hành:</span>
+                  <strong className="font-mono text-xs text-[#1E1813]">07/15</strong>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-white p-2.5 border border-[#EDE6DD]">
+                  <span className="font-medium text-[#756A63]">Mã OTP:</span>
+                  <strong className="font-mono text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">123456</strong>
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-3 text-[11px] leading-4 text-[#756A63]">
+              💡 <em>Tại cổng VNPay: chọn ngân hàng <strong>NCB</strong> → dán số thẻ trên → nhập OTP <strong>123456</strong> để hoàn tất thanh toán.</em>
+            </p>
           </div>
 
           {isVnpayReturn && !isSubmitting && pendingCheckout?.method === 'VNPAY' && pendingKey && token && (

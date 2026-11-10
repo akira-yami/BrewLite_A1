@@ -1,0 +1,14 @@
+{
+  "name": "brewlite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BrewLite Workspace",
+  "scripts": {
+    "env:local": "powershell -ExecutionPolicy Bypass -File ./scripts/switch-env.ps1 local",
+    "env:prod": "powershell -ExecutionPolicy Bypass -File ./scripts/switch-env.ps1 prod",
+    "env:status": "powershell -ExecutionPolicy Bypass -File ./scripts/switch-env.ps1 status",
+    "dev:api": "npm run start:dev --prefix apps/api",
+    "dev:web": "npm run dev --prefix apps/web"
+  }
+}
+

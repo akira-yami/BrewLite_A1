@@ -29,6 +29,9 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "npx tsx prisma/seed.ts",
+    "env:local": "powershell -ExecutionPolicy Bypass -File ../../scripts/switch-env.ps1 local",
+    "env:prod": "powershell -ExecutionPolicy Bypass -File ../../scripts/switch-env.ps1 prod",
+    "env:status": "powershell -ExecutionPolicy Bypass -File ../../scripts/switch-env.ps1 status",
     "start:e2e": "node --import=tsx prisma/seed-e2e.ts && npm run start:prod",
     "generate:postman": "node ../../scripts/generate-postman.mjs",
     "test:api": "node ../../scripts/run-api-tests.mjs"

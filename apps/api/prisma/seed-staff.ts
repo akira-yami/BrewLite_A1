@@ -1,5 +1,7 @@
+import 'dotenv/config';
 import bcrypt from 'bcryptjs';
-import type { PrismaClient } from '../src/generated/prisma/client.js';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client.js';
 
 /** Fixed credentials for the local coursework demo. Passwords are hashed in DB. */
 export const DEMO_ACCOUNTS = [
@@ -19,3 +21,21 @@ export async function seedDemoUsers(prisma: PrismaClient) {
     console.log(`Demo account ready: ${username} (${role}).`);
   }
 }
+
+const isDirectRun = process.argv[1]?.includes('seed-staff');
+if (isDirectRun) {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    console.error('Lỗi: Biến môi trường DATABASE_URL chưa được thiết lập.');
+    process.exit(1);
+  }
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  try {
+    console.log('Bắt đầu seed tài khoản demo vào database...');
+    await seedDemoUsers(prisma);
+    console.log('Seed tài khoản demo hoàn tất thành công!');
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+

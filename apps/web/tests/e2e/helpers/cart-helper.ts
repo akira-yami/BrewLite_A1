@@ -26,11 +26,9 @@ export async function setupCartWithProduct(
   // Reload to apply token
   await page.reload();
 
-  // Find first available product button (not disabled)
-  // Use selector from checkout.spec.ts pattern
+  // Match the catalog button exactly. The offscreen cart also has "Sửa tùy chọn".
   const productButton = page
-    .locator('button:not(:disabled)')
-    .filter({ hasText: 'Tùy chọn' })
+    .getByRole('button', { name: 'Tùy chọn', exact: true, disabled: false })
     .first();
 
   // The menu fetches its catalog asynchronously. Wait for an enabled product

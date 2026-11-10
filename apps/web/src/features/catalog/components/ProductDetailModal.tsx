@@ -1,6 +1,6 @@
 'use client';
 
-import { CartItem, cartStore, formatVnd } from '@/stores/cart-store';
+import { CartItem, cartStore, formatVnd, ITEM_QUANTITY_LIMIT_MESSAGE, MAX_ITEM_QUANTITY } from '@/stores/cart-store';
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 import { Product } from '../types';
@@ -50,6 +50,11 @@ const ProductDetailModalContent = ({
     editingItem?.variantId ?? defaultVariant?.id ?? ''
   );
   const [quantity, setQuantity] = useState(editingItem?.quantity ?? 1);
+  const [quantityLimitExceeded, setQuantityLimitExceeded] = useState(false);
+  const atQuantityLimit = quantity >= MAX_ITEM_QUANTITY;
+  const quantityLimitNotice = (atQuantityLimit || quantityLimitExceeded) && (
+    <p role="status" className="text-xs text-[#756A63]">{ITEM_QUANTITY_LIMIT_MESSAGE}</p>
+  );
 
   const [sugarLevel, setSugarLevel] = useState<number | null>(editingItem?.sugarLevel ?? null);
   const [iceLevel, setIceLevel] = useState<number | null>(editingItem?.iceLevel ?? null);
@@ -100,10 +105,16 @@ const ProductDetailModalContent = ({
         })),
     };
 
-    if (editingItem) {
-      cartStore.replaceItem(editingItem.id, cartInput);
-    } else {
-      cartStore.addItem(cartInput);
+    try {
+      if (editingItem) {
+        cartStore.replaceItem(editingItem.id, cartInput);
+      } else {
+        cartStore.addItem(cartInput);
+      }
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      setQuantityLimitExceeded(true);
+      return;
     }
 
     onClose();
@@ -167,8 +178,9 @@ const ProductDetailModalContent = ({
                   </span>
                   <button
                     type="button"
-                    onClick={() => setQuantity((q) => q + 1)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#D5C9B8] bg-white text-sm font-bold text-[#1A1612] transition hover:bg-[#F3EDE3] active:scale-95"
+                    onClick={() => setQuantity((q) => Math.min(MAX_ITEM_QUANTITY, q + 1))}
+                    disabled={atQuantityLimit}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#D5C9B8] bg-white text-sm font-bold text-[#1A1612] transition hover:bg-[#F3EDE3] active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
                   >
                     +
                   </button>
@@ -269,6 +281,7 @@ const ProductDetailModalContent = ({
             </div>
 
             <div className="shrink-0 space-y-4 border-t border-[#E5DCD2] bg-white px-6 py-4 md:px-8">
+              {quantityLimitNotice}
               <div className="flex items-center justify-between rounded-2xl bg-[#E8F1EC] px-4 py-3">
                 <span className="text-base font-black text-[#073F2B]">Tạm tính món</span>
                 <strong className="font-mono text-2xl text-[#073F2B]">{formatVnd(itemTotal)}</strong>
@@ -364,8 +377,9 @@ const ProductDetailModalContent = ({
                   </span>
                   <button
                     type="button"
-                    onClick={() => setQuantity((q) => q + 1)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#D5C9B8] bg-white text-sm font-bold text-[#1A1612] transition hover:bg-[#F3EDE3] active:scale-95"
+                    onClick={() => setQuantity((q) => Math.min(MAX_ITEM_QUANTITY, q + 1))}
+                    disabled={atQuantityLimit}
+                    className="flex h-7 w-7 items-center justify-center rounded-full border border-[#D5C9B8] bg-white text-sm font-bold text-[#1A1612] transition hover:bg-[#F3EDE3] active:scale-95 disabled:cursor-not-allowed disabled:opacity-35"
                   >
                     +
                   </button>
@@ -475,7 +489,8 @@ const ProductDetailModalContent = ({
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-[#EBE1D4] bg-white p-4 sm:px-8">
+        <div className="shrink-0 space-y-2 border-t border-[#EBE1D4] bg-white p-4 sm:px-8">
+          {quantityLimitNotice}
           <button
             type="button"
             onClick={handleAddToCart}

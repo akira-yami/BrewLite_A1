@@ -78,6 +78,38 @@ describe('JWT guard and current user (HTTP)', () => {
     });
   });
 
+  it('returns the same 401 credential error when the account does not exist', async () => {
+    findByUsername.mockResolvedValueOnce(null);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ username: 'missing-user', password: loginPassword })
+      .expect(401);
+
+    expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+  });
+
+  it('rejects a wrong password without disclosing which credential failed', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ username: loginUser.username, password: 'wrong-password' })
+      .expect(401);
+
+    expect(response.body.error.code).toBe('INVALID_CREDENTIALS');
+    expect(response.body.error.message).toBe('Thông tin đăng nhập không chính xác.');
+  });
+
+  it('rejects an inactive account after verifying its password', async () => {
+    findByUsername.mockResolvedValueOnce({ ...loginUser, isActive: false });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ username: loginUser.username, password: loginPassword })
+      .expect(403);
+
+    expect(response.body.error.code).toBe('ACCOUNT_INACTIVE');
+  });
+
   it('rejects malformed tokens', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/auth/me')

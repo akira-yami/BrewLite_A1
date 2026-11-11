@@ -1030,6 +1030,53 @@ pm.test("Status code is 403 Forbidden", function () {
   ],
 };
 
+collection.item.push({
+  name: '9. Recipes & Loyalty',
+  item: [
+    createRequestItem({
+      name: '01. Get Staff Recipes (Barista)',
+      method: 'GET',
+      path: '/staff/recipes',
+      headers: [{ key: 'Authorization', value: 'Bearer {{baristaToken}}' }],
+    }),
+    createRequestItem({
+      name: '02. Get Loyalty Tiers',
+      method: 'GET',
+      path: '/loyalty/tiers',
+    }),
+    createRequestItem({
+      name: '03. Get My Loyalty Overview',
+      method: 'GET',
+      path: '/loyalty/me',
+      headers: [{ key: 'Authorization', value: 'Bearer {{customerToken}}' }],
+    }),
+    createRequestItem({
+      name: '04. Redeem Loyalty Points',
+      method: 'POST',
+      path: '/loyalty/redeem',
+      headers: [
+        { key: 'Authorization', value: 'Bearer {{customerToken}}' },
+        { key: 'Idempotency-Key', value: '{{loyaltyIdempotencyKey}}' },
+      ],
+      body: { tierId: '10000' },
+      preRequestScript: `
+if (!pm.collectionVariables.get('loyaltyIdempotencyKey')) {
+    pm.collectionVariables.set('loyaltyIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));
+}
+`,
+    }),
+    createRequestItem({
+      name: '05. Simulate VNPay IPN (NODE_ENV=test only)',
+      method: 'POST',
+      path: '/payments/test/vnpay/simulate-ipn',
+    }),
+  ],
+});
+collection.item[collection.item.length - 1].item[3].request.description =
+  'Redeems points and creates a coupon. Requires sufficient points. Reuse the same Idempotency-Key for retries. Clear collection variable loyaltyIdempotencyKey before starting a new redemption.';
+collection.item[collection.item.length - 1].item[4].request.description =
+  'Available only when NODE_ENV=test. Add the signed VNPay IPN query parameters, including vnp_SecureHash, from the test gateway. An empty or invalid payload does not simulate a successful payment.';
+
 const environment = {
   id: 'e9b2a1c0-4321-4f68-9876-brewlite-env',
   name: 'BrewLite Local Environment',

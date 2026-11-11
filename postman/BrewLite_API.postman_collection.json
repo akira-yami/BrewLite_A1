@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "9b2c7e41-0523-4e89-8d8a-brewlite-api-v1",
     "name": "BrewLite API Collection",
-    "description": "Bộ sưu tập Postman Collection hoàn chỉnh cho toàn bộ các API của dự án BrewLite - Đặt món & Thanh toán.",
+    "description": "Bộ sưu tập Postman Collection hoàn chỉnh cho toàn bộ các API của dự án BrewLite - bao phủ đầy đủ 7 tiêu chí nghiệm thu Đơn hàng, Tồn kho BOM, Coupon, Cô lập người dùng và Retry Thanh toán.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,6 +13,11 @@
     },
     {
       "key": "customerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerBToken",
       "value": "",
       "type": "string"
     },
@@ -32,12 +37,22 @@
       "type": "string"
     },
     {
+      "key": "customerBId",
+      "value": "",
+      "type": "string"
+    },
+    {
       "key": "baristaId",
       "value": "",
       "type": "string"
     },
     {
       "key": "operatorId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registeredUsername",
       "value": "",
       "type": "string"
     },
@@ -52,7 +67,32 @@
       "type": "string"
     },
     {
+      "key": "variantSize",
+      "value": "S",
+      "type": "string"
+    },
+    {
+      "key": "variantPrice",
+      "value": "30000",
+      "type": "string"
+    },
+    {
+      "key": "cupCode",
+      "value": "CUP_S",
+      "type": "string"
+    },
+    {
       "key": "toppingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "toppingPrice",
+      "value": "10000",
+      "type": "string"
+    },
+    {
+      "key": "outOfStockVariantId",
       "value": "",
       "type": "string"
     },
@@ -68,6 +108,11 @@
     },
     {
       "key": "paymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "failedPaymentKey",
       "value": "",
       "type": "string"
     },
@@ -173,17 +218,22 @@
       "name": "2. Auth & Access Control",
       "item": [
         {
-          "name": "01. Register New Customer Account",
+          "name": "01. Register New Customer Account (User B)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "const rand = Math.floor(Math.random() * 1000000);",
                   "const username = \"new_customer_\" + rand;",
-                  "pm.environment.set(\"registeredUsername\", username);",
-                  "pm.collectionVariables.set(\"registeredUsername\", username);",
+                  "setVar(\"registeredUsername\", username);",
                   ""
                 ],
                 "type": "text/javascript"
@@ -194,6 +244,12 @@
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 201 Created\", function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
@@ -201,7 +257,8 @@
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data.user).to.have.property(\"id\");",
                   "    pm.expect(jsonData.data.user.role).to.eql(\"CUSTOMER\");",
-                  "    pm.expect(jsonData.data.user.username).to.eql(pm.environment.get(\"registeredUsername\"));",
+                  "    pm.expect(jsonData.data.user.username).to.eql(getVar(\"registeredUsername\"));",
+                  "    setVar(\"customerBId\", jsonData.data.user.id);",
                   "});",
                   ""
                 ],
@@ -338,24 +395,28 @@
           }
         },
         {
-          "name": "04. Login as Customer (customer01)",
+          "name": "04. Login as Customer A (customer01)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Saves customer token & ID\", function () {",
+                  "pm.test(\"Saves customer A token & ID\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data).to.have.property(\"accessToken\");",
                   "    pm.expect(jsonData.data.user.role).to.eql(\"CUSTOMER\");",
-                  "    pm.environment.set(\"customerToken\", jsonData.data.accessToken);",
-                  "    pm.environment.set(\"customerId\", jsonData.data.user.id);",
-                  "    pm.collectionVariables.set(\"customerToken\", jsonData.data.accessToken);",
-                  "    pm.collectionVariables.set(\"customerId\", jsonData.data.user.id);",
+                  "    setVar(\"customerToken\", jsonData.data.accessToken);",
+                  "    setVar(\"customerId\", jsonData.data.user.id);",
                   "});",
                   ""
                 ],
@@ -394,12 +455,78 @@
           }
         },
         {
-          "name": "05. Login as Barista (barista01)",
+          "name": "05. Login as Customer B (Newly Registered User)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Saves customer B token & ID for isolation and single-use coupon tests\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property(\"accessToken\");",
+                  "    pm.expect(jsonData.data.user.role).to.eql(\"CUSTOMER\");",
+                  "    setVar(\"customerBToken\", jsonData.data.accessToken);",
+                  "    setVar(\"customerBId\", jsonData.data.user.id);",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{registeredUsername}}\",\n  \"password\": \"Customer@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "06. Login as Barista (barista01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
                   "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
@@ -408,10 +535,8 @@
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data).to.have.property(\"accessToken\");",
                   "    pm.expect(jsonData.data.user.role).to.eql(\"BARISTA\");",
-                  "    pm.environment.set(\"baristaToken\", jsonData.data.accessToken);",
-                  "    pm.environment.set(\"baristaId\", jsonData.data.user.id);",
-                  "    pm.collectionVariables.set(\"baristaToken\", jsonData.data.accessToken);",
-                  "    pm.collectionVariables.set(\"baristaId\", jsonData.data.user.id);",
+                  "    setVar(\"baristaToken\", jsonData.data.accessToken);",
+                  "    setVar(\"baristaId\", jsonData.data.user.id);",
                   "});",
                   ""
                 ],
@@ -450,12 +575,18 @@
           }
         },
         {
-          "name": "06. Login as Payment Operator (operator01)",
+          "name": "07. Login as Payment Operator (operator01)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
                   "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
@@ -464,10 +595,8 @@
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data).to.have.property(\"accessToken\");",
                   "    pm.expect(jsonData.data.user.role).to.eql(\"PAYMENT_OPERATOR\");",
-                  "    pm.environment.set(\"operatorToken\", jsonData.data.accessToken);",
-                  "    pm.environment.set(\"operatorId\", jsonData.data.user.id);",
-                  "    pm.collectionVariables.set(\"operatorToken\", jsonData.data.accessToken);",
-                  "    pm.collectionVariables.set(\"operatorId\", jsonData.data.user.id);",
+                  "    setVar(\"operatorToken\", jsonData.data.accessToken);",
+                  "    setVar(\"operatorId\", jsonData.data.user.id);",
                   "});",
                   ""
                 ],
@@ -506,7 +635,7 @@
           }
         },
         {
-          "name": "07. Login Invalid Credentials (401 Unauthorized)",
+          "name": "08. Login Invalid Credentials (401 Unauthorized)",
           "event": [
             {
               "listen": "test",
@@ -553,19 +682,25 @@
           }
         },
         {
-          "name": "08. Get Profile Me (Customer)",
+          "name": "09. Get Profile Me (Customer)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "pm.test(\"Profile matches current customer\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.data.id).to.eql(pm.environment.get(\"customerId\"));",
+                  "    pm.expect(jsonData.data.id).to.eql(getVar(\"customerId\"));",
                   "    pm.expect(jsonData.data.username).to.eql(\"customer01\");",
                   "});",
                   ""
@@ -601,7 +736,7 @@
           }
         },
         {
-          "name": "09. Get Profile Me - Unauthorized without Token (401)",
+          "name": "10. Get Profile Me - Unauthorized without Token (401)",
           "event": [
             {
               "listen": "test",
@@ -639,19 +774,25 @@
           }
         },
         {
-          "name": "10. Get User by ID - Own ID (OwnershipGuard)",
+          "name": "11. Get User by ID - Own ID (OwnershipGuard)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "pm.test(\"Returns user data\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.data.id).to.eql(pm.environment.get(\"customerId\"));",
+                  "    pm.expect(jsonData.data.id).to.eql(getVar(\"customerId\"));",
                   "});",
                   ""
                 ],
@@ -687,7 +828,7 @@
           }
         },
         {
-          "name": "11. Get User by ID - Forbidden Foreign Profile (403)",
+          "name": "12. Get User by ID - Forbidden Foreign Profile (403)",
           "event": [
             {
               "listen": "test",
@@ -731,7 +872,7 @@
           }
         },
         {
-          "name": "12. Barista Only Endpoint - Barista Role Allowed (200)",
+          "name": "13. Barista Only Endpoint - Barista Role Allowed (200)",
           "event": [
             {
               "listen": "test",
@@ -778,7 +919,7 @@
           }
         },
         {
-          "name": "13. Barista Only Endpoint - Customer Forbidden (403)",
+          "name": "14. Barista Only Endpoint - Customer Forbidden (403)",
           "event": [
             {
               "listen": "test",
@@ -826,32 +967,56 @@
       "name": "3. Catalog & Products",
       "item": [
         {
-          "name": "01. List Products",
+          "name": "01. List Products & Save Pricing/Variant Metadata",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Products returned with variants and toppings\", function () {",
+                  "pm.test(\"Products returned with variants, prices and toppings\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.success).to.be.true;",
                   "    pm.expect(jsonData.data).to.be.an(\"array\").that.is.not.empty;",
                   "",
-                  "    const firstProduct = jsonData.data[0];",
-                  "    pm.expect(firstProduct).to.have.property(\"id\");",
-                  "    pm.expect(firstProduct.variants).to.be.an(\"array\").that.is.not.empty;",
-                  "    pm.expect(firstProduct.toppings).to.be.an(\"array\").that.is.not.empty;",
+                  "    const preferredProduct =",
+                  "        jsonData.data.find((p) => p.sku === \"COFFEE-CAU-DAT-01\" && p.variants.some((v) => v.available)) ||",
+                  "        jsonData.data.find((p) => p.variants.some((v) => v.available) && p.toppings.some((t) => t.available)) ||",
+                  "        jsonData.data[0];",
                   "",
-                  "    pm.environment.set(\"productId\", firstProduct.id);",
-                  "    pm.environment.set(\"productVariantId\", firstProduct.variants[0].id);",
-                  "    pm.environment.set(\"toppingId\", firstProduct.toppings[0].id);",
-                  "    pm.collectionVariables.set(\"productId\", firstProduct.id);",
-                  "    pm.collectionVariables.set(\"productVariantId\", firstProduct.variants[0].id);",
-                  "    pm.collectionVariables.set(\"toppingId\", firstProduct.toppings[0].id);",
+                  "    const variant =",
+                  "        preferredProduct.variants.find((v) => v.size === \"S\" && v.available) ||",
+                  "        preferredProduct.variants.find((v) => v.available) ||",
+                  "        preferredProduct.variants[0];",
+                  "",
+                  "    const topping =",
+                  "        preferredProduct.toppings.find((t) => t.code === \"TOP_FLAN\" && t.available) ||",
+                  "        preferredProduct.toppings.find((t) => t.available) ||",
+                  "        preferredProduct.toppings[0];",
+                  "",
+                  "    // Tìm món Trà đào cam sả size L (dùng 2 quả cam/ly, kho tối đa 200 quả) để test OUT_OF_STOCK dễ dàng",
+                  "    const peachTea = jsonData.data.find((p) => p.sku === \"TEA-PEACH-ORANGE-04\");",
+                  "    const peachLarge = peachTea && peachTea.variants.find((v) => v.size === \"L\");",
+                  "",
+                  "    setVar(\"productId\", preferredProduct.id);",
+                  "    setVar(\"productSku\", preferredProduct.sku);",
+                  "    setVar(\"productVariantId\", variant.id);",
+                  "    setVar(\"variantSize\", variant.size);",
+                  "    setVar(\"variantPrice\", String(variant.price));",
+                  "    setVar(\"cupCode\", \"CUP_\" + variant.size);",
+                  "    setVar(\"toppingId\", topping.id);",
+                  "    setVar(\"toppingCode\", topping.code);",
+                  "    setVar(\"toppingPrice\", String(topping.price));",
+                  "    setVar(\"outOfStockVariantId\", peachLarge ? peachLarge.id : variant.id);",
                   "});",
                   ""
                 ],
@@ -887,13 +1052,19 @@
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "pm.test(\"Returns correct product detail\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.success).to.be.true;",
-                  "    pm.expect(jsonData.data.id).to.eql(pm.environment.get(\"productId\"));",
+                  "    pm.expect(jsonData.data.id).to.eql(getVar(\"productId\"));",
                   "});",
                   ""
                 ],
@@ -966,7 +1137,7 @@
       "name": "4. Coupons & Promotions",
       "item": [
         {
-          "name": "01. Validate Coupon - Valid Code (BREW10-DEMO)",
+          "name": "01. Validate Coupon - Valid Code (BREW10-DEMO -> 10% Discount)",
           "event": [
             {
               "listen": "test",
@@ -976,10 +1147,10 @@
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Coupon is valid and calculates discount\", function () {",
+                  "pm.test(\"Coupon is valid and calculates exact 10% discount (5000 VND)\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data.code).to.eql(\"BREW10-DEMO\");",
-                  "    pm.expect(jsonData.data.discountAmount).to.be.above(0);",
+                  "    pm.expect(jsonData.data.discountAmount).to.eql(5000);",
                   "});",
                   ""
                 ],
@@ -1128,29 +1299,111 @@
       ]
     },
     {
-      "name": "5. Orders",
+      "name": "5. Orders, Inventory BOM, Coupon & Isolation (TC1 -> TC6)",
       "item": [
         {
-          "name": "01. Create Order (Success - PENDING)",
+          "name": "01. [TC1 Prep] Snapshot Ingredient Stock Before Creating Valid Order",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Snapshots cup & coffee bean stock before creating order\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cupCode = getVar(\"cupCode\") || \"CUP_S\";",
+                  "    const cup = items.find((i) => i.code === cupCode);",
+                  "    const bean = items.find((i) => i.code === \"COFFEE_BEAN_CAU_DAT\");",
+                  "    pm.expect(cup, \"Cup ingredient \" + cupCode + \" exists\").to.be.ok;",
+                  "    setVar(\"cupStockBeforeOrder\", String(cup.stockQuantity));",
+                  "    if (bean) {",
+                  "        setVar(\"beanStockBeforeOrder\", String(bean.stockQuantity));",
+                  "    }",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "02. [TC1 & TC6] Create Valid Order with Coupon (Verify Subtotal/Discount/Total/Status)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 201 Created\", function () {",
                   "    pm.response.to.have.status(201);",
                   "});",
-                  "pm.test(\"Order created in PENDING status\", function () {",
+                  "pm.test(\"[TC1 & TC6] Order has exact subtotal, 10% coupon discount, total and PENDING status\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.data).to.have.property(\"id\");",
-                  "    pm.expect(jsonData.data.status).to.eql(\"PENDING\");",
-                  "    pm.expect(jsonData.data.items).to.be.an(\"array\").that.is.not.empty;",
+                  "    const order = jsonData.data;",
+                  "    const variantPrice = Number(getVar(\"variantPrice\"));",
+                  "    const toppingPrice = Number(getVar(\"toppingPrice\"));",
+                  "    const expectedSubtotal = (variantPrice + toppingPrice) * 2;",
+                  "    const expectedDiscount = Math.floor(expectedSubtotal * 0.10);",
+                  "    const expectedTotal = expectedSubtotal - expectedDiscount;",
                   "",
-                  "    pm.environment.set(\"orderId\", jsonData.data.id);",
-                  "    pm.environment.set(\"orderTotal\", jsonData.data.total);",
-                  "    pm.collectionVariables.set(\"orderId\", jsonData.data.id);",
-                  "    pm.collectionVariables.set(\"orderTotal\", jsonData.data.total);",
+                  "    pm.expect(order).to.have.property(\"id\");",
+                  "    pm.expect(order.status).to.eql(\"PENDING\");",
+                  "    pm.expect(order.subtotal).to.eql(expectedSubtotal);",
+                  "    pm.expect(order.discountAmount).to.eql(expectedDiscount);",
+                  "    pm.expect(order.total).to.eql(expectedTotal);",
+                  "    pm.expect(order.items).to.be.an(\"array\").with.lengthOf(1);",
+                  "    pm.expect(order.items[0].sugarLevel).to.eql(50);",
+                  "    pm.expect(order.items[0].iceLevel).to.eql(50);",
+                  "",
+                  "    setVar(\"orderId\", order.id);",
+                  "    setVar(\"orderTotal\", String(order.total));",
                   "});",
                   ""
                 ],
@@ -1193,7 +1446,133 @@
           }
         },
         {
-          "name": "02. Create Order - Invalid Payload (Quantity 0 -> 400)",
+          "name": "03. [TC1] Verify Ingredients Reserved Exactly According to BOM Recipe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC1] Cup stock decreased by exact order quantity (2) & coffee beans reserved\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cupCode = getVar(\"cupCode\") || \"CUP_S\";",
+                  "    const cup = items.find((i) => i.code === cupCode);",
+                  "    const beforeCup = Number(getVar(\"cupStockBeforeOrder\"));",
+                  "",
+                  "    pm.expect(cup.stockQuantity).to.eql(beforeCup - 2);",
+                  "    setVar(\"cupStockAfterValidOrder\", String(cup.stockQuantity));",
+                  "",
+                  "    if (getVar(\"productSku\") === \"COFFEE-CAU-DAT-01\" && getVar(\"variantSize\") === \"S\") {",
+                  "        const bean = items.find((i) => i.code === \"COFFEE_BEAN_CAU_DAT\");",
+                  "        const beforeBean = Number(getVar(\"beanStockBeforeOrder\"));",
+                  "        const extraEspresso = getVar(\"toppingCode\") === \"TOP_ESPRESSO\" ? 9 * 2 : 0;",
+                  "        pm.expect(bean.stockQuantity).to.eql(beforeBean - (15 * 2 + extraEspresso));",
+                  "    }",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "04. [TC2] Reject Non-Existent / Unavailable Product Variant (400 INVALID_OPTION)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"Status code is 400 Bad Request\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test(\"[TC2] Error code is INVALID_OPTION for missing/unavailable variant\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql(\"INVALID_OPTION\");",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productVariantId\": \"00000000-0000-4000-8000-000000000099\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "05. Create Order - Invalid Payload (Quantity 0 -> 400 VALIDATION_ERROR)",
           "event": [
             {
               "listen": "test",
@@ -1219,7 +1598,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{customerToken}}",
+                "value": "Bearer {{customerBToken}}",
                 "type": "text"
               }
             ],
@@ -1244,7 +1623,143 @@
           }
         },
         {
-          "name": "03. Get My Orders List",
+          "name": "06. [TC6] Reject Order with Invalid Coupon Code (422 COUPON_NOT_APPLICABLE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"[TC6] Returns COUPON_NOT_APPLICABLE error code\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql(\"COUPON_NOT_APPLICABLE\");",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productVariantId\": \"{{productVariantId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"couponCode\": \"COUPON_KHONG_TON_TAI_999\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "07. [TC3] Reject Order Exceeding Ingredient Stock (409 OUT_OF_STOCK)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "const variantId = getVar(\"outOfStockVariantId\") || getVar(\"productVariantId\");",
+                  "const toppingId = getVar(\"toppingId\");",
+                  "// Tạo 20 dòng khác note (mỗi dòng 20 ly = tổng 400 ly; với Trà đào size L cần 800 quả cam > kho 200, kèm 400 phần topping > kho 200)",
+                  "const items = Array.from({ length: 20 }, (_, idx) => ({",
+                  "    productVariantId: variantId,",
+                  "    quantity: 20,",
+                  "    toppingIds: toppingId ? [toppingId] : [],",
+                  "    note: \"oversell-check-line-\" + (idx + 1)",
+                  "}));",
+                  "setVar(\"oversellPayload\", JSON.stringify({ items }));",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"Status code is 409 Conflict\", function () {",
+                  "    pm.response.to.have.status(409);",
+                  "});",
+                  "pm.test(\"[TC3] Returns OUT_OF_STOCK error and refuses order creation\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql(\"OUT_OF_STOCK\");",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{oversellPayload}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "08. [TC2, TC3 & TC6] Verify Zero Orders Created for User B After All Rejections",
           "event": [
             {
               "listen": "test",
@@ -1254,7 +1769,241 @@
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Contains created orders\", function () {",
+                  "pm.test(\"[TC2, TC3 & TC6] Rejected requests did NOT create any order in DB\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    const orders = Array.isArray(jsonData.data) ? jsonData.data : (jsonData.data.items || []);",
+                  "    pm.expect(orders).to.be.an(\"array\").that.is.empty;",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "09. [TC3 & TC6] Verify Ingredient Stock Unchanged & Non-Negative After Rejections",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC3 & TC6] Cup stock unchanged after failed variant/coupon/oversell & no negative stock\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cupCode = getVar(\"cupCode\") || \"CUP_S\";",
+                  "    const cup = items.find((i) => i.code === cupCode);",
+                  "    pm.expect(cup.stockQuantity).to.eql(Number(getVar(\"cupStockAfterValidOrder\")));",
+                  "    items.forEach((ing) => {",
+                  "        pm.expect(ing.stockQuantity, ing.code + \" must be >= 0\").to.be.at.least(0);",
+                  "    });",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "10. [TC3] Concurrent Two-User Orders Contention Check (No Negative Stock)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "const baseUrl = getVar(\"baseUrl\");",
+                  "const variantId = getVar(\"productVariantId\");",
+                  "const tokenA = getVar(\"customerToken\");",
+                  "const tokenB = getVar(\"customerBToken\");",
+                  "const baristaToken = getVar(\"baristaToken\");",
+                  "",
+                  "const buildOrderReq = (token, tag) => ({",
+                  "    url: baseUrl + \"/orders\",",
+                  "    method: \"POST\",",
+                  "    header: {",
+                  "        \"Content-Type\": \"application/json\",",
+                  "        \"Authorization\": \"Bearer \" + token",
+                  "    },",
+                  "    body: {",
+                  "        mode: \"raw\",",
+                  "        raw: JSON.stringify({",
+                  "            items: [{ productVariantId: variantId, quantity: 1, note: \"concurrent-\" + tag }]",
+                  "        })",
+                  "    }",
+                  "});",
+                  "",
+                  "// Bắn đồng thời 2 request đặt hàng từ 2 khách hàng khác nhau cùng tranh nguyên liệu",
+                  "// Postman/Newman tự động đợi toàn bộ callback của pm.sendRequest hoàn tất trước khi chạy request chính",
+                  "pm.sendRequest(buildOrderReq(tokenA, \"userA\"), function (err, res) {",
+                  "    if (!err && res && res.code === 201) {",
+                  "        const id = res.json().data.id;",
+                  "        pm.sendRequest({",
+                  "            url: baseUrl + \"/orders/\" + id + \"/cancel\",",
+                  "            method: \"POST\",",
+                  "            header: { \"Authorization\": \"Bearer \" + tokenA }",
+                  "        }, function () {});",
+                  "    }",
+                  "});",
+                  "pm.sendRequest(buildOrderReq(tokenB, \"userB\"), function (err, res) {",
+                  "    if (!err && res && res.code === 201) {",
+                  "        const id = res.json().data.id;",
+                  "        pm.sendRequest({",
+                  "            url: baseUrl + \"/orders/\" + id + \"/cancel\",",
+                  "            method: \"POST\",",
+                  "            header: { \"Authorization\": \"Bearer \" + tokenB }",
+                  "        }, function () {});",
+                  "    }",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC3] After concurrent order contention & cleanup, all stocks >= 0 and balanced\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    items.forEach((ing) => {",
+                  "        pm.expect(ing.stockQuantity, ing.code + \" must never go negative\").to.be.at.least(0);",
+                  "    });",
+                  "    const cup = items.find((i) => i.code === (getVar(\"cupCode\") || \"CUP_S\"));",
+                  "    pm.expect(cup.stockQuantity).to.eql(Number(getVar(\"cupStockAfterValidOrder\")));",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "11. Get My Orders List (Customer A)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Contains Customer A created orders\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    const orders = Array.isArray(jsonData.data) ? jsonData.data : (jsonData.data.items || []);",
                   "    pm.expect(orders).to.be.an(\"array\").that.is.not.empty;",
@@ -1292,19 +2041,25 @@
           }
         },
         {
-          "name": "04. Get Order Detail by ID",
+          "name": "12. Get Order Detail by ID (Owner Customer A -> 200 OK)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Returns correct order detail\", function () {",
+                  "pm.test(\"Returns full order detail for owner\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.data.id).to.eql(pm.environment.get(\"orderId\"));",
+                  "    pm.expect(jsonData.data.id).to.eql(getVar(\"orderId\"));",
                   "    pm.expect(jsonData.data.items).to.be.an(\"array\").that.is.not.empty;",
                   "});",
                   ""
@@ -1340,20 +2095,67 @@
           }
         },
         {
-          "name": "05. Create Order for Cancellation Test",
+          "name": "13. [TC4] Foreign User B Views Customer A Order -> Denied & No Data Leaked (404)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
-                  "pm.test(\"Status code is 201 Created\", function () {",
-                  "    pm.response.to.have.status(201);",
+                  "pm.test(\"[TC4] Status code is 404 Not Found (prevents UUID enumeration)\", function () {",
+                  "    pm.response.to.have.status(404);",
                   "});",
-                  "pm.test(\"Saves cancelOrderId\", function () {",
+                  "pm.test(\"[TC4] Error is ORDER_NOT_FOUND and zero order data is leaked\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.environment.set(\"cancelOrderId\", jsonData.data.id);",
-                  "    pm.collectionVariables.set(\"cancelOrderId\", jsonData.data.id);",
+                  "    pm.expect(jsonData.error.code).to.eql(\"ORDER_NOT_FOUND\");",
+                  "    pm.expect(jsonData).to.not.have.property(\"data\");",
+                  "    const raw = pm.response.text();",
+                  "    pm.expect(raw).to.not.include(\"orderNumber\");",
+                  "    pm.expect(raw).to.not.include(\"subtotal\");",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "14. [TC4] Foreign User B Attempts to Cancel Customer A Order -> Denied (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"[TC4] Status code is 404 ORDER_NOT_FOUND\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    pm.expect(pm.response.json().error.code).to.eql(\"ORDER_NOT_FOUND\");",
                   "});",
                   ""
                 ],
@@ -1371,7 +2173,126 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{customerToken}}",
+                "value": "Bearer {{customerBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}",
+                "cancel"
+              ]
+            }
+          }
+        },
+        {
+          "name": "15. [TC5 & TC6 Prep] Snapshot Stock Before Cancellation & Single-Use Coupon Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Saves cupStockBeforeCancelFlow\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cup = items.find((i) => i.code === (getVar(\"cupCode\") || \"CUP_S\"));",
+                  "    setVar(\"cupStockBeforeCancelFlow\", String(cup.stockQuantity));",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "16. [TC5 & TC6] User B Creates Order with 1-Per-User Coupon (BREW10-TEST01)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test(\"[TC6] Single-use coupon applied accurately & saves cancelOrderId\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    const variantPrice = Number(getVar(\"variantPrice\"));",
+                  "    const expectedDiscount = Math.floor(variantPrice * 0.10);",
+                  "    pm.expect(jsonData.data.subtotal).to.eql(variantPrice);",
+                  "    pm.expect(jsonData.data.discountAmount).to.eql(expectedDiscount);",
+                  "    pm.expect(jsonData.data.total).to.eql(variantPrice - expectedDiscount);",
+                  "    setVar(\"cancelOrderId\", jsonData.data.id);",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerBToken}}",
                 "type": "text"
               }
             ],
@@ -1386,7 +2307,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"items\": [\n    {\n      \"productVariantId\": \"{{productVariantId}}\",\n      \"quantity\": 1\n    }\n  ]\n}",
+              "raw": "{\n  \"items\": [\n    {\n      \"productVariantId\": \"{{productVariantId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"couponCode\": \"BREW10-TEST01\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1396,7 +2317,121 @@
           }
         },
         {
-          "name": "06. Cancel Order (Success - CANCELLED)",
+          "name": "17. [TC6] Re-using RESERVED Single-Use Coupon Is Blocked (422 COUPON_NOT_APPLICABLE)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"Status code is 422 Unprocessable Entity\", function () {",
+                  "    pm.response.to.have.status(422);",
+                  "});",
+                  "pm.test(\"[TC6] Coupon redemption state is RESERVED -> blocks exceeding perUserLimit\", function () {",
+                  "    pm.expect(pm.response.json().error.code).to.eql(\"COUPON_NOT_APPLICABLE\");",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"productVariantId\": \"{{productVariantId}}\",\n      \"quantity\": 1\n    }\n  ],\n  \"couponCode\": \"BREW10-TEST01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "18. [TC5] Verify Stock Decreased by 1 While Order Is Active (PENDING)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC5] Cup stock is reduced by 1 during active reservation\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cup = items.find((i) => i.code === (getVar(\"cupCode\") || \"CUP_S\"));",
+                  "    pm.expect(cup.stockQuantity).to.eql(Number(getVar(\"cupStockBeforeCancelFlow\")) - 1);",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "19. [TC5] Cancel Order - 1st Time (200 OK -> CANCELLED)",
           "event": [
             {
               "listen": "test",
@@ -1406,7 +2441,7 @@
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Order status changed to CANCELLED\", function () {",
+                  "pm.test(\"[TC5] Order status changed to CANCELLED\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data.status).to.eql(\"CANCELLED\");",
                   "});",
@@ -1426,7 +2461,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{customerToken}}",
+                "value": "Bearer {{customerBToken}}",
                 "type": "text"
               }
             ],
@@ -1444,14 +2479,74 @@
           }
         },
         {
-          "name": "07. Cancel Already Cancelled Order (Expected 400 / Conflict)",
+          "name": "20. [TC5] Verify Stock Restored (+1) Immediately After First Cancel",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
-                  "pm.test(\"Status code indicates invalid state (400 or 409)\", function () {",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC5] Reserved stock restored back to pre-order level\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cup = items.find((i) => i.code === (getVar(\"cupCode\") || \"CUP_S\"));",
+                  "    pm.expect(cup.stockQuantity).to.eql(Number(getVar(\"cupStockBeforeCancelFlow\")));",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "21. [TC5] Cancel Already Cancelled Order - 2nd Time (409 ORDER_INVALID_TRANSITION)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"[TC5] Status code is 409 Conflict on duplicate cancel\", function () {",
                   "    pm.expect([400, 409]).to.include(pm.response.code);",
                   "});",
                   ""
@@ -1470,7 +2565,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{customerToken}}",
+                "value": "Bearer {{customerBToken}}",
                 "type": "text"
               }
             ],
@@ -1486,23 +2581,404 @@
               ]
             }
           }
+        },
+        {
+          "name": "22. [TC5] Verify Stock Released Exactly Once (No Double Restock on Duplicate Cancel)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC5] Stock released EXACTLY ONCE (not incremented a second time)\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cup = items.find((i) => i.code === (getVar(\"cupCode\") || \"CUP_S\"));",
+                  "    pm.expect(cup.stockQuantity).to.eql(Number(getVar(\"cupStockBeforeCancelFlow\")));",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "23. [TC6] Verify Single-Use Coupon Released & Usable Again After Order Cancel",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC6] Coupon status transitioned RESERVED -> RELEASED on cancel\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.code).to.eql(\"BREW10-TEST01\");",
+                  "    pm.expect(jsonData.data.discountAmount).to.eql(5000);",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/coupons/validate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "coupons",
+                "validate"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"BREW10-TEST01\",\n  \"subtotal\": 50000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
         }
       ]
     },
     {
-      "name": "6. Payments",
+      "name": "6. Payments, Failure & Retry Guarantees (TC7)",
       "item": [
         {
-          "name": "01. Process Payment - E_WALLET (Success)",
+          "name": "01. [TC7 Prep] Snapshot Stock Before Payment Failure & Retry Flow",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Snapshots cupStockBeforePayment (already reserved during order creation)\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cup = items.find((i) => i.code === (getVar(\"cupCode\") || \"CUP_S\"));",
+                  "    setVar(\"cupStockBeforePayment\", String(cup.stockQuantity));",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "02. [TC7] Pay with CARD -> Deterministic Failure (status=FAILED, order=PAYMENT_FAILED)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "exec": [
                   "",
-                  "const key = \"idem_pay_\" + Date.now();",
-                  "pm.environment.set(\"paymentIdempotencyKey\", key);",
-                  "pm.collectionVariables.set(\"paymentIdempotencyKey\", key);",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "const key = \"idem_fail_card_\" + Date.now();",
+                  "setVar(\"failedPaymentKey\", key);",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"Status code is 200 OK (requires NODE_ENV=test & MOCK_PAYMENT_MODE=deterministic)\", function () {",
+                  "    if (pm.response.code === 400) {",
+                  "        pm.expect.fail(\"Server đang tắt Mock Gateway (400 PAYMENT_METHOD_UNSUPPORTED). Hãy đặt NODE_ENV=test và MOCK_PAYMENT_MODE=deterministic trong .env để test kịch bản CARD thất bại -> E_WALLET retry.\");",
+                  "    }",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC7] First payment attempt fails deterministically without losing order\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.success).to.be.false;",
+                  "    pm.expect(jsonData.data.isRetried).to.be.false;",
+                  "    pm.expect(jsonData.data.status).to.eql(\"FAILED\");",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{failedPaymentKey}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"method\": \"CARD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "03. [TC7] Replay Failed Payment Key -> Idempotent Replay (No Duplicate Attempt)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC7] Replaying failed Idempotency-Key returns cached FAILED (isRetried=true)\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.success).to.be.false;",
+                  "    pm.expect(jsonData.data.isRetried).to.be.true;",
+                  "    pm.expect(jsonData.data.status).to.eql(\"FAILED\");",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{failedPaymentKey}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"method\": \"CARD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "04. [TC7] Verify Same Order Kept in PAYMENT_FAILED State",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC7] Same orderId preserved in PAYMENT_FAILED status for retry\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.id).to.eql(getVar(\"orderId\"));",
+                  "    pm.expect(jsonData.data.status).to.eql(\"PAYMENT_FAILED\");",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/orders/{{orderId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "orders",
+                "{{orderId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "05. [TC7] Retry Payment on SAME Order with New Key (E_WALLET -> SUCCEEDED)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "const key = \"idem_retry_ewallet_\" + Date.now();",
+                  "setVar(\"paymentIdempotencyKey\", key);",
                   ""
                 ],
                 "type": "text/javascript"
@@ -1516,10 +2992,11 @@
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Payment processed successfully and order is PAID\", function () {",
+                  "pm.test(\"[TC7] Retry with new Idempotency-Key succeeds on the exact same order\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data.success).to.be.true;",
-                  "    pm.expect([\"SUCCEEDED\", \"PROCESSING\"]).to.include(jsonData.data.status);",
+                  "    pm.expect(jsonData.data.isRetried).to.be.false;",
+                  "    pm.expect(jsonData.data.status).to.eql(\"SUCCEEDED\");",
                   "});",
                   ""
                 ],
@@ -1567,7 +3044,7 @@
           }
         },
         {
-          "name": "02. Process Payment - Idempotent Replay (Same Key)",
+          "name": "06. [TC7] Replay Successful Payment Key -> Idempotent Replay (No Duplicate Payment)",
           "event": [
             {
               "listen": "test",
@@ -1577,10 +3054,11 @@
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Returns idempotent payment replay without error\", function () {",
+                  "pm.test(\"[TC7] Returns idempotent payment replay without double-charging\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data.success).to.be.true;",
                   "    pm.expect(jsonData.data.isRetried).to.be.true;",
+                  "    pm.expect(jsonData.data.status).to.eql(\"SUCCEEDED\");",
                   "});",
                   ""
                 ],
@@ -1628,7 +3106,7 @@
           }
         },
         {
-          "name": "03. Get Payment Status by Idempotency Key",
+          "name": "07. Get Payment Status by Idempotency Key",
           "event": [
             {
               "listen": "test",
@@ -1638,7 +3116,7 @@
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Returns accurate payment record\", function () {",
+                  "pm.test(\"Returns accurate SUCCEEDED payment record\", function () {",
                   "    var jsonData = pm.response.json();",
                   "    pm.expect(jsonData.data.success).to.be.true;",
                   "    pm.expect(jsonData.data.status).to.eql(\"SUCCEEDED\");",
@@ -1681,22 +3159,33 @@
           }
         },
         {
-          "name": "04. Fetch Order Detail to Extract Payment ID",
+          "name": "08. [TC7] Verify Order PAID, Timeline Transitions & Extract Payment ID",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
-                  "pm.test(\"Extracts payment ID from payment summary\", function () {",
+                  "pm.test(\"[TC7] Order is PAID with full PENDING -> PAYMENT_FAILED -> PENDING -> PAID timeline\", function () {",
                   "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.id).to.eql(getVar(\"orderId\"));",
+                  "    pm.expect(jsonData.data.status).to.eql(\"PAID\");",
                   "    pm.expect(jsonData.data.paymentSummary).to.be.an(\"object\").that.is.not.null;",
-                  "    pm.expect(jsonData.data.paymentSummary).to.have.property(\"id\");",
-                  "    pm.environment.set(\"paymentId\", jsonData.data.paymentSummary.id);",
-                  "    pm.collectionVariables.set(\"paymentId\", jsonData.data.paymentSummary.id);",
+                  "    pm.expect(jsonData.data.paymentSummary.status).to.eql(\"SUCCEEDED\");",
+                  "",
+                  "    const statuses = (jsonData.data.timeline || []).map((t) => t.toStatus);",
+                  "    pm.expect(statuses).to.eql([\"PENDING\", \"PAYMENT_FAILED\", \"PENDING\", \"PAID\"]);",
+                  "",
+                  "    setVar(\"paymentId\", jsonData.data.paymentSummary.id);",
                   "});",
                   ""
                 ],
@@ -1731,7 +3220,67 @@
           }
         },
         {
-          "name": "05. Get Payment Status - Missing Idempotency Key (400)",
+          "name": "09. [TC7] Verify Stock Was NOT Deducted a Second Time During Fail + Retry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"[TC7] Cup stock equals cupStockBeforePayment (reservation consumed, NOT deducted twice)\", function () {",
+                  "    const items = pm.response.json().data;",
+                  "    const cup = items.find((i) => i.code === (getVar(\"cupCode\") || \"CUP_S\"));",
+                  "    pm.expect(cup.stockQuantity).to.eql(Number(getVar(\"cupStockBeforePayment\")));",
+                  "});",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/inventory?limit=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "inventory"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "10. Get Payment Status - Missing Idempotency Key (400)",
           "event": [
             {
               "listen": "test",
@@ -1774,16 +3323,20 @@
           }
         },
         {
-          "name": "06. Process Payment - Re-pay Already Paid Order (400/409)",
+          "name": "11. [TC7] Re-pay Already PAID Order with New Key -> Rejected (409 ORDER_ALREADY_PAID)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "exec": [
                   "",
-                  "const newKey = \"idem_new_pay_\" + Date.now();",
-                  "pm.environment.set(\"newPayKey\", newKey);",
-                  "pm.collectionVariables.set(\"newPayKey\", newKey);",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "setVar(\"newPayKey\", \"idem_new_pay_\" + Date.now());",
                   ""
                 ],
                 "type": "text/javascript"
@@ -1794,7 +3347,7 @@
               "script": {
                 "exec": [
                   "",
-                  "pm.test(\"Status code is 400 or 409\", function () {",
+                  "pm.test(\"[TC7] Status code is 409 Conflict (ORDER_ALREADY_PAID)\", function () {",
                   "    pm.expect([400, 409]).to.include(pm.response.code);",
                   "});",
                   ""
@@ -1843,7 +3396,7 @@
           }
         },
         {
-          "name": "07. VNPay Return Redirect Endpoint",
+          "name": "12. VNPay Return Redirect Endpoint",
           "event": [
             {
               "listen": "test",
@@ -1888,7 +3441,7 @@
           }
         },
         {
-          "name": "08. VNPay IPN Webhook Endpoint",
+          "name": "13. VNPay IPN Webhook Endpoint",
           "event": [
             {
               "listen": "test",
@@ -1931,7 +3484,7 @@
           }
         },
         {
-          "name": "09. Operator Recovery - Customer Forbidden (403)",
+          "name": "14. Operator Recovery - Customer Forbidden (403)",
           "event": [
             {
               "listen": "test",
@@ -1989,7 +3542,7 @@
           }
         },
         {
-          "name": "10. Operator Recovery - Missing Idempotency-Key (400)",
+          "name": "15. Operator Recovery - Missing Idempotency-Key (400)",
           "event": [
             {
               "listen": "test",
@@ -2042,16 +3595,20 @@
           }
         },
         {
-          "name": "11. Operator Recovery - Non-VNPAY Payment Conflict (409)",
+          "name": "16. Operator Recovery - Non-VNPAY Payment Conflict (409)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "exec": [
                   "",
-                  "const recKey = \"rec_op_\" + Date.now();",
-                  "pm.environment.set(\"operatorRecKey\", recKey);",
-                  "pm.collectionVariables.set(\"operatorRecKey\", recKey);",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "setVar(\"operatorRecKey\", \"rec_op_\" + Date.now());",
                   ""
                 ],
                 "type": "text/javascript"
@@ -2113,7 +3670,7 @@
           }
         },
         {
-          "name": "12. Operator Recovery Resolution - Customer Forbidden (403)",
+          "name": "17. Operator Recovery Resolution - Customer Forbidden (403)",
           "event": [
             {
               "listen": "test",
@@ -2172,16 +3729,20 @@
           }
         },
         {
-          "name": "13. Operator Recovery Resolution - Non-VNPAY Payment Conflict (409)",
+          "name": "18. Operator Recovery Resolution - Non-VNPAY Payment Conflict (409)",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "exec": [
                   "",
-                  "const resKey = \"res_op_\" + Date.now();",
-                  "pm.environment.set(\"operatorResKey\", resKey);",
-                  "pm.collectionVariables.set(\"operatorResKey\", resKey);",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
+                  "setVar(\"operatorResKey\", \"res_op_\" + Date.now());",
                   ""
                 ],
                 "type": "text/javascript"
@@ -2526,6 +4087,12 @@
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
@@ -2533,8 +4100,7 @@
                   "    var jsonData = pm.response.json();",
                   "    const items = jsonData.data || [];",
                   "    pm.expect(items).to.be.an(\"array\").that.is.not.empty;",
-                  "    pm.environment.set(\"ingredientId\", items[0].id);",
-                  "    pm.collectionVariables.set(\"ingredientId\", items[0].id);",
+                  "    setVar(\"ingredientId\", items[0].id);",
                   "});",
                   ""
                 ],
@@ -2576,12 +4142,18 @@
               "script": {
                 "exec": [
                   "",
+                  "const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);",
+                  "const setVar = (k, v) => {",
+                  "    pm.environment.set(k, v);",
+                  "    pm.collectionVariables.set(k, v);",
+                  "};",
+                  "",
                   "pm.test(\"Status code is 200 OK\", function () {",
                   "    pm.response.to.have.status(200);",
                   "});",
                   "pm.test(\"Ingredient detail matches ID\", function () {",
                   "    var jsonData = pm.response.json();",
-                  "    pm.expect(jsonData.data.id).to.eql(pm.environment.get(\"ingredientId\"));",
+                  "    pm.expect(jsonData.data.id).to.eql(getVar(\"ingredientId\"));",
                   "});",
                   ""
                 ],
@@ -2716,6 +4288,178 @@
                 "inventory"
               ]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Recipes & Loyalty",
+      "item": [
+        {
+          "name": "01. Get Staff Recipes (Barista)",
+          "event": [],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{baristaToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/staff/recipes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "staff",
+                "recipes"
+              ]
+            }
+          }
+        },
+        {
+          "name": "02. Get Loyalty Tiers",
+          "event": [],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/loyalty/tiers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "loyalty",
+                "tiers"
+              ]
+            }
+          }
+        },
+        {
+          "name": "03. Get My Loyalty Overview",
+          "event": [],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/loyalty/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "loyalty",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "04. Redeem Loyalty Points",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "",
+                  "if (!pm.collectionVariables.get('loyaltyIdempotencyKey')) {",
+                  "    pm.collectionVariables.set('loyaltyIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));",
+                  "}",
+                  ""
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{loyaltyIdempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/loyalty/redeem",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "loyalty",
+                "redeem"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tierId\": \"10000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Redeems points and creates a coupon. Requires sufficient points. Reuse the same Idempotency-Key for retries. Clear collection variable loyaltyIdempotencyKey before starting a new redemption."
+          }
+        },
+        {
+          "name": "05. Simulate VNPay IPN (NODE_ENV=test only)",
+          "event": [],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/payments/test/vnpay/simulate-ipn",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "payments",
+                "test",
+                "vnpay",
+                "simulate-ipn"
+              ]
+            },
+            "description": "Available only when NODE_ENV=test. Add the signed VNPay IPN query parameters, including vnp_SecureHash, from the test gateway. An empty or invalid payload does not simulate a successful payment."
           }
         }
       ]

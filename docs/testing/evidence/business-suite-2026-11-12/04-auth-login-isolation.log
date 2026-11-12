@@ -1,0 +1,30 @@
+◇ nạp biến môi trường (9) từ .env
+
+ CHẠY  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | test/auth.e2e-spec.ts
+◇ nạp biến môi trường (0) từ .env
+
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối khi thiếu token mà không truy vấn người dùng 17ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > đăng nhập bằng thông tin bcrypt và trả về JWT verify được trong envelope data 72ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > trả cùng lỗi 401 khi tài khoản không tồn tại 4ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối sai mật khẩu mà không tiết lộ thông tin nào bị sai 70ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối tài khoản bị khóa sau khi đã verify mật khẩu 63ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối token sai định dạng 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối claim hoặc chữ ký không hợp lệ: {"expiresIn":-1} 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối claim hoặc chữ ký không hợp lệ: {"secret":"wrong-signature-key"} 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối claim hoặc chữ ký không hợp lệ: {"issuer":"wrong-issuer"} 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối claim hoặc chữ ký không hợp lệ: {"audience":"wrong-audience"} 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > từ chối token đã ký nhưng không có subject 6ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > dùng subject của JWT cho hồ sơ và không bao giờ lộ mã băm mật khẩu 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > định dạng lỗi 401 theo envelope UNAUTHORIZED chuẩn khi chưa xác thực 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > RBAC & Guard quyền sở hữu (Cô lập người dùng) > cho phép CUSTOMER đọc dữ liệu của chính mình qua /auth/users/:userId 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > RBAC & Guard quyền sở hữu (Cô lập người dùng) > chặn CUSTOMER đọc dữ liệu người dùng khác qua /auth/users/:userId với FORBIDDEN_RESOURCE 2ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > RBAC & Guard quyền sở hữu (Cô lập người dùng) > cho phép BARISTA đọc dữ liệu của người dùng bất kỳ qua /auth/users/:userId (vai trò nâng cao) 3ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > RBAC & Guard quyền sở hữu (Cô lập người dùng) > chặn CUSTOMER truy cập route chỉ dành cho BARISTA với FORBIDDEN_RESOURCE 2ms
+ ✓ test/auth.e2e-spec.ts > Guard JWT và người dùng hiện tại (HTTP) > RBAC & Guard quyền sở hữu (Cô lập người dùng) > cho phép BARISTA truy cập route chỉ dành cho BARISTA 3ms
+
+ Tệp test  1 đạt (1)
+      Test  18 đạt (18)
+   Bắt đầu lúc  09:10:43
+   Thời lượng  2.72s (biên dịch 594ms, thiết lập 0ms, nạp 2.08s, chạy test 473ms, môi trường 0ms)

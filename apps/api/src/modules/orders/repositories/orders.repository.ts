@@ -186,7 +186,6 @@ async updateStatusWithHistory(
     });
   };
 
-  // Náº¿u Ä‘Ã£ cÃ³ transaction thÃ¬ sá»­ dá»¥ng transaction Ä‘Ã³.
   if (tx) {
     return execute(tx);
   }

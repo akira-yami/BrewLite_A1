@@ -12,7 +12,7 @@ import { OrderStatus } from '../../../generated/prisma/client.js';
  *
  * COMPLETED và CANCELLED là trạng thái kết thúc.
  */
-export const ORDER_TRANSITIONS: Readonly<
+export const ORDER_TRANSITIONS: Readonly< // Linh hồn của file này
   Record<OrderStatus, readonly OrderStatus[]>
 > = {
   [OrderStatus.PENDING]: [
@@ -66,7 +66,9 @@ export function assertTransition(from: OrderStatus, to: OrderStatus): void {
   });
 }
 
-/** Lý do ghi vào lịch sử trạng thái cho từng bước của barista. */
+/** Lý do ghi vào lịch sử trạng thái cho từng bước của barista.
+ * Sau này nếu team lỡ thêm trạng thái khác vào thì nó sẽ báo lỗi
+ */
 export const BARISTA_TRANSITION_REASONS: Readonly<
   Record<BaristaTargetStatus, string>
 > = {

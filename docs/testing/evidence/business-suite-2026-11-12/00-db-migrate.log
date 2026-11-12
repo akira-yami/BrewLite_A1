@@ -1,0 +1,35 @@
+◇ nạp biến môi trường (10) từ .env
+Đã nạp cấu hình Prisma từ prisma.config.ts.
+
+Đã nạp Prisma schema từ prisma\schema.prisma.
+Nguồn dữ liệu "db": cơ sở dữ liệu PostgreSQL "brewlite_foundation_smoke_ci", schema "public" tại "localhost:5434"
+
+Tìm thấy 21 migration trong prisma/migrations
+
+Đang áp dụng migration `20260925100913_init`
+Đang áp dụng migration `20261009090000_foundation_constraints`
+Đang áp dụng migration `20261009110000_customer_barista_roles`
+Đang áp dụng migration `20261010090000_order_item_sugar_ice_levels`
+Đang áp dụng migration `20261010100000_order_item_note`
+Đang áp dụng migration `20261011112900_preserve_barista_role_mapping`
+Đang áp dụng migration `20261011113000_unify_user_admin_roles`
+Đang áp dụng migration `20261011120000_restore_customer_barista_roles`
+Đang áp dụng migration `20261101090000_ingredient_recipe_inventory`
+Đang áp dụng migration `20261101100000_topping_recipe`
+Đang áp dụng migration `20261101130000_payment_processing_guard`
+Đang áp dụng migration `20261102110000_one_processing_payment_per_order`
+Đang áp dụng migration `20261103030000_dedupe_payment_processing_index`
+Đang áp dụng migration `20261103040000_drop_misspelled_duplicate_payment_index`
+Đang áp dụng migration `20261103130000_add_vnpay_gateway_support`
+Đang áp dụng migration `20261104100000_payment_recovery_enums`
+Đang áp dụng migration `20261104100100_payment_recovery_audit`
+Đang áp dụng migration `20261104100200_payment_recovery_resolution_enums`
+Đang áp dụng migration `20261104100300_payment_recovery_resolutions`
+Đang áp dụng migration `20261105181937_add_sla_ratification_tables`
+Lỗi: P3015
+
+Không tìm thấy tệp migration tại migration.sql. Vui lòng xóa thư mục hoặc khôi phục lại tệp migration.
+
+Ghi chú: 20/21 migration áp dụng thành công; toàn bộ 28 bảng (gồm cả nhóm bảng SLA) đã được tạo đầy đủ.
+Lỗi P3015 chỉ do OneDrive khóa tệp migration.sql khi đọc nên bản ghi migration cuối chưa được chốt,
+không ảnh hưởng tới các test vì test kết nối trực tiếp qua SMOKE_DATABASE_URL.

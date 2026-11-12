@@ -70,9 +70,9 @@ export class OrdersService {
       try {
         return await this.prisma.$transaction(
           async (tx) => {
-            await this.users.assertActiveCustomer(tx, userId);
+            await this.users.assertActiveCustomer(tx, userId); // Kiểm tra tài khoản userId có tồn tại và đang hoạt động (không bị khóa) hay không.
             const now = new Date();
-            const reservationExpiresAt = new Date(
+            const reservationExpiresAt = new Date(  // thời điểm hiện tại + số phút cấu hình (ví dụ: 15 phút để khách thanh toán, quá hạn cronjob sẽ thu hồi).
               now.getTime() +
                 this.config.orderReservationTtlMinutes * 60 * 1000,
             );
@@ -151,12 +151,13 @@ export class OrdersService {
               },
             });
 
-            await this.inventory.reserve(
+            // Diễn ra va chạm nếu 2 người cùng đặt 1 món cùng lúc
+            await this.inventory.reserve( // Khóa/trừ tạm lượng nguyên liệu theo needs bằng cơ chế Optimistic Locking (kiểm tra version của nguyên liệu).
               tx,
               order.id,
               reservationExpiresAt,
               needs,
-            );
+            ); // Lỗi thì ném ra InventoryVersionConflict
 
             // 3.6. Giữ lượt dùng mã giảm giá (CouponRedemption) nếu có
             if (couponQuote) {
@@ -255,7 +256,7 @@ export class OrdersService {
       createdAt: order.createdAt.toISOString(),
     }));
   }
-
+  // phân trang lịch sử đơn hàng của khách theo kỹ thuật Cursor-based Pagination (phân trang bằng con trỏ) thay vì dùng page và offset truyền thống.
   async getMyOrdersPage(userId: string, query: OrderHistoryQueryDto) {
     const limit = query.limit ?? 20;
     const rows = await this.repository.findOrdersPage(userId, query);
@@ -356,6 +357,7 @@ export class OrdersService {
   // =====================================================================
 
   /** Hàng đợi đơn đã thanh toán và đang xử lý, đơn chờ lâu nhất đứng đầu. */
+  // Cung cấp danh sách đơn hàng
   async getStaffQueue(
     query: StaffOrdersQueryDto,
     baristaId: string,
@@ -374,6 +376,7 @@ export class OrdersService {
    * Khóa dòng đơn, kiểm tra luật chuyển trạng thái rồi ghi lịch sử trong cùng
    * transaction. Hai barista bấm cùng lúc thì người đến sau nhận 409.
    */
+  // Hàm này có cơ chế chống xung đột khi nhiều barista cùng đặt 1 món
   async advanceOrderStatus(
     orderId: string,
     baristaId: string,
@@ -382,7 +385,7 @@ export class OrdersService {
     return this.prisma.$transaction(async (tx) => {
       await this.users.assertActiveBarista(tx, baristaId);
 
-      const order = await this.repository.lockById(orderId, tx);
+      const order = await this.repository.lockById(orderId, tx); // Khóa cứng dòng đơn hàng, chốt chặn đồng thời
       if (!order) {
         throw new NotFoundException({
           error: {
@@ -392,9 +395,9 @@ export class OrdersService {
         });
       }
 
-      assertTransition(order.status, toStatus);
+      assertTransition(order.status, toStatus); // Kiểm tra luật chuyển trạng thái
 
-      await this.repository.updateStatusWithHistory(
+      await this.repository.updateStatusWithHistory( // Cập nhật trạng thái và ghi lịch sử đồng bộ
         order.id,
         order.status,
         toStatus,
@@ -426,17 +429,7 @@ export class OrdersService {
     };
   }
 
-  /**
-   * Hủy đơn hàng — dùng chung cho cả luồng khách hủy chủ động và cron expiry.
-   *
-   * Khi `tx` được cung cấp (ví dụ: cron expiry gọi từ bên trong transaction của
-   * nó), thao tác chạy trong transaction đó.  Khi không có `tx`, hàm tự mở một
-   * transaction mới (luồng khách hủy qua HTTP).
-   *
-   * @param reason   Lý do hủy ghi vào lịch sử trạng thái.
-   * @param isExpiry true → phân loại reservation là EXPIRED; false → RELEASED.
-   * @param tx       Transaction client tuỳ chọn (cron truyền vào).
-   */
+  // Sắp xếp và gộp đúng món
   private normalizeItems(items: CreateOrderItemDto[]): CreateOrderItemDto[] {
     const grouped = new Map<string, CreateOrderItemDto>();
     for (const item of items) {
@@ -478,6 +471,12 @@ export class OrdersService {
     return [...grouped.values()];
   }
 
+  /*
+  1. Xác thực tính hợp lệ của món và topping
+  2. Quy đổi số lượng ly thành nhu cầu nguyên liệu thô
+  3. Tính tiền an toàn trên server
+  4. Kiểm tra khả năng đáp ứng tồn kho & chuẩn bị snapshot
+  */
   async validateAndPriceItems(
     items: CreateOrderItemDto[],
     tx: Prisma.TransactionClient = this.prisma,
@@ -759,6 +758,10 @@ export class OrdersService {
   // =====================================================================
   // 4. HỦY ĐƠN HÀNG VÀ GIẢI PHÓNG TÀI NGUYÊN (UC-06 / CRONJOB)
   // =====================================================================
+  /*
+  Hàm cancelOrder đảm nhiệm việc hủy đơn hàng và hoàn trả toàn bộ tài nguyên đã giữ chỗ (nguyên liệu trong kho + lượt dùng mã giảm giá) một cách nguyên tử.
+  */
+
   async cancelOrder(
     orderId: string,
     userId: string,

@@ -1,0 +1,18 @@
+◇ nạp biến môi trường (9) từ .env
+
+ CHẠY  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | test/inventory-concurrency.integration-spec.ts
+◇ nạp biến môi trường (0) từ .env
+
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 tranh chấp tồn kho trên PostgreSQL > release hoàn lại đúng lượng nguyên liệu đã giữ, chỉ một lần 189ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 tranh chấp tồn kho trên PostgreSQL > hai release đồng thời: chỉ một cái được hoàn nguyên liệu 38ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 tranh chấp tồn kho trên PostgreSQL > reservation quá hạn được đánh dấu hết hạn và hoàn nguyên liệu đúng một lần 36ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 tranh chấp tồn kho trên PostgreSQL > release hoàn đúng lượng đã ghi ngay cả khi công thức đổi sau khi đặt 26ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 tranh chấp tồn kho trên PostgreSQL > consume chuyển reservation ACTIVE sang CONSUMED mà không hoàn nguyên liệu 25ms
+ ✓ test/inventory-concurrency.integration-spec.ts > SD-13 tranh chấp tồn kho trên PostgreSQL > hai reservation đồng thời cho ly cuối cùng > chỉ một bên giữ được ly cuối 11ms
+
+ Tệp test  1 đạt (1)
+      Test  6 đạt (6)
+   Bắt đầu lúc  09:09:59
+   Thời lượng  2.04s (biên dịch 132ms, thiết lập 0ms, nạp 1.36s, chạy test 342ms, môi trường 0ms)

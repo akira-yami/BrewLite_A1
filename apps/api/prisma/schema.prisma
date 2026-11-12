@@ -94,6 +94,7 @@ enum LoyaltyTransactionType {
   REDEEM
   ADJUSTMENT
   REVERSAL
+  REFUND_CREDIT
 }
 
 model User {

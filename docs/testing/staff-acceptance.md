@@ -1,5 +1,10 @@
 # Nghiệm thu Compose, state machine, Barista và quản lý kho
 
+> **Ghi chú phạm vi.** File này tập trung vào **nghiệm thu Docker Compose, luồng Barista và
+> quản lý kho**, với số liệu kiểm chứng chụp ngày 04/11/2026. Bộ test case nghiệp vụ và kết quả
+> chạy mới nhất (cập nhật 12/11/2026) nằm ở [business-test-cases.md](business-test-cases.md).
+> Các con số test trong file này thuộc đợt 04/11 và có thể khác bộ chạy mới nhất.
+
 **Điều chỉnh quyền:** Barista chỉ xem/tìm/lọc kho; không sửa số lượng. PATCH tồn kho luôn trả 403. Các kết quả kiểm chứng cập nhật kho dưới đây là lịch sử trước thay đổi quyền, không còn là tiêu chí chấp nhận hiện hành.
 
 Phạm vi đối chiếu: A1-9.5, A1-10.2, EXT-UC10 và EXT quản lý kho theo yêu cầu nhóm ngày 04/11/2026.

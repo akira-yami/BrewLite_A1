@@ -1,4 +1,9 @@
-# BrewLite · Bằng chứng kiểm thử Assignment 1
+# BrewLite · Bằng chứng kiểm thử Assignment 1 (Task 10)
+
+> **Ghi chú phạm vi.** File này là bản trình bày gọn **3 ca trọng tâm của Task 10** cho buổi
+> nghiệm thu, chụp ngày 10/11/2026. Bộ test case đầy đủ và kết quả chạy toàn diện mới nhất
+> (cập nhật 12/11/2026) nằm ở [business-test-cases.md](business-test-cases.md). Ba ca dưới đây
+> là tập con của bộ đầy đủ đó.
 
 **Kết quả ngày 10/11/2026 lúc 20:30 (UTC+7)** — 41/41 integration test PASS trên PostgreSQL thử nghiệm. Lần chạy dùng commit nền `100d2d7` và có thêm ca thanh toán lặp trong mã nguồn local.
 

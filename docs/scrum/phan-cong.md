@@ -1,98 +1,74 @@
-# Phân công công việc BrewLite
+# Sprint Backlog và phân công
 
-Cập nhật ngày 04/11/2026 theo chương 2, bảng 2.1–2.5 của báo cáo `BrewLite-Report/report/build/main.pdf` (trang in 3–4, trang PDF 5–6). Giữ nguyên 41 đầu việc, thứ tự và lịch trong báo cáo; áp dụng điều chỉnh của nhóm: **STT 41 – Giao diện quản lý kho nguyên liệu chuyển từ Khải sang Khang**.
+## Sprint 1 · Tuần 1 (05–11/10/2026)
 
-PDF được cung cấp chỉ có tuần 1–5, không có tuần 10. Mục EXT của Khải được xác định là STT 41; không tự thêm mốc tuần 10. STT 38 (máy trạng thái đơn hàng) và STT 39 (giao diện nhân viên) vốn đã giao Khang trong PDF và được giữ nguyên.
+| Thẻ | Công việc | Phụ trách | Review | Hạn (UTC+7) | Trạng thái Trello |
+|---|---|---|---|---|---|
+| [A1-1.1](https://trello.com/c/DrrFi5eK) | Repository và khung API NestJS | Khang | Huy | 11/10/2026 | Đã đánh dấu xong |
+| [A1-1.2](https://trello.com/c/eZd1XUHH) | Khởi tạo Next.js và kết nối backend | Khang | Huy | 11/10/2026 | Đã đánh dấu xong |
+| [A1-1.3](https://trello.com/c/9hSaaYjq) | Kết nối PostgreSQL/Prisma và dữ liệu mẫu | Hoàng | Khang | 11/10/2026 | Đã đánh dấu xong |
+| [A1-1.4](https://trello.com/c/es5MlDuG) | Env mẫu, lint/build và hướng dẫn môi trường | Khang | Huy | 11/10/2026 | Đã đánh dấu xong |
+| [A1-2.1](https://trello.com/c/CSlHeoFy) | Contract Product và GET /products | Khang | Kiệt | 11/10/2026 | Đã đánh dấu xong |
+| [A1-2.2](https://trello.com/c/efiH6ZsB) | Seed menu và API GET /products | Hoàng | Khải | 11/10/2026 | Đã đánh dấu xong |
+| [A1-2.3](https://trello.com/c/dVDvr2KJ) | Kiểm thử API danh sách sản phẩm | Hoàng | Khải | 11/10/2026 | Đã đánh dấu xong |
+| [A1-3.1](https://trello.com/c/YUoFJNiV) | Lưới menu và thẻ đồ uống mobile-first | Hoàng | Khải | 11/10/2026 | Đã đánh dấu xong |
+| [A1-3.2](https://trello.com/c/QxkSUp08) | Tích hợp API thật vào Menu | Hoàng | Khải | 11/10/2026 | Đã đánh dấu xong |
+| [A1-3.3](https://trello.com/c/2SSr8IHl) | Loading, empty, error và retry của Menu | Hoàng | Khải | 11/10/2026 | Đã đánh dấu xong |
+| [A1-7.1](https://trello.com/c/aq5UIFJP) | Register/Login, bcrypt và JWT | Huy | Khang | 11/10/2026 | Đã đánh dấu xong |
+| [A1-10.1](https://trello.com/c/GvTKLkG9) | Thiết kế Order State Machine | Khang | Kiệt | 11/10/2026 | Đã đánh dấu xong |
 
-Đây là bản phân công hiện hành trong docs. [Đối chiếu Trello ngày 03/11](team-assignment-analysis-2026-11-03.md) và [audit ngày 03/11](trello-audit-2026-11-03.md) là hồ sơ lịch sử, có thể khác phân công dưới đây. Bản này ghi người chịu trách nhiệm đầu ra; không suy trạng thái hoàn thành hoặc tỷ lệ đóng góp từ số đầu việc. Bản PDF nguồn chưa được sửa trong lần cập nhật docs này.
+## Sprint 1 · Tuần 2 (12–18/10/2026)
 
-## Tổng hợp người phụ trách
+| Thẻ | Công việc | Phụ trách | Review | Hạn (UTC+7) | Trạng thái Trello |
+|---|---|---|---|---|---|
+| [A1-4.1](https://trello.com/c/xkd7E0tJ) | Product Detail API và tùy chọn hợp lệ | Hoàng | Khang | 18/10/2026 | Đã đánh dấu xong |
+| [A1-4.2](https://trello.com/c/SB0AOTTL) | Detail UI, size/topping và giá tạm tính | Khải | Hoàng | 18/10/2026 | Đã đánh dấu xong |
+| [A1-4.3](https://trello.com/c/ZwZt7rKc) | Kiểm thử API tùy chọn và giá sản phẩm | Hoàng | Khang | 18/10/2026 | Đã đánh dấu xong |
+| [A1-5.1](https://trello.com/c/WupVKBh8) | Cart store thêm/sửa/xóa và persist | Khải | Hoàng | 18/10/2026 | Đã đánh dấu xong |
+| [A1-5.2](https://trello.com/c/9iM6qGgW) | Định danh dòng giỏ và tính tổng | Khải | Hoàng | 18/10/2026 | Đã đánh dấu xong |
+| [A1-5.3](https://trello.com/c/1S6eKGuu) | Kiểm thử phép tính và khôi phục giỏ | Khải | Hoàng | 18/10/2026 | Đã đánh dấu xong |
+| [A1-7.2](https://trello.com/c/7AOw8fhr) | Auth UI, phiên, logout và 401 | Huy | Khải | 18/10/2026 | Đã đánh dấu xong |
+| [SCRUM-S1](https://trello.com/c/0giU3eGX) | Review/Retro và hồ sơ Sprint | Khang | Khải | 18/10/2026 | Đã đánh dấu xong |
 
-| Thành viên | Số đầu việc | STT |
-|---|---:|---|
-| Khang | 15 | 1, 2, 4, 5, 12, 20, 21, 22, 29, 34, 37, 38, 39, 40, 41 |
-| Hoàng | 10 | 3, 6, 7, 8, 9, 10, 13, 15, 32, 35 |
-| Huy | 6 | 11, 19, 23, 24, 33, 36 |
-| Khải | 6 | 14, 16, 17, 18, 25, 30 |
-| Kiệt | 4 | 26, 27, 28, 31 |
-| **Tổng** | **41** | **1–41** |
+## Sprint 2 · Tuần 3 (19–25/10/2026)
 
-## Sprint 1 – Nền tảng, menu và chi tiết sản phẩm
+| Thẻ | Công việc | Phụ trách | Review | Hạn (UTC+7) | Trạng thái Trello |
+|---|---|---|---|---|---|
+| [A1-6.1](https://trello.com/c/HrLMG1mj) | POST /orders, giá server và PENDING | Khang | Hoàng | 25/10/2026 | Đã đánh dấu xong |
+| [A1-6.2](https://trello.com/c/aMZs6kjK) | Order snapshot, transaction và rollback | Khang | Hoàng | 25/10/2026 | Đã đánh dấu xong |
+| [A1-6.3](https://trello.com/c/Qkv7yk5f) | JWT, validation và chủ sở hữu đơn | Huy | Khải | 25/10/2026 | Đã đánh dấu xong |
+| [A1-7.3](https://trello.com/c/bsH9dcpQ) | Bảo vệ API đặt đơn và token an toàn | Huy | Khải | 25/10/2026 | Đã đánh dấu xong |
+| [A1-8.2](https://trello.com/c/Kgh0oBeh) | Checkout UI và xử lý payment outcome | Khải | Khang | 25/10/2026 | Đã đánh dấu xong |
+| [A1-10.5](https://trello.com/c/PhR3V7EO) | Coupon validation và retry an toàn | Kiệt | Huy | 25/10/2026 | Đã đánh dấu xong |
 
-### Giai đoạn 05/10–11/10/2026
+## Sprint 2 · Tuần 4 (26/10–01/11/2026)
 
-| STT | Công việc | Phụ trách |
-|---|---|---|
-| 1 | Khởi tạo kho mã nguồn và khung ứng dụng máy chủ | Khang |
-| 2 | Khởi tạo ứng dụng Next.js và kết nối máy chủ | Khang |
-| 3 | Kết nối cơ sở dữ liệu và chuẩn bị dữ liệu mẫu | Hoàng |
-| 4 | Cấu hình môi trường, kiểm tra mã nguồn và hướng dẫn cài đặt | Khang |
-| 5 | Đặc tả dữ liệu và giao diện lập trình danh sách sản phẩm | Khang |
-| 6 | Dữ liệu thực đơn và chức năng truy xuất sản phẩm | Hoàng |
-| 7 | Kiểm thử chức năng truy xuất danh sách sản phẩm | Hoàng |
-| 8 | Giao diện thực đơn cho thiết bị di động | Hoàng |
-| 9 | Tích hợp dữ liệu sản phẩm vào giao diện thực đơn | Hoàng |
-| 10 | Xử lý trạng thái tải, dữ liệu rỗng, lỗi và thử lại | Hoàng |
-| 11 | Đăng ký, đăng nhập và xác thực tài khoản | Huy |
-| 12 | Thiết kế máy trạng thái đơn hàng | Khang |
+| Thẻ | Công việc | Phụ trách | Review | Hạn (UTC+7) | Trạng thái Trello |
+|---|---|---|---|---|---|
+| [A1-8.1](https://trello.com/c/bHBZtpqi) | Mock gateway và POST /payments | Kiệt | Khang | 01/11/2026 | Đã đánh dấu xong |
+| [A1-8.3](https://trello.com/c/1bSGmT0h) | PAID/PAYMENT_FAILED qua OrdersService | Kiệt | Khang | 01/11/2026 | Đã đánh dấu xong |
+| [A1-9.1](https://trello.com/c/O7RIPi3z) | API lịch sử và chi tiết đơn của tôi | Khang | Huy | 01/11/2026 | Đã đánh dấu xong |
+| [A1-9.2](https://trello.com/c/Rs1BPgRm) | Confirmation và History/Detail UI | Khải | Hoàng | 01/11/2026 | Đã đánh dấu xong |
+| [A1-10.3](https://trello.com/c/xhAGHMxg) | Payment idempotency và chống double-charge | Kiệt | Khang | 01/11/2026 | Đã đánh dấu xong |
+| [A1-10.4](https://trello.com/c/Pu0J19wK) | Inventory reserve/consume/release và concurrency | Hoàng | Khang | 01/11/2026 | Đã đánh dấu xong |
+| [A1-10.6](https://trello.com/c/6fYjlq7H) | Loyalty ledger/balance sau PAID | Huy | Khang | 01/11/2026 | Đã đánh dấu xong |
+| [SCRUM-S2](https://trello.com/c/jWKu9kLZ) | Review/Retro và hồ sơ Sprint | Khang | Khải | 01/11/2026 | Đã đánh dấu xong |
 
-### Giai đoạn 12/10–18/10/2026
+## Sprint 3 · Tuần 5 (02–08/11/2026)
 
-| STT | Công việc | Phụ trách |
-|---|---|---|
-| 13 | Truy xuất chi tiết và tùy chọn sản phẩm | Hoàng |
-| 14 | Giao diện chọn kích cỡ, topping và giá tạm tính | Khải |
-| 15 | Kiểm thử tùy chọn và giá sản phẩm | Hoàng |
-| 16 | Thao tác thêm, sửa, xóa và lưu giỏ hàng | Khải |
-| 17 | Định danh dòng hàng và tính tổng giỏ hàng | Khải |
-| 18 | Kiểm thử tính tiền và khôi phục giỏ hàng | Khải |
-| 19 | Giao diện xác thực và quản lý phiên đăng nhập | Huy |
-| 20 | Tổng kết và hoàn thiện hồ sơ đợt phát triển thứ nhất | Khang |
+| Thẻ | Công việc | Phụ trách | Review | Hạn (UTC+7) | Trạng thái Trello |
+|---|---|---|---|---|---|
+| [A1-9.3](https://trello.com/c/ME9yf6tm) | Migration/seed và dữ liệu demo sạch | Hoàng | Khải | 08/11/2026 | Đã đánh dấu xong |
+| [A1-9.4](https://trello.com/c/5rFozCM5) | Tài khoản demo, bảo mật và hướng dẫn test | Huy | Khang | 08/11/2026 | Đã đánh dấu xong |
+| [A1-9.5](https://trello.com/c/hvWxq8rG) | Docker Compose và README bàn giao | Khang | Hoàng | 08/11/2026 | Đã đánh dấu xong |
+| [A1-10.2](https://trello.com/c/m2aZIei1) | Hiện thực full Order State Machine | Khang | — | 08/11/2026 | Đã đánh dấu xong |
+| [A1-EXT-01](https://trello.com/c/e2h3cxQ7) | Barista UI và cập nhật trạng thái đơn | Khang | — | 08/11/2026 | Đã đánh dấu xong |
+| [A1-EXT-02](https://trello.com/c/Xx3nFrNX) | Quản lý kho (Inventory Management) | Khang | — | 08/11/2026 | Đã đánh dấu xong |
 
-## Sprint 2 – Đặt đơn, thanh toán và lịch sử
+## Sprint 3 · Tuần 6 (09–15/11/2026)
 
-### Giai đoạn 19/10–25/10/2026
+| Thẻ | Công việc | Phụ trách | Review | Hạn (UTC+7) | Trạng thái Trello |
+|---|---|---|---|---|---|
+| [A1-EXT-03](https://trello.com/c/lEsEevGC) | Hoàn tiền khi thanh toán | Kiệt | — | 13/11/2026 | Đã đánh dấu xong |
+| [SCRUM-S3](https://trello.com/c/HZwkHk4o) | Review/Retro và hồ sơ Sprint | Khang | Khải | 15/11/2026 | Chưa đánh dấu xong |
 
-| STT | Công việc | Phụ trách |
-|---|---|---|
-| 21 | Chức năng tạo đơn và xác nhận giá tại máy chủ | Khang |
-| 22 | Lưu thông tin đơn hàng và bảo đảm toàn vẹn giao dịch | Khang |
-| 23 | Kiểm tra dữ liệu và xác thực chủ sở hữu đơn hàng | Huy |
-| 24 | Bảo vệ chức năng đặt đơn và thông tin xác thực | Huy |
-| 25 | Giao diện thanh toán và xử lý kết quả | Khải |
-| 26 | Kiểm tra mã giảm giá và xử lý an toàn khi thử lại | Kiệt |
-
-### Giai đoạn 26/10–01/11/2026
-
-| STT | Công việc | Phụ trách |
-|---|---|---|
-| 27 | Cổng thanh toán giả lập và chức năng thanh toán | Kiệt |
-| 28 | Cập nhật trạng thái đơn theo kết quả thanh toán | Kiệt |
-| 29 | Truy xuất lịch sử và chi tiết đơn hàng | Khang |
-| 30 | Giao diện xác nhận, lịch sử và chi tiết đơn hàng | Khải |
-| 31 | Ngăn giao dịch thanh toán trùng lặp | Kiệt |
-| 32 | Xử lý giữ, sử dụng, hoàn nguyên liệu và truy cập đồng thời | Hoàng |
-| 33 | Ghi nhận giao dịch điểm thưởng và cập nhật số dư | Huy |
-| 34 | Tổng kết và hoàn thiện hồ sơ đợt phát triển thứ hai | Khang |
-
-## Sprint 3 – Hoàn thiện và bàn giao
-
-### Giai đoạn 02/11–08/11/2026
-
-| STT | Công việc | Phụ trách |
-|---|---|---|
-| 35 | Chuẩn bị cấu trúc cơ sở dữ liệu và dữ liệu trình diễn | Hoàng |
-| 36 | Chuẩn bị tài khoản trình diễn và hướng dẫn kiểm tra bảo mật | Huy |
-| 37 | Đóng gói môi trường triển khai và tài liệu bàn giao | Khang |
-| 38 | Hiện thực đầy đủ máy trạng thái đơn hàng | Khang |
-| 39 | Giao diện nhân viên và cập nhật trạng thái đơn | Khang |
-| 40 | Tổng kết và hoàn thiện hồ sơ đợt phát triển thứ ba | Khang |
-| 41 | Giao diện quản lý kho nguyên liệu (EXT; chuyển từ Khải sang Khang) | Khang |
-
-## Điều chỉnh phân công
-
-| STT | Công việc | Trong PDF | Phân công hiện hành | Căn cứ |
-|---|---|---|---|---|
-| 41 | Giao diện quản lý kho nguyên liệu (EXT) | Khải | **Khang** | Yêu cầu trực tiếp của nhóm ngày 04/11/2026 |
-
-Phạm vi STT 41 giữ nguyên tên đầu việc trong báo cáo; chưa bổ sung tiêu chí nghiệm thu hoặc thay đổi lịch. Các đầu việc còn lại giữ nguyên người phụ trách theo PDF. Vai trò PO/SM/Development Team xem tại [vai trò nhóm](team-roles.md); tiêu chuẩn hoàn thành xem [DoD](definition-of-done.md).

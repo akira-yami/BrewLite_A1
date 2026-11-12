@@ -4,9 +4,9 @@ BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền 
 
 ## Hồ sơ Nhóm 7
 
-- [Đề bài gốc](docs/BrewLite-CongNghePhanMem.pdf).
 - [Mục lục tài liệu bàn giao](docs/README.md).
-- [Phân công hiện hành: 41 đầu việc](docs/scrum/phan-cong.md); [đối chiếu lịch sử Trello](docs/scrum/team-assignment-analysis-2026-11-03.md); [audit ngày 03/11/2026](docs/scrum/trello-audit-2026-11-03.md).
+- [Scrum và mốc thời gian](docs/scrum/README.md) · [Sprint Backlog và phân công](docs/scrum/phan-cong.md).
+- Đề bài gốc (PDF) được giữ cục bộ trong `BrewLite-Report/`, không theo dõi trong Git.
 
 Bộ báo cáo PDF/LaTeX trong `BrewLite-Report/` được giữ cục bộ, không theo dõi trong Git. Tài liệu bàn giao, phân công, Scrum và minh chứng được quản lý trong `docs/`; các kết quả kiểm chứng cần đọc cùng ngày chạy và giới hạn ghi trong tài liệu tương ứng.
 
@@ -99,7 +99,7 @@ BrewLite/
 
 ## Chức năng MVP
 
-Đây là phạm vi cần nghiệm thu. Tiêu chí chấp nhận nằm trong [Product Backlog](docs/scrum/product-backlog.md); danh sách này không có nghĩa mọi chức năng đã hoàn thành.
+Đây là phạm vi cần nghiệm thu. Tiêu chí chấp nhận nằm trong các thẻ liên kết từ [Sprint Backlog](docs/scrum/phan-cong.md); danh sách này không có nghĩa mọi chức năng đã hoàn thành.
 
 - Hiển thị menu và chi tiết sản phẩm.
 - Chọn size, topping, mức đường và đá.
@@ -126,15 +126,12 @@ Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào
 
 ## Tài liệu
 
-- [Mục lục và đối chiếu yêu cầu tài liệu theo đề bài](docs/README.md)
-- [Đề bài gốc](docs/BrewLite-CongNghePhanMem.pdf)
+- [Mục lục tài liệu (index)](docs/README.md)
 - [ERD và giải thích mô hình dữ liệu](docs/architecture/erd.md)
 - [ERD PlantUML](database/BrewLite.puml) · [Ảnh ERD](database/BrewLite.png)
-- [Product Backlog](docs/scrum/product-backlog.md)
-- [Sprint 1](docs/scrum/sprint-01.md) · [Sprint 2](docs/scrum/sprint-02.md) · [Sprint 3](docs/scrum/sprint-03.md)
-- [Definition of Done](docs/scrum/definition-of-done.md)
-- [Hồ sơ kiểm chứng ngày 03/11/2026](docs/scrum/trello-audit-2026-11-03.md)
-- [API Barista](docs/api/staff-orders.md)
+- [Tri thức module Order](docs/knowledge/orders-module-knowledge.md)
+- [Scrum, các mốc sprint và Definition of Done](docs/scrum/README.md)
+- [Bộ test case theo nghiệp vụ (hiện hành)](docs/testing/business-test-cases.md)
 - [Vòng đời giữ tồn và dữ liệu demo](docs/testing/reservation-and-demo-seed.md)
 
 ## Khởi chạy dự án
@@ -171,7 +168,7 @@ CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết n�
 
 `OrderItem.note` là ghi chú món tùy chọn, tối đa 500 ký tự sau trim; thiếu/rỗng thành null. UI nhập và hiển thị ghi chú, giỏ persist và tách dòng khác ghi chú; DTO/mapper giữ cùng snapshot, không thay đổi giá. Migration bổ sung riêng giữ đơn cũ với note null.
 
-`OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo DTO/controller trong mã nguồn và [tài liệu API hiện có](docs/api/staff-orders.md).
+`OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo DTO/controller trong mã nguồn và [tri thức module Order](docs/knowledge/orders-module-knowledge.md).
 
 - Backend không tin giá, tổng tiền, user ID hoặc trạng thái do frontend gửi.
 - Tiền lưu bằng số nguyên theo đơn vị VND; không dùng số thực.

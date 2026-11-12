@@ -1,4 +1,7 @@
-# Reservation lifecycle and demo catalog
+# Vòng đời reservation & seed catalog demo
+
+> Cập nhật: 12/11/2026. Tài liệu kỹ thuật viết bằng tiếng Anh (thuật ngữ reservation/expiry/seed);
+> phần tổng quan tiếng Việt xem [bộ test case nghiệp vụ](business-test-cases.md) mục hết hạn thanh toán.
 
 ## Payment and expiry
 

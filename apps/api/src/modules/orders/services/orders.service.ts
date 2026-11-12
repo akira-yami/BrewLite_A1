@@ -923,7 +923,26 @@ export class OrdersService {
       }
 
       // ─────────────────────────────────────────────────────────────────
-      // 1. KIỂM TRA TRẠNG THÁI: CHỈ CHO PHÉP HỦY ĐƠN PAID
+      // 1. IDEMPOTENCY GUARD phải chạy TRƯỚC kiểm tra trạng thái.
+      // Sau lần hủy đầu, Order đã là CANCELLED; retry phải nhận đúng lỗi
+      // REFUND_ALREADY_PROCESSED thay vì ORDER_INVALID_TRANSITION.
+      // Guard chỉ đọc ledger, không thay đổi balance/inventory.
+      // ─────────────────────────────────────────────────────────────────
+      const existingRefund = await client.loyaltyTransaction.findFirst({
+        where: { orderId, type: 'REFUND_CREDIT' },
+        select: { id: true },
+      });
+      if (existingRefund) {
+        throw new ConflictException({
+          error: {
+            code: 'REFUND_ALREADY_PROCESSED',
+            message: 'Đơn hàng này đã được hoàn tiền rồi.',
+          },
+        });
+      }
+
+      // ─────────────────────────────────────────────────────────────────
+      // 2. KIỂM TRA TRẠNG THÁI: CHỈ CHO PHÉP HỦY ĐƠN PAID
       // ─────────────────────────────────────────────────────────────────
       if (order.status !== OrderStatus.PAID) {
         throw new ConflictException({
@@ -948,23 +967,6 @@ export class OrdersService {
           error: {
             code: 'PAYMENT_IN_PROGRESS',
             message: 'Thanh toán đang trong quá trình xử lý thủ công, không thể hủy lúc này.',
-          },
-        });
-      }
-
-      // ─────────────────────────────────────────────────────────────────
-      // 3. IDEMPOTENCY GUARD: Tránh tạo REVERSAL và REFUND_CREDIT lặp lại
-      // nếu transaction này được gọi nhiều lần (double-click, retry mạng).
-      // ─────────────────────────────────────────────────────────────────
-      const existingRefund = await client.loyaltyTransaction.findFirst({
-        where: { orderId, type: 'REFUND_CREDIT' },
-        select: { id: true },
-      });
-      if (existingRefund) {
-        throw new ConflictException({
-          error: {
-            code: 'REFUND_ALREADY_PROCESSED',
-            message: 'Đơn hàng này đã được hoàn tiền rồi.',
           },
         });
       }

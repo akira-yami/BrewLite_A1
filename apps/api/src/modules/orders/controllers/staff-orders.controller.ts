@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Query,
   UseFilters,
   UseGuards,
@@ -17,6 +18,7 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator.js';
 import { Roles } from '../../auth/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../auth/guards/roles.guard.js';
+import { BaristaCanclePaidOrderDto } from '../dto/cancel-paid-order.dto.js';
 import {
   StaffOrdersQueryDto,
   UpdateOrderStatusDto,
@@ -62,5 +64,37 @@ export class StaffOrdersController {
       dto.status,
     );
     return { data };
+  }
+
+  /**
+   * POST /staff/orders/:id/cancel-paid
+   * Barista hủy đơn PAID khi hết nguyên liệu đột xuất hoặc sự cố máy.
+   * Phải cung cấp lý do bắt buộc; hoàn tiền thành Store Credit cho khách.
+   */
+  @Post(':id/cancel-paid')
+  @HttpCode(HttpStatus.OK)
+  async cancelPaidOrder(
+    @Param('id', ParseUUIDPipe) orderId: string,
+    @CurrentUser() user: Principal,
+    @Body() dto: BaristaCanclePaidOrderDto,
+  ) {
+    const result = await this.orders.cancelPaidOrder(
+      orderId,
+      user.id,
+      'BARISTA',
+      dto.reason,
+    );
+    return {
+      data: {
+        orderId: result.orderId,
+        orderNumber: result.orderNumber,
+        status: 'CANCELLED',
+        refund: {
+          refundPoints: result.refundPoints,
+          newLoyaltyBalance: result.newLoyaltyBalance,
+          message: `Đã hoàn ${result.refundPoints.toLocaleString('vi-VN')} điểm vào tài khoản khách hàng.`,
+        },
+      },
+    };
   }
 }

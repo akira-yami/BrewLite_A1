@@ -16,8 +16,8 @@
 1. **Order**: PAID → CANCELLED + ghi `OrderStatusHistory`
 2. **Inventory**: Restore nguyên liệu từ snapshot `InventoryReservationItem` (reservation CONSUMED → RELEASED)
 3. **Coupon**: `CouponRedemption` CONSUMED → RELEASED (mở khóa voucher cho lần sau)
-4. **Loyalty REVERSAL**: Thu hồi điểm EARN đã cộng lúc PAID
-5. **Loyalty REFUND_CREDIT**: Hoàn tiền 1 VND = 1 điểm vào `loyaltyBalance`
+4. **Loyalty REFUND_CREDIT**: Hoàn tiền 1 VND = 1 điểm vào `loyaltyBalance`
+5. **Loyalty REVERSAL**: Sau khi hoàn Store Credit, thu hồi điểm EARN đã cộng lúc PAID
 
 Thêm 2 endpoints riêng biệt theo role:
 - `POST /orders/:id/cancel-paid` — dành cho CUSTOMER
@@ -207,8 +207,8 @@ cancelPaidOrder(orderId, actorId, role, reason)
 ├── BƯỚC 1: Order PAID → CANCELLED + ghi OrderStatusHistory
 ├── BƯỚC 2: InventoryReservation CONSUMED → RELEASED + restore stockQuantity từ snapshot
 ├── BƯỚC 3: CouponRedemption CONSUMED → RELEASED (mở khóa voucher)
-├── BƯỚC 4: Tìm EARN transaction của orderId → tạo REVERSAL (points âm) + decrement loyaltyBalance
-├── BƯỚC 5: Tạo REFUND_CREDIT (points = order.total, 1 VND = 1 điểm) + increment loyaltyBalance
+├── BƯỚC 4: Tạo REFUND_CREDIT (points = order.total, 1 VND = 1 điểm) + increment loyaltyBalance
+├── BƯỚC 5: Tìm EARN transaction của orderId → tạo REVERSAL (points âm) + decrement loyaltyBalance
 ├── BƯỚC 6: Payment SUCCEEDED → REFUNDED
 │
 └── [COMMIT / ROLLBACK nếu có lỗi]

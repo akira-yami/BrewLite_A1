@@ -201,6 +201,13 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
     });
     expect(refundTx).not.toBeNull();
     expect(refundTx!.points).toBe(Number(order.total)); // 1 VND = 1 điểm
+    // Thứ tự nghiệp vụ: REFUND_CREDIT được ghi trước, sau đó mới REVERSAL.
+    expect(refundTx!.balanceAfter).toBe(
+      userBefore.loyaltyBalance + Number(order.total),
+    );
+    expect(reversalTx!.balanceAfter).toBe(
+      refundTx!.balanceAfter + reversalTx!.points,
+    );
 
     // Kiểm tra loyaltyBalance cuối cùng
     // = balance_trước - EARN + (-EARN_âm) + REFUND = balance_trước - EARN + EARN + order.total = balance_trước + order.total

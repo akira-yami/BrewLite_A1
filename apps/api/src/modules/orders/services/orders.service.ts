@@ -873,8 +873,8 @@ export class OrdersService {
    *   1. Chuyển Order: PAID → CANCELLED + ghi OrderStatusHistory
    *   2. Hoàn kho: Restore nguyên liệu từ snapshot của reservation CONSUMED
    *   3. Mở khóa Voucher: CouponRedemption CONSUMED → RELEASED
-   *   4. Thu hồi điểm EARN: Tạo REVERSAL transaction + trừ loyaltyBalance
-   *   5. Cộng Store Credit: Tạo REFUND_CREDIT transaction (1 VND = 1 điểm)
+   *   4. Cộng Store Credit: Tạo REFUND_CREDIT transaction (1 VND = 1 điểm)
+   *   5. Thu hồi điểm EARN: Tạo REVERSAL transaction + trừ loyaltyBalance
    *      + tăng loyaltyBalance
    *
    * Quyền:
@@ -1027,35 +1027,7 @@ export class OrdersService {
       await this.promotionsService.releaseConsumedRedemption(client, orderId);
 
       // ─────────────────────────────────────────────────────────────────
-      // BƯỚC 4/5: Thu hồi điểm EARN — Tạo REVERSAL + decrement loyaltyBalance
-      // Lấy EARN transaction của đơn này (nếu có) và đảo ngược số điểm.
-      // ─────────────────────────────────────────────────────────────────
-      const earnTransaction = await client.loyaltyTransaction.findFirst({
-        where: { orderId, type: 'EARN' },
-        select: { id: true, points: true },
-      });
-
-      if (earnTransaction) {
-        const userAfterReversal = await client.user.update({
-          where: { id: ownerId },
-          data: { loyaltyBalance: { decrement: earnTransaction.points } },
-          select: { loyaltyBalance: true },
-        });
-
-        await client.loyaltyTransaction.create({
-          data: {
-            userId: ownerId,
-            orderId,
-            type: 'REVERSAL',
-            points: -earnTransaction.points, // âm để thể hiện trừ điểm
-            balanceAfter: userAfterReversal.loyaltyBalance,
-            reason: `Thu hồi điểm tích lũy do hủy đơn hàng #${order.orderNumber}`,
-          },
-        });
-      }
-
-      // ─────────────────────────────────────────────────────────────────
-      // BƯỚC 5/5: Hoàn tiền thành Store Credit — 1 VND = 1 điểm
+      // BƯỚC 4/5: Hoàn tiền thành Store Credit — 1 VND = 1 điểm
       // Tổng tiền của đơn (order.total) được quy đổi 1:1 thành điểm tích lũy.
       // Tạo REFUND_CREDIT transaction + tăng loyaltyBalance.
       // ─────────────────────────────────────────────────────────────────
@@ -1086,6 +1058,37 @@ export class OrdersService {
         },
       });
 
+      let finalLoyaltyBalance = userAfterRefund.loyaltyBalance;
+
+      // ─────────────────────────────────────────────────────────────────
+      // BƯỚC 5/5: Thu hồi điểm EARN — Tạo REVERSAL + decrement loyaltyBalance
+      // Lấy EARN transaction của đơn này (nếu có) và đảo ngược số điểm.
+      // ─────────────────────────────────────────────────────────────────
+      const earnTransaction = await client.loyaltyTransaction.findFirst({
+        where: { orderId, type: 'EARN' },
+        select: { id: true, points: true },
+      });
+
+      if (earnTransaction) {
+        const userAfterReversal = await client.user.update({
+          where: { id: ownerId },
+          data: { loyaltyBalance: { decrement: earnTransaction.points } },
+          select: { loyaltyBalance: true },
+        });
+        finalLoyaltyBalance = userAfterReversal.loyaltyBalance;
+
+        await client.loyaltyTransaction.create({
+          data: {
+            userId: ownerId,
+            orderId,
+            type: 'REVERSAL',
+            points: -earnTransaction.points, // âm để thể hiện trừ điểm
+            balanceAfter: userAfterReversal.loyaltyBalance,
+            reason: `Thu hồi điểm tích lũy do hủy đơn hàng #${order.orderNumber}`,
+          },
+        });
+      }
+
       // ─────────────────────────────────────────────────────────────────
       // BƯỚC 6 (METADATA): Đánh dấu Payment SUCCEEDED → REFUNDED
       // Chỉ cập nhật payment nếu có, không throw nếu không tìm thấy.
@@ -1099,7 +1102,7 @@ export class OrdersService {
         orderId,
         orderNumber: order.orderNumber,
         refundPoints,
-        newLoyaltyBalance: userAfterRefund.loyaltyBalance,
+        newLoyaltyBalance: finalLoyaltyBalance,
       };
     });
   }

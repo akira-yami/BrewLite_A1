@@ -1,0 +1,52 @@
+◇ nạp biến môi trường (9) từ .env
+
+ CHẠY  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | test/payment-expiry.integration-spec.ts
+◇ nạp biến môi trường (0) từ .env
+
+[32m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [32m    LOG[39m [38;5;3m[OrderExpiryJob] [39m[32mĐã hủy đơn 313aac1a-0044-4c89-95e5-65f8f902e276, hết hạn coupon/reservation và hoàn kho thành công.[39m
+[32m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [32m    LOG[39m [38;5;3m[OrderExpiryJob] [39m[32mĐã hủy đơn 7f66e9b6-44bb-4e2f-ba3f-13dfca4b8de0, hết hạn coupon/reservation và hoàn kho thành công.[39m
+[31m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [31m  LỖI[39m [38;5;3m[OrderExpiryJob] [39m[31m(cố ý trong ca kiểm thử nhánh lỗi) Lỗi xử lý đơn 7420d759-8eab-49c2-9388-b1b082607d77: coupon write failed[39m
+(cố ý trong ca kiểm thử) Error: coupon write failed
+    tại C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/test/payment-expiry.integration-spec.ts:95:69
+[32m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [32m    LOG[39m [38;5;3m[OrderExpiryJob] [39m[32mĐã hủy đơn 7420d759-8eab-49c2-9388-b1b082607d77, hết hạn coupon/reservation và hoàn kho thành công.[39m
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > hết hạn tồn kho và coupon của đơn PENDING đúng một lần qua nhiều worker 182ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > hết hạn tồn kho và coupon của đơn PAYMENT_FAILED đúng một lần qua nhiều worker 59ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > hoàn tác đơn, tồn kho và lịch sử nếu dọn dẹp coupon thất bại 56ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > quyết toán một giao dịch thành công hoàn tất sau khi đã quá hạn (TTL) 66ms
+[32m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [32m    LOG[39m [38;5;3m[OrderExpiryJob] [39m[32mĐã hủy đơn 61f04add-c3bc-4ca6-bc1e-cd515a4ca76d, hết hạn coupon/reservation và hoàn kho thành công.[39m
+[32m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [32m    LOG[39m [38;5;3m[OrderExpiryJob] [39m[32mĐã hủy đơn ca58090c-60c8-4529-a60c-a28df3e8a180, hết hạn coupon/reservation và hoàn kho thành công.[39m
+[32m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [32m    LOG[39m [38;5;3m[OrderExpiryJob] [39m[32mĐã hủy đơn cc694a2d-18dc-4778-9238-dd5d1575e5c5, hết hạn coupon/reservation và hoàn kho thành công.[39m
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > quyết toán một giao dịch thất bại hoàn tất sau khi đã quá hạn (TTL) 62ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > từ chối một đơn đã hết hạn trước khi liên hệ cổng thanh toán 44ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > từ chối thẩm định coupon và báo giá đã khóa đúng tại thời điểm hết hạn 20ms
+[32m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [32m    LOG[39m [38;5;3m[OrderExpiryJob] [39m[32mĐã hủy đơn 3b16ba43-9844-4481-a415-e96eefe60053, hết hạn coupon/reservation và hoàn kho thành công.[39m
+[33m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [33m   CẢNH BÁO[39m [38;5;3m[PaymentsService] [39m[33mVNPay Return có chữ ký không hợp lệ; chuyển hướng về trang Checkout.[39m
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > sửa chữa một reservation hết hạn trễ hơn TTL của đơn và dọn dẹp đúng một lần 36ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > giữ TTL của đơn là mốc có thẩm quyền khi reservation hết hạn sớm hơn 47ms
+[33m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [33m   CẢNH BÁO[39m [38;5;3m[PaymentsService] [39m[33mVNPay Return có chữ ký không hợp lệ; chuyển hướng về trang Checkout.[39m
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > xử lý Return đã ký từ Sandbox sau khi hết hạn ('test', cancelled=false) 66ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > xử lý Return đã ký từ Sandbox sau khi hết hạn ('test', cancelled=true) 76ms
+[33m[Nest] 20684  - [39m11/12/2026, 9:11:02 AM [33m   CẢNH BÁO[39m [38;5;3m[PaymentsService] [39m[33mVNPay Return có chữ ký không hợp lệ; chuyển hướng về trang Checkout.[39m
+[33m[Nest] 20684  - [39m11/12/2026, 9:11:03 AM [33m   CẢNH BÁO[39m [38;5;3m[PaymentRecoveryService] [39m[33mKết quả VNPay QueryDr vẫn UNKNOWN. paymentId=9c12db0a-ce3a-478d-b5d5-c49c93c30cca[39m
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > xử lý Return đã ký từ Sandbox sau khi hết hạn ('production', cancelled=false) 58ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > không giải phóng tồn kho hoặc coupon khi đơn đã hết hạn vẫn còn thanh toán PROCESSING ở trạng thái UNKNOWN 55ms
+[31m[Nest] 20684  - [39m11/12/2026, 9:11:03 AM [31m  LỖI[39m [38;5;3m[PaymentRecoveryService] [39m[31m(cố ý trong ca kiểm thử nhánh lỗi) Quyết toán khôi phục VNPay đã bị rollback. paymentId=b71e1247-02bb-43c4-8ae8-0691115f0ee5[39m
+(cố ý trong ca kiểm thử) Error: force transaction rollback
+    tại C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/test/payment-expiry.integration-spec.ts:373:61
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > serialize việc khôi phục đồng thời của operator và quyết toán một giao dịch đúng một lần 54ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > quyết toán một giao dịch SUCCESS đến muộn khi đơn vẫn còn giữ reservation 50ms
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > lưu audit sau một quyết toán bị rollback và từ chối UPDATE/DELETE audit trong PostgreSQL 66ms
+[32m[Nest] 20684  - [39m11/12/2026, 9:11:03 AM [32m    LOG[39m [38;5;3m[OrderExpiryJob] [39m[32mĐã hủy đơn 910b4fcc-5fce-4960-981e-920086360ba9, hết hạn coupon/reservation và hoàn kho thành công.[39m
+ ✓ test/payment-expiry.integration-spec.ts > tiếp nhận thanh toán và hết hạn giữ chỗ (PostgreSQL) > yêu cầu operator thứ hai xác nhận hoàn tiền, lưu phương án xử lý và giải phóng tài nguyên hết hạn đúng một lần 131ms
+stderr | test/loyalty-redemption.integration-spec.ts
+◇ nạp biến môi trường (0) từ .env
+
+ ✓ test/loyalty-redemption.integration-spec.ts > Tính nguyên tử khi đổi điểm loyalty trên PostgreSQL > serialize hai lượt đổi điểm khác nhau đồng thời để điểm không bị tiêu hai lần 153ms
+ ✓ test/loyalty-redemption.integration-spec.ts > Tính nguyên tử khi đổi điểm loyalty trên PostgreSQL > trả về cùng một coupon cho các lần thử lại đồng thời dùng cùng key 26ms
+
+ Tệp test  2 đạt (2)
+      Test  19 đạt (19)
+   Bắt đầu lúc  09:11:00
+   Thời lượng  3.38s (biên dịch 286ms, thiết lập 0ms, nạp 1.71s, chạy test 1.36s, môi trường 0ms)

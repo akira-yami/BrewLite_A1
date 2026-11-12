@@ -1,0 +1,58 @@
+
+ CHẠY  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | src/modules/orders/services/orders.service.staff.spec.ts
+◇ nạp biến môi trường (9) từ .env
+
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > khai báo luật cho mọi trạng thái 1ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > bảng luật khớp đúng các mũi tên của sơ đồ đề bài, không thừa không thiếu 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép PENDING → PAID 1ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép PAID → PREPARING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép PREPARING → READY 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép READY → COMPLETED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép PENDING → PAYMENT_FAILED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép PAYMENT_FAILED → PENDING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép PENDING → CANCELLED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép PAYMENT_FAILED → CANCELLED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > cho phép PAID → CANCELLED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > chỉ chấp nhận các cặp trong sơ đồ trên toàn bộ ma trận trạng thái 1ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PAID → READY 1ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PAID → COMPLETED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PAID → PENDING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PREPARING → COMPLETED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PREPARING → PREPARING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PREPARING → PAID 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PREPARING → CANCELLED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho READY → PREPARING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho READY → CANCELLED 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho COMPLETED → READY 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PENDING → PREPARING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PENDING → PENDING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PAYMENT_FAILED → PAID 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho PAYMENT_FAILED → PREPARING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho CANCELLED → PREPARING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > assertTransition ném 409 INVALID_ORDER_TRANSITION cho CANCELLED → PENDING 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > COMPLETED và CANCELLED là trạng thái kết thúc 0ms
+ ✓ src/modules/orders/state/order-state-machine.spec.ts > máy trạng thái đơn hàng > barista chỉ đặt được PREPARING, READY, COMPLETED 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > getStaffQueue > mặc định lấy PAID, PREPARING, READY và không lộ dữ liệu tài khoản khách 4ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > getStaffQueue > lọc theo một trạng thái và giới hạn số đơn 1ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chuyển PAID → PREPARING, ghi lịch sử với id barista 1ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chuyển PREPARING → READY, ghi lịch sử với id barista 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chuyển READY → COMPLETED, ghi lịch sử với id barista 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn PAID → READY bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 1ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn PAID → COMPLETED bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn PREPARING → COMPLETED bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn PREPARING → PREPARING bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn READY → PREPARING bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn COMPLETED → READY bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn PENDING → PREPARING bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn PAYMENT_FAILED → PREPARING bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > chặn CANCELLED → PREPARING bằng 409 INVALID_ORDER_TRANSITION và không ghi gì 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > trả 404 khi đơn không tồn tại 1ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > từ chối khi tài khoản không còn là BARISTA đang hoạt động, trước khi khóa đơn 0ms
+ ✓ src/modules/orders/services/orders.service.staff.spec.ts > OrdersService - Barista (EXT-UC10) > advanceOrderStatus > hai barista cùng nhận một đơn: người đến sau bị chặn 0ms
+
+ Tệp test  2 đạt (2)
+      Test  47 đạt (47)
+   Bắt đầu lúc  09:11:25
+   Thời lượng  1.09s (biên dịch 220ms, thiết lập 0ms, nạp 1.36s, chạy test 19ms, môi trường 0ms)

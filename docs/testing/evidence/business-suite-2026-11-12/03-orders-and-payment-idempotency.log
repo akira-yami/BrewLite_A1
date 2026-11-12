@@ -1,0 +1,52 @@
+◇ nạp biến môi trường (9) từ .env
+
+ CHẠY  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | test/order-state-machine.integration-spec.ts
+◇ nạp biến môi trường (0) từ .env
+
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > luồng chính: PENDING → PAID → PREPARING → READY → COMPLETED, ghi lịch sử và khách thấy được 250ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > đơn đang PAID: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 44ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > đơn đang PAID: đặt COMPLETED bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 33ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > đơn đang PREPARING: đặt PREPARING bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 42ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > đơn đang PREPARING: đặt COMPLETED bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 43ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > đơn đang READY: đặt PREPARING bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 49ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > đơn đang COMPLETED: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 58ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > đơn chưa thanh toán (PENDING) không thể nhận 21ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > nhánh lỗi: PENDING → PAYMENT_FAILED → thử lại PENDING → PAID; PAYMENT_FAILED không thể sang PAID trực tiếp 41ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > nhánh hủy: PENDING, PAYMENT_FAILED và PAID → CANCELLED hợp lệ; CANCELLED là trạng thái kết thúc 119ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > API khách hủy đơn hoàn kho chưa thanh toán đúng một lần và bảo vệ quyền sở hữu 80ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > việc hủy không thể cắt ngang một thanh toán đã được cổng tiếp nhận 27ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > repository chặn chuyển tiếp sai ngay cả khi không đi qua API barista 23ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > hai barista nhận cùng một đơn đồng thời: đúng một người thành công 41ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > RBAC: Customer không đổi được trạng thái; barista bị vô hiệu hóa (JWT còn hạn) bị từ chối 35ms
+ ✓ test/order-state-machine.integration-spec.ts > Máy trạng thái đơn hàng: HTTP thật và PostgreSQL > hàng đợi chỉ có PAID, PREPARING, READY; đơn PENDING và COMPLETED không xuất hiện 160ms
+stderr | test/orders.integration-spec.ts
+◇ nạp biến môi trường (0) từ .env
+
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > gộp các dòng đã chuẩn hóa, giữ nguyên tùy chọn 0/null, snapshot và quyền sở hữu 194ms
+[31m[Nest] 10740  - [39m11/12/2026, 9:10:22 AM [31m  LỖI[39m [38;5;3m[OrdersExceptionFilter] [39m[31m(cố ý trong ca kiểm thử nhánh lỗi) Order request failed; requestId=3214cb1b-1e71-4b17-ba3b-fffedb6fbd92[39m
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > bắt buộc xác thực HTTP và guard vai trò trên mọi route đơn hàng 22ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > chỉ cho phép vai trò PAYMENT_OPERATOR dùng chức năng khôi phục thanh toán 18ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > từ chối tùy chọn không hợp lệ, giá giả mạo, topping trùng sau chuẩn hóa và số lượng trên 20 23ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > hoàn tác toàn bộ bản ghi đơn, tồn kho/version, reservation và coupon sau một lỗi muộn 71ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > giữ nguyên liệu cho topping: loại đóng sẵn theo phần và loại chế biến từ nhiều nguyên liệu 63ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > từ chối tùy chọn catalog không khả dụng và tài khoản không hoạt động trước khi ghi 38ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > các size khác nhau dùng chung tồn kho nguyên liệu: giỏ hàng hỗn hợp không thể giữ lượng riêng cho từng size 66ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > chỉ cho phép đúng một trong hai người mua đồng thời giữ được ly cuối cùng 81ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > chỉ giữ một lần cho coupon giới hạn khi có nhiều yêu cầu đồng thời 84ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > áp hạn mức coupon theo từng người dùng một cách độc lập khi đặt đơn đồng thời 80ms
+[31m[Nest] 10740  - [39m11/12/2026, 9:10:22 AM [31m  LỖI[39m [38;5;3m[OrdersExceptionFilter] [39m[31m(cố ý trong ca kiểm thử nhánh lỗi) Order request failed; requestId=5e3237f8-32cd-4d57-addf-67f41c39cb9a[39m
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > áp hạn mức sử dụng coupon toàn cục một cách độc lập giữa các người dùng khác nhau 79ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > dùng subtotal định giá từ server khi tạo đơn sau khi khách xem trước coupon ở phía client 42ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > báo lỗi trước khi ghi nhận số tiền vượt ngoài khoảng số nguyên JSON 17ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > phân trang các mốc thời gian bằng nhau và kiểm tra truy vấn lịch sử mà không lộ dữ liệu người dùng khác 67ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > giữ nguyên một đơn và một thanh toán sau hai yêu cầu cùng Idempotency-Key 59ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > Hồi quy: thanh toán FAILED → thử lại thành công chỉ tiêu thụ coupon một lần; đơn FAILED hết hạn giải phóng coupon và tồn kho an toàn 138ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > khách có thể hủy đơn của mình qua HTTP và giải phóng coupon và tồn kho đúng một lần 61ms
+ ✓ test/orders.integration-spec.ts > Tuần 3 Đơn hàng: HTTP thật và PostgreSQL > chặn thanh toán PROCESSING thứ hai cho cùng một đơn ngay cả khi Idempotency-Key khác nhau 54ms
+
+ Tệp test  2 đạt (2)
+      Test  35 đạt (35)
+   Bắt đầu lúc  09:10:16
+   Thời lượng  6.84s (biên dịch 668ms, thiết lập 0ms, nạp 3.47s, chạy test 2.97s, môi trường 0ms)

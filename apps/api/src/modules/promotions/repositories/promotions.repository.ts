@@ -215,4 +215,28 @@ export class PromotionsRepository {
     });
     return result.count;
   }
+
+  /**
+   * Giải phóng coupon đã CONSUMED về RELEASED khi hủy đơn PAID.
+   * Coupon được mở khóa để khách hàng có thể dùng lại cho đơn tiếp theo.
+   * Idempotent: chỉ update nếu status = CONSUMED; nếu đã RELEASED thì bỏ qua.
+   */
+  async releaseConsumedByOrderId(
+    orderId: string,
+    releasedAt: Date,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const client = tx ?? this.prisma;
+    const result = await client.couponRedemption.updateMany({
+      where: {
+        orderId,
+        status: 'CONSUMED',
+      },
+      data: {
+        status: 'RELEASED',
+        releasedAt,
+      },
+    });
+    return result.count;
+  }
 }

@@ -18,9 +18,38 @@ export class PaymentsRepository {
   }
 
   async findProcessingByOrderId(orderId: string, tx?: Prisma.TransactionClient) {
-    return (tx ?? this.prisma).payment.findFirst({
-      where: { orderId, status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] } },
+    const client = tx ?? this.prisma;
+    // An unresolved manual-review incident always blocks replacement, even if a
+    // newer ordinary PROCESSING attempt also exists.
+    const manualReview = await client.payment.findFirst({
+      where: { orderId, status: PaymentStatus.MANUAL_REVIEW },
       orderBy: { createdAt: 'asc' },
+    });
+    if (manualReview) return manualReview;
+
+    return client.payment.findFirst({
+      where: { orderId, status: PaymentStatus.PROCESSING },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  /**
+   * Atomically close an old PROCESSING attempt before creating its replacement.
+   * MANUAL_REVIEW is deliberately excluded and must never be auto-expired.
+   */
+  async supersedeProcessingPayment(
+    id: string,
+    failureCode: string,
+    processedAt: Date,
+    tx: Prisma.TransactionClient,
+  ) {
+    return tx.payment.updateMany({
+      where: { id, status: PaymentStatus.PROCESSING },
+      data: {
+        status: PaymentStatus.FAILED,
+        failureCode,
+        processedAt,
+      },
     });
   }
 

@@ -20,6 +20,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             findStatusByIdempotencyKeyForUser: vi.fn(),
             findByGatewayReference: vi.fn(),
             findProcessingByOrderId: vi.fn().mockResolvedValue(null),
+            supersedeProcessingPayment: vi.fn().mockResolvedValue({ count: 1 }),
             createProcessingPayment: vi.fn(),
             markSucceeded: vi.fn(),
             markFailed: vi.fn(),
@@ -420,30 +421,128 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             expect(gatewayMock.charge).not.toHaveBeenCalled();
         });
 
-        it('rejects a different idempotency key while another payment for the same order is PROCESSING', async () => {
+        it('PENDING + new VNPay key: supersedes old PROCESSING payment and creates a fresh attempt', async () => {
             paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
             paymentsRepoMock.findProcessingByOrderId.mockResolvedValue({
-                id: 'p-existing',
-                idempotencyKey: 'different-key',
+                id: 'p-old',
+                idempotencyKey: 'old-vnpay-key',
+                method: PaymentMethod.VNPAY,
                 status: PaymentStatus.PROCESSING,
+                gatewayReference: 'old-vnpay-reference',
             });
             ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
                 status: OrderStatus.PENDING,
+                orderNumber: 'BL-RETRY-001',
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+            paymentsRepoMock.createProcessingPayment.mockResolvedValue({
+                id: 'p-new',
+                paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=new',
+            });
+
+            const result = await service.processPayment({
+                idempotencyKey: 'new-vnpay-key',
+                orderId,
+                userId,
+                method: PaymentMethod.VNPAY,
+                amount,
+            });
+
+            expect(paymentsRepoMock.supersedeProcessingPayment).toHaveBeenCalledWith(
+                'p-old',
+                'SUPERSEDED_BY_CUSTOMER_RETRY',
+                expect.any(Date),
+                prismaMock,
+            );
+            expect(prismaMock.paymentRecoveryAudit.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    paymentId: 'p-old',
+                    beforeState: PaymentStatus.PROCESSING,
+                    afterState: PaymentStatus.FAILED,
+                    providerOutcome: 'SUPERSEDED_BY_NEW_RETRY_ATTEMPT',
+                }),
+            });
+            expect(paymentsRepoMock.createProcessingPayment).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    orderId,
+                    idempotencyKey: 'new-vnpay-key',
+                    method: PaymentMethod.VNPAY,
+                }),
+                prismaMock,
+            );
+            expect(result).toMatchObject({
+                status: PaymentStatus.PROCESSING,
+                paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=new',
+            });
+            expect(paymentsRepoMock.supersedeProcessingPayment.mock.invocationCallOrder[0])
+                .toBeLessThan(paymentsRepoMock.createProcessingPayment.mock.invocationCallOrder[0]);
+        });
+
+        it('PAYMENT_FAILED + new VNPay key: supersedes old PROCESSING payment before creating replacement', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            paymentsRepoMock.findProcessingByOrderId.mockResolvedValue({
+                id: 'p-old-failed-order',
+                method: PaymentMethod.VNPAY,
+                status: PaymentStatus.PROCESSING,
+                gatewayReference: 'old-ref',
+            });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PAYMENT_FAILED,
+                orderNumber: 'BL-RETRY-002',
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+            paymentsRepoMock.createProcessingPayment.mockResolvedValue({
+                id: 'p-new-retry',
+                paymentUrl: 'https://sandbox.vnpayment.vn/pay?signed=new',
+            });
+
+            await service.processPayment({
+                idempotencyKey: 'new-vnpay-key-2',
+                orderId,
+                userId,
+                method: PaymentMethod.VNPAY,
+                amount,
+            });
+
+            expect(paymentsRepoMock.supersedeProcessingPayment).toHaveBeenCalled();
+            expect(ordersServiceMock.transitionForPaymentRetry).toHaveBeenCalledWith(
+                orderId,
+                userId,
+                'Khách hàng thực hiện lại thanh toán',
+                prismaMock,
+            );
+            expect(paymentsRepoMock.supersedeProcessingPayment.mock.invocationCallOrder[0])
+                .toBeLessThan(ordersServiceMock.transitionForPaymentRetry.mock.invocationCallOrder[0]);
+            expect(ordersServiceMock.transitionForPaymentRetry.mock.invocationCallOrder[0])
+                .toBeLessThan(paymentsRepoMock.createProcessingPayment.mock.invocationCallOrder[0]);
+        });
+
+        it('does not auto-expire MANUAL_REVIEW payments', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            paymentsRepoMock.findProcessingByOrderId.mockResolvedValue({
+                id: 'p-manual-review',
+                method: PaymentMethod.VNPAY,
+                status: PaymentStatus.MANUAL_REVIEW,
+                gatewayReference: 'manual-review-ref',
+            });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                orderNumber: 'BL-MANUAL-001',
                 reservationExpiresAt: new Date(Date.now() + 60_000),
             });
 
             await expect(service.processPayment({
-                idempotencyKey: 'new-key',
+                idempotencyKey: 'new-key-manual-review',
                 orderId,
                 userId,
-                method,
+                method: PaymentMethod.VNPAY,
                 amount,
             })).rejects.toMatchObject({
                 response: { code: 'PAYMENT_IN_PROGRESS' },
             });
 
+            expect(paymentsRepoMock.supersedeProcessingPayment).not.toHaveBeenCalled();
             expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
-            expect(gatewayMock.charge).not.toHaveBeenCalled();
         });
 
         it('15. Chuyển lỗi tranh quyền retry đồng thời thành 409 PAYMENT_IN_PROGRESS', async () => {

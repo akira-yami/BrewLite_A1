@@ -13,10 +13,27 @@ const order = {
   items: [],
 };
 
-/** Seed a valid JWT token and mock the /auth/me endpoint. */
-async function setupAuth(page: import('@playwright/test').Page) {
+/** Seed a valid JWT token, optional checkout state, and mock /auth/me. */
+async function setupAuth(
+  page: import('@playwright/test').Page,
+  pendingCheckout?: {
+    orderId: string;
+    idempotencyKey: string;
+    method: 'VNPAY';
+    cartFingerprint: string;
+    cartItemsRemoved: true;
+  },
+) {
   const payload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 600 })).toString('base64url');
-  await page.addInitScript((token) => localStorage.setItem('brewlite_token', token), `e30.${payload}.test`);
+  await page.addInitScript(({ token, checkout }) => {
+    localStorage.setItem('brewlite_token', token);
+    if (checkout && !sessionStorage.getItem('brewlite_pending_checkout')) {
+      sessionStorage.setItem('brewlite_pending_checkout', JSON.stringify(checkout));
+    }
+  }, {
+    token: `e30.${payload}.test`,
+    checkout: pendingCheckout,
+  });
   await page.route('**/api/v1/auth/me', route => route.fulfill({ json: { data: {
     id: 'customer', username: 'customer', isActive: true, role: 'CUSTOMER',
   } } }));
@@ -166,3 +183,59 @@ test(`PENDING past deadline: CTA is absent and expiry alert appears on /orders/$
     page.getByText('Thời gian giữ chỗ 15 phút đã kết thúc', { exact: false }),
   ).toBeVisible();
 });
+
+// ---------------------------------------------------------------------------
+// Retry must rotate a stale VNPay idempotency key from sessionStorage.
+// ---------------------------------------------------------------------------
+
+const staleVnpayKey = '11111111-1111-4111-8111-111111111111';
+
+for (const status of ['PENDING', 'PAYMENT_FAILED'] as const) {
+  test(`${status} retry: creates a fresh VNPay key instead of replaying the stale checkout key`, async ({ page, baseURL }) => {
+    await setupAuth(page, {
+      orderId,
+      idempotencyKey: staleVnpayKey,
+      method: 'VNPAY',
+      cartFingerprint: '[]',
+      cartItemsRemoved: true,
+    });
+
+    const reservationExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const retryableOrder = { ...order, status, reservationExpiresAt };
+
+    await page.route('**/api/v1/orders/me', route =>
+      route.fulfill({ json: { data: [retryableOrder] } }),
+    );
+    await page.route(`**/api/v1/orders/${orderId}`, route =>
+      route.fulfill({ json: { data: retryableOrder } }),
+    );
+
+    let submittedKey: string | undefined;
+    let paymentPosts = 0;
+    await page.route('**/api/v1/payments', async route => {
+      paymentPosts++;
+      submittedKey = route.request().headers()['idempotency-key'];
+      expect(submittedKey).toBeTruthy();
+      expect(submittedKey).not.toBe(staleVnpayKey);
+      expect(route.request().postDataJSON()).toEqual({ orderId, method: 'VNPAY' });
+      await route.fulfill({ json: { data: {
+        status: 'PROCESSING', success: false, paymentUrl: gatewayUrl,
+      } } });
+    });
+    await page.route(gatewayUrl, route => route.fulfill({
+      status: 302,
+      headers: { location: new URL('/checkout?paymentReturn=1', baseURL).toString() },
+    }));
+
+    await page.goto(`/orders/${orderId}`);
+    await page.getByRole('button', { name: /Thanh toán lại/ }).click();
+
+    await expect(page).toHaveURL(/\/checkout\?paymentReturn=1$/, { timeout: 15_000 });
+    expect(paymentPosts).toBe(1);
+    expect(submittedKey).not.toBe(staleVnpayKey);
+    expect(await page.evaluate(() => {
+      const value = sessionStorage.getItem('brewlite_pending_checkout');
+      return value ? JSON.parse(value).idempotencyKey : null;
+    })).toBe(submittedKey);
+  });
+}

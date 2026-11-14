@@ -15,7 +15,7 @@ import { MockGatewayService } from './mock-gateway.service.js';
 import { VnpayGatewayService, type VerifiedVnpayCallback } from './vnpay.gateway.js';
 import { VnpayInquiryService, VnpayInquiryError } from './vnpay-inquiry.service.js';
 import { PrismaService } from '../../../database/prisma.service.js';
-import { PaymentMethod, PaymentStatus, OrderStatus } from '../../../generated/prisma/client.js';
+import { PaymentMethod, PaymentStatus, OrderStatus, PaymentRecoveryActorType } from '../../../generated/prisma/client.js';
 import { PaymentMethod as DtoPaymentMethod } from '../dto/create-payment.dto.js';
 import { PaymentStatus as PaymentResponseStatus, type PaymentResponseDto } from '../dto/payment-response.dto.js';
 
@@ -116,9 +116,50 @@ export class PaymentsService {
 
         const activePayment = await this.paymentsRepository.findProcessingByOrderId(orderId, tx);
         if (activePayment) {
-          throw new ConflictException({
-            code: 'PAYMENT_IN_PROGRESS',
-            message: 'Đơn hàng đã có một giao dịch thanh toán đang xử lý.',
+          // Only a previous VNPay PROCESSING attempt can be superseded by the
+          // explicit VNPay retry action. Manual-review and other methods remain blocked.
+          if (
+            activePayment.status !== PaymentStatus.PROCESSING ||
+            activePayment.method !== PaymentMethod.VNPAY ||
+            method !== PaymentMethod.VNPAY
+          ) {
+            throw new ConflictException({
+              code: 'PAYMENT_IN_PROGRESS',
+              message: 'Đơn hàng đang có giao dịch cần được xác minh trước khi thử lại.',
+            });
+          }
+
+          const supersededAt = new Date();
+          const superseded = await this.paymentsRepository.supersedeProcessingPayment(
+            activePayment.id,
+            'SUPERSEDED_BY_CUSTOMER_RETRY',
+            supersededAt,
+            tx,
+          );
+          if (superseded.count !== 1) {
+            throw new ConflictException({
+              code: 'PAYMENT_IN_PROGRESS',
+              message: 'Giao dịch cũ vừa thay đổi trạng thái. Vui lòng tải lại đơn hàng.',
+            });
+          }
+
+          await tx.paymentRecoveryAudit.create({
+            data: {
+              paymentId: activePayment.id,
+              actorType: PaymentRecoveryActorType.SYSTEM,
+              gatewayReference: activePayment.gatewayReference ?? null,
+              correlationId: randomUUID(),
+              incidentReference: 'CUSTOMER_RETRY_SUPERSEDED_PROCESSING_PAYMENT',
+              beforeState: PaymentStatus.PROCESSING,
+              afterState: PaymentStatus.FAILED,
+              providerOutcome: 'SUPERSEDED_BY_NEW_RETRY_ATTEMPT',
+              details: {
+                orderStatus: order.status,
+                paymentMethod: activePayment.method,
+                failureCode: 'SUPERSEDED_BY_CUSTOMER_RETRY',
+                lateGatewaySuccessPolicy: 'MANUAL_REVIEW',
+              },
+            },
           });
         }
 

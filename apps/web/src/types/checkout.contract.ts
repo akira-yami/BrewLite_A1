@@ -21,6 +21,8 @@ export type PaymentStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'MANUAL_REVI
 export interface CreatePaymentPayload {
     orderId: string;
     method: PaymentMethod;
+    /** Explicit customer retry CTA; not set on initial/concurrent checkout POSTs. */
+    retryAttempt?: boolean;
 }
 
 export interface PaymentResponse {

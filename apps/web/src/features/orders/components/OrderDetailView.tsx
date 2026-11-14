@@ -5,7 +5,15 @@ const formatVnd = (amount: number) => `${amount.toLocaleString('vi-VN')} đ`;
 
 const formatPreference = (level: number | null) => level === null ? 'Công thức chuẩn' : `${level}%`;
 
-export function OrderDetailView({ order }: { order: OrderDetail }) {
+export function OrderDetailView({
+  order,
+  onRetryPayment,
+  isPaying = false,
+}: {
+  order: OrderDetail;
+  onRetryPayment?: () => void;
+  isPaying?: boolean;
+}) {
   return (
     <section className="space-y-5">
       <div className="rounded-2xl border border-[#E8DFC8] bg-white p-5 shadow-sm sm:p-6">
@@ -46,6 +54,17 @@ export function OrderDetailView({ order }: { order: OrderDetail }) {
           <div className="flex justify-between"><span>Tạm tính</span><span>{formatVnd(order.subtotal)}</span></div>
           <div className="flex justify-between"><span>Khuyến mãi</span><span>-{formatVnd(order.discountAmount)}</span></div>
           <div className="flex justify-between border-t border-[#EEE6DB] pt-3 text-base font-black text-[#163D2C]"><span>Tổng tiền</span><span>{formatVnd(order.total)}</span></div>
+          {order.status === 'PENDING' && onRetryPayment && (
+            <button
+              type="button"
+              onClick={onRetryPayment}
+              disabled={isPaying}
+              aria-busy={isPaying}
+              className="mt-4 w-full rounded-full bg-rose-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-rose-700 active:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isPaying ? 'Đang khởi tạo thanh toán...' : 'Thanh toán lại →'}
+            </button>
+          )}
         </div>
       </div>
     </section>

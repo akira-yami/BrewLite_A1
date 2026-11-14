@@ -3,6 +3,8 @@ import {
   IsNotEmpty,
   IsEnum,
   IsUUID,
+  IsOptional,
+  IsBoolean,
 } from 'class-validator';
 
 export enum PaymentMethod {
@@ -21,6 +23,11 @@ export class CreatePaymentDto {
   @IsEnum(PaymentMethod, { message: 'Phương thức thanh toán không hợp lệ' })
   @IsNotEmpty()
   method: PaymentMethod;       // Phương thức thanh toán
+
+  // Chỉ true khi khách chủ động bấm nút Thanh toán lại trên đơn.
+  @IsOptional()
+  @IsBoolean()
+  retryAttempt?: boolean;
 
   // LƯU Ý BẢO MẬT:
   // ĐÃ XÓA VÌ KHÔNG NHẬN: amount (sẽ lấy từ DB: order.total) và requestHash (Server sẽ tự tính bằng SHA-256 ở Sprint 2)

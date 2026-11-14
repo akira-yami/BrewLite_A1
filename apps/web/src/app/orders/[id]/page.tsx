@@ -144,7 +144,11 @@ export default function OrderDetailPage() {
         )}
         {order && (
           <div className="mt-6">
-            <OrderDetailView order={order} />
+            <OrderDetailView
+              order={order}
+              onRetryPayment={isExpired || order.status !== "PENDING" ? undefined : () => void handleRetryPayment()}
+              isPaying={isPaying}
+            />
 
             {["PENDING", "PAYMENT_FAILED"].includes(order.status) && (
               <div className="mt-5 space-y-4">
@@ -208,16 +212,18 @@ export default function OrderDetailPage() {
                       </div>
                     )}
 
-                    <button
-                      type="button"
-                      disabled={isPaying || isExpired}
-                      onClick={() => void handleRetryPayment()}
-                      className="mt-5 w-full rounded-full bg-[#163D2C] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#1f4f38] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isPaying
-                        ? "Đang khởi tạo thanh toán..."
-                        : `Thanh toán lại ${order.total.toLocaleString("vi-VN")} đ`}
-                    </button>
+                    {order.status === "PAYMENT_FAILED" && (
+                      <button
+                        type="button"
+                        disabled={isPaying || isExpired}
+                        onClick={() => void handleRetryPayment()}
+                        className="mt-5 w-full rounded-full bg-[#163D2C] px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#1f4f38] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isPaying
+                          ? "Đang khởi tạo thanh toán..."
+                          : `Thanh toán lại ${order.total.toLocaleString("vi-VN")} đ`}
+                      </button>
+                    )}
                   </section>
                 )}
 

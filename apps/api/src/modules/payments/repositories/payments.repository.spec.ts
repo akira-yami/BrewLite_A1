@@ -14,6 +14,7 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
                 findFirst: vi.fn(),
                 create: vi.fn(),
                 update: vi.fn(),
+                updateMany: vi.fn(),
             },
         };
         repository = new PaymentsRepository(prismaMock as unknown as PrismaService);
@@ -43,18 +44,34 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
         expect(prismaMock.payment.findUnique).not.toHaveBeenCalled();
     });
 
-    it('findProcessingByOrderId - giữ cả PROCESSING và MANUAL_REVIEW trong transaction', async () => {
+    it('findProcessingByOrderId - prioritizes MANUAL_REVIEW before PROCESSING', async () => {
         const activePayment = { id: 'p-active', status: PaymentStatus.PROCESSING };
-        const txMock = { payment: { findFirst: vi.fn().mockResolvedValue(activePayment) } };
+        const txMock = {
+            payment: { findFirst: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(activePayment) },
+        };
 
         const result = await repository.findProcessingByOrderId('order-1', txMock as any);
 
-        expect(txMock.payment.findFirst).toHaveBeenCalledWith({
-            where: { orderId: 'order-1', status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] } },
+        expect(txMock.payment.findFirst).toHaveBeenNthCalledWith(1, {
+            where: { orderId: 'order-1', status: PaymentStatus.MANUAL_REVIEW },
+            orderBy: { createdAt: 'asc' },
+        });
+        expect(txMock.payment.findFirst).toHaveBeenNthCalledWith(2, {
+            where: { orderId: 'order-1', status: PaymentStatus.PROCESSING },
             orderBy: { createdAt: 'asc' },
         });
         expect(result).toEqual(activePayment);
         expect(prismaMock.payment.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('findProcessingByOrderId - returns MANUAL_REVIEW even when an ordinary PROCESSING payment also exists', async () => {
+        const manualReview = { id: 'p-review', status: PaymentStatus.MANUAL_REVIEW };
+        const txMock = { payment: { findFirst: vi.fn().mockResolvedValue(manualReview) } };
+
+        const result = await repository.findProcessingByOrderId('order-1', txMock as any);
+
+        expect(txMock.payment.findFirst).toHaveBeenCalledTimes(1);
+        expect(result).toEqual(manualReview);
     });
 
     it('findStatusByIdempotencyKeyForUser - chỉ đọc giao dịch thuộc Order của customer hiện tại', async () => {
@@ -114,6 +131,30 @@ describe('PaymentsRepository (Unit Test - TDD)', () => {
             },
         });
         expect(result.id).toBe('p-2');
+    });
+
+    it('supersedeProcessingPayment - updates only PROCESSING rows to FAILED', async () => {
+        const txMock = {
+            payment: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+        };
+        const processedAt = new Date();
+
+        const result = await repository.supersedeProcessingPayment(
+            'p-old',
+            'SUPERSEDED_BY_CUSTOMER_RETRY',
+            processedAt,
+            txMock as any,
+        );
+
+        expect(txMock.payment.updateMany).toHaveBeenCalledWith({
+            where: { id: 'p-old', status: PaymentStatus.PROCESSING },
+            data: {
+                status: PaymentStatus.FAILED,
+                failureCode: 'SUPERSEDED_BY_CUSTOMER_RETRY',
+                processedAt,
+            },
+        });
+        expect(result).toEqual({ count: 1 });
     });
 
     it('markSucceeded - cập nhật SUCCEEDED với transaction', async () => {

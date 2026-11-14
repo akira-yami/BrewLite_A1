@@ -146,7 +146,7 @@ export default function OrderDetailPage() {
           <div className="mt-6">
             <OrderDetailView
               order={order}
-              onRetryPayment={() => void handleRetryPayment()}
+              onRetryPayment={isExpired || order.status !== "PENDING" ? undefined : () => void handleRetryPayment()}
               isPaying={isPaying}
             />
 

@@ -56,7 +56,7 @@ for (const { path, confirmedImmediately } of [
     let paymentPosts = 0;
     await page.route('**/api/v1/payments', async route => {
       paymentPosts++;
-      expect(route.request().postDataJSON()).toEqual({ orderId, method: 'VNPAY' });
+      expect(route.request().postDataJSON()).toEqual({ orderId, method: 'VNPAY', retryAttempt: true });
       attemptKey = route.request().headers()['idempotency-key'];
       expect(attemptKey).toBeTruthy();
       paid = confirmedImmediately;
@@ -110,7 +110,7 @@ for (const path of ['/orders', `/orders/${orderId}`] as const) {
     let paymentPosts = 0;
     await page.route('**/api/v1/payments', async route => {
       paymentPosts++;
-      expect(route.request().postDataJSON()).toEqual({ orderId, method: 'VNPAY' });
+      expect(route.request().postDataJSON()).toEqual({ orderId, method: 'VNPAY', retryAttempt: true });
       await route.fulfill({ json: { data: {
         status: 'PROCESSING', success: false, paymentUrl: gatewayUrl,
       } } });
@@ -217,7 +217,7 @@ for (const status of ['PENDING', 'PAYMENT_FAILED'] as const) {
       submittedKey = route.request().headers()['idempotency-key'];
       expect(submittedKey).toBeTruthy();
       expect(submittedKey).not.toBe(staleVnpayKey);
-      expect(route.request().postDataJSON()).toEqual({ orderId, method: 'VNPAY' });
+      expect(route.request().postDataJSON()).toEqual({ orderId, method: 'VNPAY', retryAttempt: true });
       await route.fulfill({ json: { data: {
         status: 'PROCESSING', success: false, paymentUrl: gatewayUrl,
       } } });

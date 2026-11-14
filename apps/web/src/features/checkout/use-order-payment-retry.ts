@@ -43,7 +43,7 @@ export function useOrderPaymentRetry() {
       // Checkout uses this same key to verify the result after returning from VNPay.
       writePendingCheckout(storage, attempt);
 
-      const payment = await createPaymentApi(token, { orderId, method: 'VNPAY' }, attempt.idempotencyKey)
+      const payment = await createPaymentApi(token, { orderId, method: 'VNPAY', retryAttempt: true }, attempt.idempotencyKey)
         .catch((error: unknown) => {
           if (error instanceof PaymentApiError &&
               (error.status < 500 || error.code === 'VNPAY_NOT_CONFIGURED')) {

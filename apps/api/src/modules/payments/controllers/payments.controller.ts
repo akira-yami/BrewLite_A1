@@ -175,6 +175,7 @@ export class PaymentsController {
       method: dto.method as unknown as PaymentMethod,
       amount: order.total,
       clientIp: clientIp || '127.0.0.1',
+      retryAttempt: dto.retryAttempt === true,
     });
     return { data: result };
   }

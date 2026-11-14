@@ -421,6 +421,30 @@ describe('PaymentsService (Unit Test - TDD)', () => {
             expect(gatewayMock.charge).not.toHaveBeenCalled();
         });
 
+        it('ordinary new VNPay key while PROCESSING remains 409; retryAttempt is required to supersede', async () => {
+            paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
+            paymentsRepoMock.findProcessingByOrderId.mockResolvedValue({
+                id: 'p-old',
+                method: PaymentMethod.VNPAY,
+                status: PaymentStatus.PROCESSING,
+            });
+            ordersServiceMock.getOrderForPaymentForUpdate.mockResolvedValue({
+                status: OrderStatus.PENDING,
+                reservationExpiresAt: new Date(Date.now() + 60_000),
+            });
+
+            await expect(service.processPayment({
+                idempotencyKey: 'ordinary-new-key',
+                orderId,
+                userId,
+                method: PaymentMethod.VNPAY,
+                amount,
+            })).rejects.toMatchObject({ response: { code: 'PAYMENT_IN_PROGRESS' } });
+
+            expect(paymentsRepoMock.supersedeProcessingPayment).not.toHaveBeenCalled();
+            expect(paymentsRepoMock.createProcessingPayment).not.toHaveBeenCalled();
+        });
+
         it('PENDING + new VNPay key: supersedes old PROCESSING payment and creates a fresh attempt', async () => {
             paymentsRepoMock.findByIdempotencyKey.mockResolvedValue(null);
             paymentsRepoMock.findProcessingByOrderId.mockResolvedValue({
@@ -446,6 +470,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                 userId,
                 method: PaymentMethod.VNPAY,
                 amount,
+                retryAttempt: true,
             });
 
             expect(paymentsRepoMock.supersedeProcessingPayment).toHaveBeenCalledWith(

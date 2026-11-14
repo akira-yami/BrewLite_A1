@@ -63,8 +63,9 @@ export class PaymentsService {
     method: PaymentMethod;
     amount: bigint;
     clientIp?: string;
+    retryAttempt?: boolean;
   }): Promise<PaymentResponseDto> {
-    const { idempotencyKey, orderId, userId, method, amount, clientIp } = params;
+    const { idempotencyKey, orderId, userId, method, amount, clientIp, retryAttempt = false } = params;
 
     if (method === PaymentMethod.VNPAY && !this.vnpayGateway?.isEnabled()) {
       throw new ServiceUnavailableException({
@@ -116,9 +117,10 @@ export class PaymentsService {
 
         const activePayment = await this.paymentsRepository.findProcessingByOrderId(orderId, tx);
         if (activePayment) {
-          // Only a previous VNPay PROCESSING attempt can be superseded by the
-          // explicit VNPay retry action. Manual-review and other methods remain blocked.
+          // A fresh idempotency key alone is NOT a retry authorization: ordinary
+          // concurrent POSTs must remain 409. Only the explicit retry CTA opts in.
           if (
+            !retryAttempt ||
             activePayment.status !== PaymentStatus.PROCESSING ||
             activePayment.method !== PaymentMethod.VNPAY ||
             method !== PaymentMethod.VNPAY

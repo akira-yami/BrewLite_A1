@@ -180,12 +180,36 @@ CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết n�
 - API thay đổi phải cập nhật DTO, OpenAPI và tài liệu liên quan.
 - Migration được lưu trong source control; không sửa migration đã chạy trên môi trường chung.
 
-## Kiểm thử bắt buộc cho nghiệp vụ nâng cao
+## Kiểm thử và Đo hiệu năng (Testing & Performance)
 
-- Chặn chuyển trạng thái đơn không hợp lệ.
-- Hai request cùng `Idempotency-Key` chỉ tạo một kết quả thanh toán.
-- Nhiều request tạo đơn đồng thời không làm tồn kho âm.
-- Coupon không vượt giới hạn và điểm thưởng chỉ được cộng một lần trên mỗi đơn.
+### 1. Kiểm thử Unit & Integration (Đáp ứng 10 Task đề bài)
+- Chạy toàn bộ Unit tests:
+  ```bash
+  npm test
+  # hoặc npm run test:unit
+  ```
+  - Backend API: `npm run test:api` (42 test suites, 431 test cases)
+  - Frontend Web: `npm run test:web` (15 test suites, 96 test cases)
+- Chạy Integration tests nghiệp vụ backend:
+  ```bash
+  npm run test:integration
+  ```
+  Kiểm chứng các nghiệp vụ cốt lõi Task 10:
+  - (a) Chặn chuyển trạng thái đơn không hợp lệ (Order State Machine).
+  - (b) Thanh toán lặp cùng `Idempotency-Key` chỉ tạo 1 đơn/thanh toán.
+  - (c) Đặt hàng đồng thời không bán vượt tồn kho (Transaction + Optimistic locking).
+  - (d) Áp dụng coupon hợp lệ và tích lũy điểm loyalty khi đơn PAID.
+
+### 2. Đo hiệu năng (Yêu cầu phi chức năng 4.2: API < 500ms với dữ liệu mẫu)
+- Chuẩn bị dữ liệu mẫu đo tải (100 sản phẩm, 300 biến thể, 30 topping, 1.000 đơn hàng):
+  ```bash
+  npm run perf:seed
+  ```
+- Thực thi đo tải đồng thời (20 clients đồng thời benchmark p50, p95, p99):
+  ```bash
+  npm run perf:test
+  ```
+- **Bằng chứng hiệu năng:** Xem tại [Báo cáo đo lường hiệu năng BrewLite](docs/testing/evidence/perf/bao-cao-hieu-nang.md) và file dữ liệu kết quả [nfr-01-results.json](docs/testing/evidence/perf/nfr-01-results.json).
 
 ## Lộ trình triển khai
 

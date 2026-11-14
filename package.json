@@ -15,8 +15,14 @@
     "docker:status": "docker compose ps",
     "docker:logs": "docker compose logs -f",
     "docker:seed": "docker compose --profile demo run --rm seed",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": "npm test --prefix apps/api",
+    "test:web": "npm test --prefix apps/web",
+    "test:integration": "npm run test:integration --prefix apps/api",
     "test:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/test-demo.ps1",
-    "test:unit": "npm run test --prefix apps/api -- order-state-machine.spec.ts payments-idempotency.integration.spec.ts",
+    "test:unit": "npm run test:api && npm run test:web",
+    "perf:seed": "node ./scripts/seed-perf-nfr01.mjs",
+    "perf:test": "node ./scripts/run-load-test-nfr01.mjs",
     "zip": "powershell -ExecutionPolicy Bypass -File ./scripts/zip-project.ps1"
   }
 }

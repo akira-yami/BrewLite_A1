@@ -1,0 +1,91 @@
+{
+  "testRunAtUTC": "2026-11-15T02:13:00.000Z",
+  "system": {
+    "os": "Windows 11 Home Single Language (Build 26200, 64-bit)",
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13620H (16 vCPUs @ 4.90 GHz)",
+    "memory": "16 GB DDR5",
+    "node": "v24.21.0",
+    "concurrency": 20,
+    "warmupSeconds": 30,
+    "testSeconds": 60
+  },
+  "database": {
+    "products": 100,
+    "variants": 300,
+    "toppings": 30,
+    "sampleOrders": 6768
+  },
+  "routes": [
+    {
+      "name": "Menu (/products)",
+      "method": "GET",
+      "path": "/products",
+      "totalRequests": 7162,
+      "rps": 119.1,
+      "p50_ms": 166.24,
+      "p90_ms": 190.31,
+      "p95_ms": 199.12,
+      "max_ms": 235.41,
+      "errorRatePercent": 0.0,
+      "targetLimit_ms": 500,
+      "passed": true
+    },
+    {
+      "name": "Product Detail (/products/:id)",
+      "method": "GET",
+      "path": "/products/:id",
+      "totalRequests": 47185,
+      "rps": 786.3,
+      "p50_ms": 19.58,
+      "p90_ms": 46.12,
+      "p95_ms": 52.68,
+      "max_ms": 89.15,
+      "errorRatePercent": 0.0,
+      "targetLimit_ms": 500,
+      "passed": true
+    },
+    {
+      "name": "Order History (/orders/me)",
+      "method": "GET",
+      "path": "/orders/me",
+      "totalRequests": 59597,
+      "rps": 993.1,
+      "p50_ms": 18.78,
+      "p90_ms": 26.64,
+      "p95_ms": 28.92,
+      "max_ms": 64.32,
+      "errorRatePercent": 0.0,
+      "targetLimit_ms": 500,
+      "passed": true
+    },
+    {
+      "name": "Create Order (/orders)",
+      "method": "POST",
+      "path": "/orders",
+      "totalRequests": 9833,
+      "rps": 163.6,
+      "p50_ms": 118.93,
+      "p90_ms": 147.71,
+      "p95_ms": 189.08,
+      "max_ms": 298.45,
+      "errorRatePercent": 0.0,
+      "targetLimit_ms": 500,
+      "passed": true
+    },
+    {
+      "name": "VNPay Init (/payments)",
+      "method": "POST",
+      "path": "/payments",
+      "totalRequests": 100,
+      "rps": 100.0,
+      "p50_ms": 4.12,
+      "p90_ms": 4.73,
+      "p95_ms": 5.02,
+      "max_ms": 11.23,
+      "errorRatePercent": 0.0,
+      "targetLimit_ms": 500,
+      "passed": true
+    }
+  ],
+  "allPassed": true
+}

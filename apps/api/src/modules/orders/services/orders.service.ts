@@ -207,7 +207,7 @@ export class OrdersService {
           );
         if (
           !(error instanceof InventoryVersionConflict) &&
-          !['P2034', '40001', '40P01'].includes(prismaError.code ?? '') &&
+          !['P2034', 'P2028', '40001', '40P01'].includes(prismaError.code ?? '') &&
           !uniqueOrderNumber
         )
           throw error;

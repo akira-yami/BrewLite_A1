@@ -1,6 +1,6 @@
 # Hướng dẫn chạy Test và Xuất Log (Quick Test & Logging Guide)
 
-> Tài liệu hướng dẫn công thức chạy một bài test bất kỳ và lưu kết quả vào thư mục log tùy chọn.
+> Tài liệu hướng dẫn công thức chạy bất kỳ bài test nào và lưu kết quả vào thư mục log tùy chọn.
 
 ---
 
@@ -15,11 +15,13 @@
 
 ---
 
-## 2. Công thức theo từng loại Test
+## 2. Hướng dẫn chi tiết theo từng loại Test
 
 ### A. Chạy 1 file Unit Test Backend (`apps/api`)
+Unit test chạy độc lập, không cần kết nối database.
+
 ```powershell
-# Chạy 1 file bất kỳ và lưu log vào thư mục logs/
+# Chạy 1 file bất kỳ và lưu log vào logs/
 npm --prefix apps/api run test -- <tên_file.spec.ts> *>&1 | Tee-Object -FilePath "logs/<tên_log>.log"
 
 # Ví dụ cụ thể:
@@ -28,16 +30,38 @@ npm --prefix apps/api run test -- payments.service.spec.ts *>&1 | Tee-Object -Fi
 npm --prefix apps/api run test -- jwt.spec.ts *>&1 | Tee-Object -FilePath "logs/jwt-test.log"
 ```
 
-### B. Chạy 1 file Integration Test Backend (Chạy với PostgreSQL)
-```powershell
-# Chạy 1 file integration test và lưu log:
-npm --prefix apps/api run test:integration -- <tên_file.integration-spec.ts> *>&1 | Tee-Object -FilePath "logs/<tên_log>.log"
+---
 
-# Ví dụ cụ thể:
-npm --prefix apps/api run test:integration -- inventory-concurrency.integration-spec.ts *>&1 | Tee-Object -FilePath "logs/inventory-concurrency.log"
-npm --prefix apps/api run test:integration -- order-state-machine.integration-spec.ts *>&1 | Tee-Object -FilePath "logs/order-state-machine-db.log"
-npm --prefix apps/api run test:integration -- orders.integration-spec.ts *>&1 | Tee-Object -FilePath "logs/orders-db.log"
+### B. Chạy 1 file Integration Test Backend (Chạy với PostgreSQL)
+
+> ⚠️ **LƯU Ý QUAN TRỌNG VỀ DATABASE SMOKE:**  
+> Integration Test chạy trực tiếp trên database thật để kiểm chứng transaction, khóa lạc quan (OCC) và state machine.  
+> Để bảo vệ database chính (`brewlite`) không bị ghi đè/xóa dữ liệu, hệ thống **bắt buộc biến môi trường `SMOKE_DATABASE_URL` phải trỏ vào database test có tiền tố `brewlite_foundation_smoke`** (trên máy local là `brewlite_foundation_smoke_local`).  
+> *Nếu thiếu biến này, test sẽ báo lỗi: `Set SMOKE_DATABASE_URL to the disposable BrewLite smoke database`.*
+
+#### 👉 Câu lệnh chuẩn 1 dòng chạy Integration Test (kèm xuất log):
+
+```powershell
+$env:DATABASE_URL="postgresql://brewlite:123456@localhost:5432/brewlite_foundation_smoke_local?schema=public"; $env:SMOKE_DATABASE_URL=$env:DATABASE_URL; npm --prefix apps/api run test:integration -- <tên_file.integration-spec.ts> *>&1 | Tee-Object -FilePath "logs/<tên_log>.log"
 ```
+
+#### Các ví dụ thực tế:
+* **Test tranh mua ly cuối cùng (Concurrency - Task 10.3):**
+  ```powershell
+  $env:DATABASE_URL="postgresql://brewlite:123456@localhost:5432/brewlite_foundation_smoke_local?schema=public"; $env:SMOKE_DATABASE_URL=$env:DATABASE_URL; npm --prefix apps/api run test:integration -- inventory-concurrency.integration-spec.ts *>&1 | Tee-Object -FilePath "logs/inventory-concurrency.log"
+  ```
+
+* **Test máy trạng thái đơn hàng (State Machine - Task 10.1):**
+  ```powershell
+  $env:DATABASE_URL="postgresql://brewlite:123456@localhost:5432/brewlite_foundation_smoke_local?schema=public"; $env:SMOKE_DATABASE_URL=$env:DATABASE_URL; npm --prefix apps/api run test:integration -- order-state-machine.integration-spec.ts *>&1 | Tee-Object -FilePath "logs/order-state-machine-db.log"
+  ```
+
+* **Test toàn bộ vòng đời đặt hàng & thanh toán lặp (Idempotency - Task 10.2):**
+  ```powershell
+  $env:DATABASE_URL="postgresql://brewlite:123456@localhost:5432/brewlite_foundation_smoke_local?schema=public"; $env:SMOKE_DATABASE_URL=$env:DATABASE_URL; npm --prefix apps/api run test:integration -- orders.integration-spec.ts *>&1 | Tee-Object -FilePath "logs/orders-db.log"
+  ```
+
+---
 
 ### C. Chạy 1 file Test Web Frontend (`apps/web`)
 ```powershell
@@ -54,10 +78,10 @@ node --test apps/web/tests/auth-session.test.mjs *>&1 | Tee-Object -FilePath "lo
 
 ## 3. Cách chỉ định thư mục lưu log khác
 
-Nếu muốn lưu vào thư mục khác (ví dụ: `my-logs/` hoặc `docs/testing/evidence/`):
+Nếu muốn lưu vào thư mục khác (ví dụ `my-logs/`):
 
 ```powershell
-# 1. Đảm bảo thư mục tồn tại (tạo nếu chưa có)
+# 1. Tạo thư mục nếu chưa có
 New-Item -ItemType Directory -Force -Path "my-logs" | Out-Null
 
 # 2. Ghi log vào thư mục đó
@@ -68,6 +92,5 @@ npm --prefix apps/api run test -- orders.service.spec.ts *>&1 | Tee-Object -File
 
 ## 4. Chạy lọc theo từ khóa tên Test Case (`-t`)
 ```powershell
-# Chỉ chạy các ca có chứa từ khóa 'Idempotency' và lưu log:
 npm --prefix apps/api run test -- -t "Idempotency" *>&1 | Tee-Object -FilePath "logs/idempotency.log"
 ```

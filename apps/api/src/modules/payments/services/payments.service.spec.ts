@@ -527,6 +527,7 @@ describe('PaymentsService (Unit Test - TDD)', () => {
                 userId,
                 method: PaymentMethod.VNPAY,
                 amount,
+                retryAttempt: true,
             });
 
             expect(paymentsRepoMock.supersedeProcessingPayment).toHaveBeenCalled();

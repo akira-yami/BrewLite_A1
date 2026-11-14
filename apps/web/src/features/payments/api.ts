@@ -36,7 +36,7 @@ function unwrap<T>(json: unknown): T {
 
 export async function createPaymentApi(
   token: string,
-  input: { orderId: string; method: PaymentMethod },
+  input: { orderId: string; method: PaymentMethod; retryAttempt?: boolean },
   idempotencyKey: string,
 ) {
   return CheckoutAPI.processPayment(token, input, idempotencyKey);

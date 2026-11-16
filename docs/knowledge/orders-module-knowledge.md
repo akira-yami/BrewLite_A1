@@ -44,7 +44,7 @@
 | 11 | `apps/api/src/modules/orders/services/order-expiry.job.ts` | Cron hết hạn: hủy đơn quá hạn, giải phóng coupon/kho. |
 | 12 | `apps/api/src/modules/orders/orders.module.ts` | Wiring: imports/providers/exports. |
 | 13 | Liên module: `inventory/services/inventory.service.ts`, `promotions/services/promotions.service.ts`, `payments/services/payments.service.ts` | Hiểu phía bên kia của các lời gọi chéo. |
-| 14 | Tests: `test/orders.integration-spec.ts`, `test/orders-inventory.integration-spec.ts`, `test/order-state-machine.integration-spec.ts`, và các `*.spec.ts` trong module | Tài liệu hóa hành vi kỳ vọng. |
+| 14 | Tests: `test/integration/orders.integration-spec.ts`, `test/integration/orders-inventory.integration-spec.ts`, `test/integration/order-state-machine.integration-spec.ts`, và các `*.spec.ts` trong `test/unit/modules/orders/` | Tài liệu hóa hành vi kỳ vọng. |
 
 ---
 
@@ -375,6 +375,6 @@ File: `services/order-expiry.job.ts`. `@Cron(EVERY_MINUTE)`, có cờ `isRunning
 - `services/order-expiry.job.spec.ts` — quét hết hạn, khóa, bỏ qua đơn có payment, release coupon/kho.
 - `repositories/orders.repository.spec.ts` — CAS guard, ghi history, `markAsPaid` (điểm/kho).
 - `dto/create-order.dto.spec.ts`, `mappers/order-item.mapper.spec.ts`, `http/orders-http.spec.ts`.
-- `apps/api/test/orders.integration-spec.ts` — luồng tạo đơn qua HTTP (gồm coupon & payment).
-- `apps/api/test/orders-inventory.integration-spec.ts` — reservation/deduction/restore end-to-end.
-- `apps/api/test/order-state-machine.integration-spec.ts` — vòng đời qua HTTP.
+- `apps/api/test/integration/orders.integration-spec.ts` — luồng tạo đơn qua HTTP (gồm coupon & payment).
+- `apps/api/test/integration/orders-inventory.integration-spec.ts` — reservation/deduction/restore end-to-end.
+- `apps/api/test/integration/order-state-machine.integration-spec.ts` — vòng đời qua HTTP.

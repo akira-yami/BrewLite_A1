@@ -28,6 +28,7 @@ Tài liệu được chia theo 5 nhóm. Mỗi mục bên dưới trỏ tới fil
 
 | Tài liệu | Ngày | Vai trò |
 |---|---|---|
+| [Hướng dẫn chạy kiểm thử](testing/README.md) | — | Lệnh chạy từng bộ test, cấu hình database test và kiểm tra bản deploy Railway. |
 | [Bộ test case theo nghiệp vụ](testing/business-test-cases.md) | **12/11/2026** | **Nguồn hiện hành** — Order/Payment/Concurrency/Auth/Loyalty + log bằng chứng. |
 | [Bằng chứng Task 10 (A1)](testing/a1-task-10-review.md) | 10/11/2026 | 3 ca trọng tâm Task 10 cho nghiệm thu (tập con). |
 | [Nghiệm thu Compose/Barista/kho](testing/staff-acceptance.md) | 04/11/2026 | Nghiệm thu Docker Compose, luồng Barista, quản lý kho. |

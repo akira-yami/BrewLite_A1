@@ -101,7 +101,7 @@ SELECT unnest(enum_range(NULL::"LoyaltyTransactionType"));
 |---|---|
 | `apps/api/prisma/migrations/20261112090000_add_refund_credit_loyalty_type/migration.sql` | Migration: thêm `REFUND_CREDIT` enum |
 | `apps/api/src/modules/orders/dto/cancel-paid-order.dto.ts` | DTO cho Barista kèm `reason` bắt buộc |
-| `apps/api/test/cancel-paid-refund.integration-spec.ts` | 10 integration tests cho nghiệp vụ mới |
+| `apps/api/test/integration/cancel-paid-refund.integration-spec.ts` | 10 integration tests cho nghiệp vụ mới |
 
 ### Files cập nhật
 

@@ -5,6 +5,7 @@ const webPort = Number(process.env.E2E_WEB_PORT ?? 3100);
 const apiPort = Number(process.env.E2E_API_PORT ?? 3101);
 const webUrl = `http://localhost:${webPort}`;
 const apiUrl = `http://localhost:${apiPort}`;
+const useBuiltServers = process.env.E2E_USE_BUILT_SERVERS === 'true';
 
 // Dùng port riêng; không vô tình kiểm tra server dev đang chạy trên 3000/3001.
 export default defineConfig({
@@ -28,7 +29,7 @@ export default defineConfig({
   ],
   webServer: process.env.E2E_EXTERNAL_BASE_URL ? undefined : [
     {
-      command: 'npm --prefix ../api run start:dev',
+      command: useBuiltServers ? 'npm --prefix ../api run start:prod' : 'npm --prefix ../api run start:dev',
       url: `${apiUrl}/api/v1/health`,
       env: {
         NODE_ENV: 'test',
@@ -45,10 +46,11 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command: `npx next dev -p ${webPort}`,
+      command: useBuiltServers ? 'node .next/standalone/server.js' : `npx next dev -p ${webPort}`,
       url: `${webUrl}/menu`,
       env: {
         NEXT_PUBLIC_API_URL: `${apiUrl}/api/v1`,
+        ...(useBuiltServers ? { PORT: String(webPort), HOSTNAME: '127.0.0.1' } : {}),
       },
       reuseExistingServer: false,
       timeout: 120000,

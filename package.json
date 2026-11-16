@@ -19,6 +19,7 @@
     "test:api": "npm test --prefix apps/api",
     "test:web": "npm test --prefix apps/web",
     "test:integration": "npm run test:integration --prefix apps/api",
+    "test:smoke:cloud": "node scripts/cloud-smoke.mjs",
     "test:demo": "powershell -ExecutionPolicy Bypass -File ./scripts/test-demo.ps1",
     "test:unit": "npm run test:api && npm run test:web",
     "perf:seed": "node ./scripts/seed-perf-nfr01.mjs",

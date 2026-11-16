@@ -1,0 +1,23 @@
+name: Railway Cloud Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      SMOKE_WEB_URL: https://web-production-b910e.up.railway.app/
+      SMOKE_API_URL: https://api-production-1be6.up.railway.app/api/v1/
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm run test:smoke:cloud

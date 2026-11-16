@@ -164,6 +164,8 @@ Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull requ
 
 CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ruleset `BrewLite CI quality gate` bắt buộc cả bốn job đạt trên main, strict và không có bypass actor; cần kiểm tra trực tiếp trên GitHub khi nghiệm thu. Cấu hình YAML không tự thiết lập rule trên GitHub. Repo hiện có CI, chưa có workflow CD. Hướng dẫn chạy và kiểm chứng nằm trong [mục lục tài liệu](docs/README.md).
 
+Sau khi Railway triển khai xong, chạy workflow **Railway Cloud Smoke** trong GitHub Actions để kiểm tra web, trang menu, kết nối PostgreSQL qua API readiness và dữ liệu danh mục. Có thể chạy cùng bài kiểm tra bằng `npm run test:smoke:cloud` với `SMOKE_WEB_URL` và `SMOKE_API_URL` trỏ đến URL gốc của web và API. URL API bao gồm `/api/v1/`.
+
 ## Quy ước phát triển
 
 `OrderItem.note` là ghi chú món tùy chọn, tối đa 500 ký tự sau trim; thiếu/rỗng thành null. UI nhập và hiển thị ghi chú, giỏ persist và tách dòng khác ghi chú; DTO/mapper giữ cùng snapshot, không thay đổi giá. Migration bổ sung riêng giữ đơn cũ với note null.

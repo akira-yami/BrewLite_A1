@@ -31,8 +31,8 @@ Phạm vi đối chiếu: A1-9.5, A1-10.2, EXT-UC10 và EXT quản lý kho theo 
 
 - Backend unit: `npm test --prefix apps/api`.
 - PostgreSQL migration/integration: xem [README API](../../apps/api/README.md); dùng database riêng tên bắt đầu `brewlite_foundation_smoke`.
-- `apps/api/test/order-state-machine.integration-spec.ts`: lifecycle, cạnh tranh, quyền và nhánh hủy.
-- `apps/api/test/staff-inventory.integration-spec.ts`: HTTP/JWT/RBAC, filter/pagination, validation và concurrent update/reservation.
+- `apps/api/test/integration/order-state-machine.integration-spec.ts`: lifecycle, cạnh tranh, quyền và nhánh hủy.
+- `apps/api/test/integration/staff-inventory.integration-spec.ts`: HTTP/JWT/RBAC, filter/pagination, validation và concurrent update/reservation.
 - Browser: `apps/web/tests/e2e/staff.spec.ts`, cùng checkout/retry đang có. Seed E2E tạo cùng tài khoản demo cố định như seed thông thường.
 - Để chạy browser test với stack Compose có sẵn, đặt E2E_EXTERNAL_BASE_URL và E2E_API_URL; Playwright không tự khởi động server khi có E2E_EXTERNAL_BASE_URL.
 

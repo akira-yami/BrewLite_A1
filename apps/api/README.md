@@ -74,7 +74,7 @@ npm run test:e2e
 npm run build
 ```
 
-`test/checkout.e2e-spec.ts` kiểm tra HTTP/DB thật cho checkout: preview coupon, tạo đơn có giảm giá, thanh toán Wallet thành công, Card thất bại, replay idempotency key và retry bằng key mới. Test yêu cầu `SMOKE_DATABASE_URL` trỏ đến database disposable có tên bắt đầu bằng `brewlite_foundation_smoke`.
+`test/e2e/checkout.e2e-spec.ts` kiểm tra HTTP/DB thật cho checkout: preview coupon, tạo đơn có giảm giá, thanh toán Wallet thành công, Card thất bại, replay idempotency key và retry bằng key mới. Test yêu cầu `SMOKE_DATABASE_URL` trỏ đến database disposable có tên bắt đầu bằng `brewlite_foundation_smoke`.
 
 Build/typecheck tự generate client; `src/generated/prisma` được bỏ qua trong Git. Docker dùng migration one-shot trước backend. Không sửa migration đã chạy trên database chia sẻ.
 
@@ -101,7 +101,7 @@ Script không đọc `.env`, không reset/drop database và từ chối DB khôn
 
 Integration kiểm tra CHECK, FK, partial unique payment/loyalty và rollback; chưa chứng minh implementation Task 10 (state machine, payment idempotency service, inventory concurrency), vốn thuộc các Sprint sau.
 
-`test/s1.integration-spec.ts` bổ sung kiểm tra HTTP qua AppModule với PostgreSQL thật: Register → Login → JWT/profile, hash/response an toàn, whitelist, credential lỗi và Menu đọc giá từ DB. Bộ này chạy cùng `test:migration`/`test:integration` và chỉ ghi fixture vào `SMOKE_DATABASE_URL` đã được kiểm tra tên.
+`test/integration/s1.integration-spec.ts` bổ sung kiểm tra HTTP qua AppModule với PostgreSQL thật: Register → Login → JWT/profile, hash/response an toàn, whitelist, credential lỗi và Menu đọc giá từ DB. Bộ này chạy cùng `test:migration`/`test:integration` và chỉ ghi fixture vào `SMOKE_DATABASE_URL` đã được kiểm tra tên.
 
 ## Hợp đồng Orders và tài liệu dữ liệu
 

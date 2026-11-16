@@ -66,12 +66,12 @@ $env:DATABASE_URL="postgresql://brewlite:123456@localhost:5432/brewlite_foundati
 ### C. Chạy 1 file Test Web Frontend (`apps/web`)
 ```powershell
 # Chạy 1 file test giao diện web và lưu log:
-node --test apps/web/tests/<tên_file.test.mjs> *>&1 | Tee-Object -FilePath "logs/<tên_log>.log"
+node --test apps/web/tests/unit/<tên_file.test.mjs> *>&1 | Tee-Object -FilePath "logs/<tên_log>.log"
 
 # Ví dụ cụ thể:
-node --test apps/web/tests/cart.test.mjs *>&1 | Tee-Object -FilePath "logs/cart-test.log"
-node --test apps/web/tests/menu.test.mjs *>&1 | Tee-Object -FilePath "logs/menu-test.log"
-node --test apps/web/tests/auth-session.test.mjs *>&1 | Tee-Object -FilePath "logs/auth-session.log"
+node --test apps/web/tests/unit/cart-store.test.mjs *>&1 | Tee-Object -FilePath "logs/cart-test.log"
+node --test apps/web/tests/unit/menu-states.test.mjs *>&1 | Tee-Object -FilePath "logs/menu-test.log"
+node --test apps/web/tests/unit/auth-session.test.mjs *>&1 | Tee-Object -FilePath "logs/auth-session.log"
 ```
 
 ---

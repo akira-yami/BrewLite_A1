@@ -15,10 +15,10 @@
 | # | Nhóm test | Loại | File test | Kết quả | Log bằng chứng |
 |---|-----------|------|-----------|---------|----------------|
 | 1 | Máy trạng thái đơn + hàng đợi barista | Unit (không DB) | `src/modules/orders/state/order-state-machine.spec.ts`, `services/orders.service.staff.spec.ts` | **47/47 PASS** | [01-unit-state-machine-and-barista.log](evidence/business-suite-2026-11-12/01-unit-state-machine-and-barista.log) |
-| 2 | Tranh chấp tồn kho — ly cuối cùng | Integration (PostgreSQL) | `test/inventory-concurrency.integration-spec.ts` | **6/6 PASS** | [02-inventory-concurrency-last-cup.log](evidence/business-suite-2026-11-12/02-inventory-concurrency-last-cup.log) |
-| 3 | Đặt hàng + idempotency thanh toán + vòng đời đơn | Integration (PostgreSQL) | `test/orders.integration-spec.ts`, `test/order-state-machine.integration-spec.ts` | **35/35 PASS** | [03-orders-and-payment-idempotency.log](evidence/business-suite-2026-11-12/03-orders-and-payment-idempotency.log) |
-| 4 | Đăng nhập, JWT, cô lập người dùng (RBAC) | E2E (HTTP) | `test/auth.e2e-spec.ts` | **18/18 PASS** | [04-auth-login-isolation.log](evidence/business-suite-2026-11-12/04-auth-login-isolation.log) |
-| 5 | Hết hạn thanh toán + hoàn kho + đổi điểm (loyalty) | Integration (PostgreSQL) | `test/payment-expiry.integration-spec.ts`, `test/loyalty-redemption.integration-spec.ts` | **19/19 PASS** | [05-payment-expiry-and-loyalty.log](evidence/business-suite-2026-11-12/05-payment-expiry-and-loyalty.log) |
+| 2 | Tranh chấp tồn kho — ly cuối cùng | Integration (PostgreSQL) | `test/integration/inventory-concurrency.integration-spec.ts` | **6/6 PASS** | [02-inventory-concurrency-last-cup.log](evidence/business-suite-2026-11-12/02-inventory-concurrency-last-cup.log) |
+| 3 | Đặt hàng + idempotency thanh toán + vòng đời đơn | Integration (PostgreSQL) | `test/integration/orders.integration-spec.ts`, `test/integration/order-state-machine.integration-spec.ts` | **35/35 PASS** | [03-orders-and-payment-idempotency.log](evidence/business-suite-2026-11-12/03-orders-and-payment-idempotency.log) |
+| 4 | Đăng nhập, JWT, cô lập người dùng (RBAC) | E2E (HTTP) | `test/e2e/auth.e2e-spec.ts` | **18/18 PASS** | [04-auth-login-isolation.log](evidence/business-suite-2026-11-12/04-auth-login-isolation.log) |
+| 5 | Hết hạn thanh toán + hoàn kho + đổi điểm (loyalty) | Integration (PostgreSQL) | `test/integration/payment-expiry.integration-spec.ts`, `test/integration/loyalty-redemption.integration-spec.ts` | **19/19 PASS** | [05-payment-expiry-and-loyalty.log](evidence/business-suite-2026-11-12/05-payment-expiry-and-loyalty.log) |
 
 **Tổng: 125 test PASS** (47 unit + 78 integration/e2e), chạy thật qua tầng HTTP (supertest) và
 PostgreSQL thật. Chuẩn bị DB: [00-db-migrate.log](evidence/business-suite-2026-11-12/00-db-migrate.log).

@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: ['**/*.spec.ts'],
+    include: ['test/unit/**/*.spec.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['json-summary', 'text'],

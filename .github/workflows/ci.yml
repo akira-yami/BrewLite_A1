@@ -82,6 +82,8 @@ jobs:
           npx playwright install --with-deps chromium
       # No continue-on-error: payment contract/retry regressions must fail this job.
       - run: npm run test:e2e --prefix apps/web
+        env:
+          E2E_USE_BUILT_SERVERS: 'true'
       - name: Upload browser traces and report
         if: always()
         uses: actions/upload-artifact@v6

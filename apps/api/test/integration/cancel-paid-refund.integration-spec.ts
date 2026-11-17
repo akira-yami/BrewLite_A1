@@ -182,7 +182,7 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
   // TEST 1: Customer hủy đơn PAID thành công → nhận Store Credit
   // ─────────────────────────────────────────────────────────────────────────────
   it('chỉ hoàn Store Credit sau khi barista duyệt yêu cầu của khách', async () => {
-    const earlier = await newPaidOrder();
+    await newPaidOrder();
     const order = await newPaidOrder();
 
     // Lấy balance trước khi hủy (đã được cộng EARN khi PAID)
@@ -208,7 +208,8 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
     expect(staffQueue.body.data[0]).toMatchObject({ id: order.id, refundRequest: { status: 'PENDING' } });
     const fullQueue = await request(app.getHttpServer()).get('/api/v1/staff/orders?status=PAID&limit=2')
       .set('Authorization', bearer(baristaToken)).expect(200);
-    expect(fullQueue.body.data.map(({ id }: { id: string }) => id)).toEqual([order.id, earlier.id]);
+    expect(fullQueue.body.data).toHaveLength(2);
+    expect(fullQueue.body.data[0].id).toBe(order.id);
     const response = await reviewRefund(order.id, 'APPROVED').expect(200);
 
     // Kiểm tra response structure

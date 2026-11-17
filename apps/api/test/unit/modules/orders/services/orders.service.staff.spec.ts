@@ -40,13 +40,16 @@ function orderRow(status: string) {
 }
 
 describe('OrdersService - Barista (EXT-UC10)', () => {
-  const tx = { marker: 'tx' };
+  let tx: any;
+  let promotions: any;
   let repository: any;
   let users: any;
   let prisma: any;
   let service: OrdersService;
 
   beforeEach(() => {
+    tx = { marker: 'tx' };
+    promotions = { releaseConsumedRedemption: vi.fn() };
     repository = {
       findStaffQueue: vi.fn(),
       lockById: vi.fn(),
@@ -58,11 +61,65 @@ describe('OrdersService - Barista (EXT-UC10)', () => {
     service = new OrdersService(
       repository,
       prisma,
-      {} as any,
+      promotions,
       {} as any,
       {} as any,
       users,
     );
+  });
+
+  describe('reviewOrderRefund', () => {
+    const customerId = 'customer';
+    const pending = {
+      status: 'PENDING', requestedAt: new Date('2026-11-04T01:00:00Z'),
+      decidedAt: null, rejectionReason: null,
+    };
+
+    beforeEach(() => {
+      repository.lockById.mockResolvedValue({ ...orderRow('PAID'), userId: customerId, refundRequest: pending });
+      tx.orderRefundRequest = {
+        update: vi.fn(async ({ data }) => ({ ...pending, ...data })),
+      };
+      tx.payment = { findFirst: vi.fn().mockResolvedValue(null), updateMany: vi.fn() };
+      tx.inventoryReservation = {
+        findMany: vi.fn().mockResolvedValue([{ id: 'reservation', items: [{ ingredientId: 'beans', quantity: 10 }] }]),
+        update: vi.fn(),
+      };
+      tx.ingredient = { update: vi.fn() };
+      tx.user = { update: vi.fn().mockResolvedValueOnce({ loyaltyBalance: 49500 }).mockResolvedValueOnce({ loyaltyBalance: 45000 }) };
+      tx.loyaltyTransaction = { create: vi.fn(), findFirst: vi.fn().mockResolvedValue({ points: 4500 }) };
+    });
+
+    it('approves the refund and restores stock, voucher and loyalty in the same transaction', async () => {
+      const result = await service.reviewOrderRefund(ORDER_ID, BARISTA_ID, { decision: 'APPROVED' });
+
+      expect(result).toMatchObject({ status: 'APPROVED', points: 45000 });
+      expect(repository.updateStatusWithHistory).toHaveBeenCalledWith(ORDER_ID, 'PAID', 'CANCELLED', BARISTA_ID, expect.any(String), tx);
+      expect(tx.ingredient.update).toHaveBeenCalledWith({
+        where: { id: 'beans' }, data: { stockQuantity: { increment: 10 }, version: { increment: 1 } },
+      });
+      expect(promotions.releaseConsumedRedemption).toHaveBeenCalledWith(tx, ORDER_ID);
+      expect(tx.loyaltyTransaction.create).toHaveBeenNthCalledWith(1, {
+        data: expect.objectContaining({ userId: customerId, type: 'REFUND_CREDIT', points: 45000, balanceAfter: 49500 }),
+      });
+      expect(tx.loyaltyTransaction.create).toHaveBeenNthCalledWith(2, {
+        data: expect.objectContaining({ userId: customerId, type: 'REVERSAL', points: -4500, balanceAfter: 45000 }),
+      });
+    });
+
+    it('leaves the pending request intact when payment requires review', async () => {
+      tx.payment.findFirst.mockResolvedValue({ id: 'review-payment' });
+      await expect(service.reviewOrderRefund(ORDER_ID, BARISTA_ID, { decision: 'APPROVED' })).rejects.toThrow(ConflictException);
+      expect(tx.orderRefundRequest.update).not.toHaveBeenCalled();
+      expect(tx.loyaltyTransaction.create).not.toHaveBeenCalled();
+    });
+
+    it('records the rejection without cancelling the order or crediting loyalty', async () => {
+      const result = await service.reviewOrderRefund(ORDER_ID, BARISTA_ID, { decision: 'REJECTED', reason: '  Khách giữ đơn  ' });
+      expect(result).toMatchObject({ status: 'REJECTED', rejectionReason: 'Khách giữ đơn' });
+      expect(repository.updateStatusWithHistory).not.toHaveBeenCalled();
+      expect(tx.loyaltyTransaction.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('getStaffQueue', () => {

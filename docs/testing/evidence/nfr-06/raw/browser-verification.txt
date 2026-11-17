@@ -1,0 +1,22 @@
+Database: brewlite_nfr_review_e2e
+Projects: Chromium and Firefox; viewport 390x844
+Specs: staff-recipes.spec.ts; loyalty-checkout.spec.ts
+Payment callback: simulated IPN
+
+[WebServer] ◇ injected env (2) from .env
+
+Running 6 tests using 1 worker
+
+(node:11292) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [chromium] › tests\e2e\loyalty-checkout.spec.ts:12:5 › customer redeems earned points and pays a discounted order with the voucher (58.7s)
+  ok 2 [chromium] › tests\e2e\staff-recipes.spec.ts:6:5 › shows a login prompt to guests and denies customer access to recipes (1.2s)
+  ok 3 [chromium] › tests\e2e\staff-recipes.spec.ts:20:5 › barista searches recipes without accents and sees quantities by size and topping (1.2s)
+(node:28580) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 4 [firefox] › tests\e2e\loyalty-checkout.spec.ts:12:5 › customer redeems earned points and pays a discounted order with the voucher (7.7s)
+  ok 5 [firefox] › tests\e2e\staff-recipes.spec.ts:6:5 › shows a login prompt to guests and denies customer access to recipes (2.0s)
+  ok 6 [firefox] › tests\e2e\staff-recipes.spec.ts:20:5 › barista searches recipes without accents and sees quantities by size and topping (2.5s)
+
+  6 passed (2.5m)
+Exit code: 0

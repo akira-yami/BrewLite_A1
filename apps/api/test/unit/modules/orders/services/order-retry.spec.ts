@@ -99,12 +99,12 @@ function setup() {
 }
 
 describe('Order transaction regression checks', () => {
-  it('quotes and updates within the same Serializable transaction with the expected ingredient version', async () => {
+  it('quotes and updates within the same Read Committed transaction with the expected ingredient version', async () => {
     const { service, tx, prisma, dto } = setup();
 
     await service.createOrder('user', dto);
     expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
-      isolationLevel: 'Serializable',
+      isolationLevel: 'ReadCommitted',
     });
     expect(tx.ingredient.updateMany).toHaveBeenCalledWith({
       where: {
@@ -117,7 +117,7 @@ describe('Order transaction regression checks', () => {
     });
   });
 
-  it('re-quotes after a version conflict and snapshots the new price/version', async () => {
+  it('preserves the quoted price when the current stock can fulfill the order', async () => {
     const { service, tx, dto, variant } = setup();
     tx.ingredient.updateMany.mockResolvedValueOnce({ count: 0 });
     tx.productVariant.findFirst
@@ -129,16 +129,44 @@ describe('Order transaction regression checks', () => {
       });
     const response = await service.createOrder('user', dto);
 
-    expect(response.total).toBe(45000);
+    expect(response.total).toBe(40000);
+    expect(tx.productVariant.findFirst).toHaveBeenCalledTimes(1);
     expect(tx.ingredient.updateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
-          version: 8,
-        }),
+        where: {
+          id: 'bean',
+          isActive: true,
+          stockQuantity: { gte: 10 },
+        },
       }),
     );
 
     expect(tx.orderStatusHistory.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-quotes the price and ingredient version when a transaction is retried', async () => {
+    const { service, tx, prisma, dto, variant } = setup();
+    prisma.$transaction.mockImplementationOnce(async (callback) => {
+      await callback(tx);
+      throw { code: 'P2034' };
+    });
+    tx.productVariant.findFirst
+      .mockResolvedValueOnce(variant)
+      .mockResolvedValueOnce({
+        ...variant,
+        price: 45000n,
+        recipeItems: recipe('bean', 10, 100, 8),
+      });
+
+    const response = await service.createOrder('user', dto);
+
+    expect(response.total).toBe(45000);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(tx.ingredient.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ version: 8 }),
+      }),
+    );
   });
 
   it.each(['P2034', '40001', '40P01'])(

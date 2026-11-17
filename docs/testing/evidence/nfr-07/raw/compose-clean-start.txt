@@ -1,0 +1,12 @@
+Docker: 29.7.2
+Compose: 5.4.0
+Clean isolated project: brewlite-nfr-20261117203758
+Command: docker compose --env-file .env.example -p <project> -f compose.yaml -f <isolated-image-override> up -d --build --wait --wait-timeout 150
+Service | state | health | exit code
+backend | running | healthy | 0
+frontend | running | healthy | 0
+migrate | exited |  | 0
+postgres | running | healthy | 0
+API HTTP: 200
+Frontend HTTP: 200
+Demo seed: exit 0

@@ -1,0 +1,9 @@
+Trích nguyên văn các dòng kết quả liên quan từ lượt kiểm thử.
+
+Nguồn: postgres-invariants-tests.txt
+✓ test/integration/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > keeps one order and one payment after two requests with the same Idempotency-Key 214ms
+✓ test/integration/loyalty-redemption.integration-spec.ts > Loyalty redemption PostgreSQL atomicity > returns the same coupon for concurrent retries with the same key 50ms
+✓ test/integration/loyalty-redemption.integration-spec.ts > Loyalty redemption PostgreSQL atomicity > rejects reusing a redemption key for a different tier without a second debit 37ms
+
+Nguồn: api-unit-tests.txt
+✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 1. Nên ném 409 IDEMPOTENCY_KEY_REUSED nếu trùng key nhưng khác requestHash 1ms

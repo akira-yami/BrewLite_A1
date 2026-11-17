@@ -62,7 +62,7 @@ Mỗi ly kèm một phần topping, nguyên liệu của topping được trừ 
 
 API menu/detail trả `variants[].available` (boolean): công thức có đủ nguyên liệu để pha ít nhất một phần hay không. Không trả số lượng tồn của từng món/size. Các size và món có thể dùng chung nguyên liệu nên khả dụng tại lúc đọc không phải cam kết giữ hàng. Backend cộng dồn nhu cầu của toàn giỏ (gồm topping) rồi giữ nguyên liệu trong transaction; UI chỉ hiển thị “Có thể pha / Tạm hết nguyên liệu”.
 
-Khi tạo đơn, hệ thống quy đổi số ly thành nhu cầu nguyên liệu theo công thức, cộng dồn các nguyên liệu dùng chung giữa các dòng, rồi trừ kho nguyên liệu bằng `UPDATE ... WHERE version = ? AND stock_quantity >= ?` theo thứ tự ID trong transaction `Serializable`. Migration `20261101090000_ingredient_recipe_inventory` tạo ba bảng trên và xóa `product_variants.stock`/`version`. Số lượng thành phẩm cũ không được chuyển đổi; sau khi `npm run prisma:deploy`, chạy `npm run db:seed` để có nguyên liệu và công thức mẫu.
+Khi tạo đơn, hệ thống quy đổi số ly thành nhu cầu nguyên liệu theo công thức và cộng dồn các nguyên liệu dùng chung. Transaction `ReadCommitted` cập nhật nguyên liệu theo thứ tự ID: trước tiên kiểm tra version và lượng tồn; nếu version đã đổi, thử cập nhật có điều kiện đủ tồn trên dòng hiện tại. Mỗi lần cập nhật thành công đều trừ lượng cần giữ và tăng version. Nếu không giữ đủ nguyên liệu, toàn bộ đơn, reservation và lượt coupon trong transaction được hoàn tác. Migration `20261101090000_ingredient_recipe_inventory` tạo ba bảng trên và xóa `product_variants.stock`/`version`. Số lượng thành phẩm cũ không được chuyển đổi; sau khi `npm run prisma:deploy`, chạy `npm run db:seed` để có nguyên liệu và công thức mẫu.
 
 ## Kiểm tra
 
@@ -99,7 +99,7 @@ npm run test:migration
 
 Script không đọc `.env`, không reset/drop database và từ chối DB không rỗng. Nó validate/generate, migrate deploy hai lần, kiểm tra migration status và chạy integration tests với Prisma thật. Dữ liệu fixture chỉ nằm trong DB test này. Lần chạy mới cần DB test rỗng khác.
 
-Integration kiểm tra CHECK, FK, partial unique payment/loyalty và rollback; chưa chứng minh implementation Task 10 (state machine, payment idempotency service, inventory concurrency), vốn thuộc các Sprint sau.
+Integration kiểm tra CHECK, FK, partial unique payment/loyalty, rollback, state machine, payment idempotency và tranh chấp tồn kho. Hướng dẫn chạy và log nghiệm thu nằm trong [hồ sơ kiểm thử](../../docs/testing/README.md) và [minh chứng NFR](../../docs/testing/evidence/README.md).
 
 `test/integration/s1.integration-spec.ts` bổ sung kiểm tra HTTP qua AppModule với PostgreSQL thật: Register → Login → JWT/profile, hash/response an toàn, whitelist, credential lỗi và Menu đọc giá từ DB. Bộ này chạy cùng `test:migration`/`test:integration` và chỉ ghi fixture vào `SMOKE_DATABASE_URL` đã được kiểm tra tên.
 

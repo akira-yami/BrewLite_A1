@@ -544,8 +544,8 @@ describe('Week 3 Orders: real HTTP and PostgreSQL', () => {
         where: { productVariantId: variant.id },
       }),
     ).toBe(1);
-    // Serializable có thể thấy kho đã hết, hoặc hết ngân sách retry vì
-    // xung đột transaction. Cả hai đều phải là 409 và không giữ kho lần hai.
+    // Yêu cầu thứ hai có thể thấy kho đã hết hoặc gặp xung đột khi giữ kho.
+    // Cả hai đều phải trả 409 và không giữ kho lần hai.
     expect(['OUT_OF_STOCK', 'INVENTORY_CONFLICT']).toContain(
       results.find((result) => result.status === 409)?.body.error.code,
     );

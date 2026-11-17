@@ -58,4 +58,21 @@ describe.skipIf(!isolatedSmokeDatabase)('Loyalty redemption PostgreSQL atomicity
       expect(await prisma.loyaltyTransaction.count({ where: { userId, type: 'REDEEM' } })).toBe(1);
     });
   });
+
+  it('rejects reusing a redemption key for a different tier without a second debit', async () => {
+    await withCustomer(async (userId) => {
+      const key = randomUUID();
+      await prisma.user.update({ where: { id: userId }, data: { loyaltyBalance: 30000 } });
+      const otherReward: LoyaltyTier = { tierId: '20000', pointsCost: 20000, discountAmount: 20000, minOrderValue: 40000 };
+
+      await repository.redeem(userId, reward, key);
+      await expect(repository.redeem(userId, otherReward, key)).rejects.toMatchObject({
+        status: 409,
+        response: { error: { code: 'IDEMPOTENCY_KEY_REUSED' } },
+      });
+      expect(await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { loyaltyBalance: true } }))
+        .toEqual({ loyaltyBalance: 20000 });
+      expect(await prisma.loyaltyTransaction.count({ where: { userId, type: 'REDEEM' } })).toBe(1);
+    });
+  });
 });

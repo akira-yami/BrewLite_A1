@@ -1,0 +1,37 @@
+Command: npm.cmd --prefix apps/api run test:e2e -- auth.e2e-spec.ts --reporter=verbose
+
+> brewlite-api@0.0.1 test:e2e
+> vitest run --config ./vitest.config.e2e.ts auth.e2e-spec.ts --reporter=verbose
+
+◇ injected env (12) from .env
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | test/e2e/auth.e2e-spec.ts
+◇ injected env (0) from .env
+
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects a missing token without looking up a user 43ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > logs in with bcrypt credentials and returns a verifiable JWT in the data envelope 177ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > returns the same 401 credential error when the account does not exist 12ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects a wrong password without disclosing which credential failed 114ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects an inactive account after verifying its password 115ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects malformed tokens 14ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"expiresIn":-1} 22ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"secret":"wrong-signature-key"} 18ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"issuer":"wrong-issuer"} 18ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"audience":"wrong-audience"} 13ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects a signed token with no subject 33ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > uses JWT subject for the profile and never exposes the password hash 14ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > formats 401 with standard UNAUTHORIZED envelope when unauthenticated 12ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > allows CUSTOMER to read their own user data via /auth/users/:userId 16ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > blocks CUSTOMER from reading another user data via /auth/users/:userId with FORBIDDEN_RESOURCE 19ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > allows BARISTA to read any user data via /auth/users/:userId (Elevated role) 17ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > blocks CUSTOMER from accessing BARISTA-only route with FORBIDDEN_RESOURCE 14ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > allows BARISTA to access BARISTA-only route 14ms
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  23:36:59
+   Duration  13.60s (transform 2.17s, setup 0ms, import 10.87s, tests 2.04s, environment 0ms)
+
+Exit code: 0

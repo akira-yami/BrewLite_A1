@@ -152,14 +152,6 @@ export class OrdersService {
               },
             });
 
-            // Diễn ra va chạm nếu 2 người cùng đặt 1 món cùng lúc
-            await this.inventory.reserve( // Khóa/trừ tạm lượng nguyên liệu theo needs bằng cơ chế Optimistic Locking (kiểm tra version của nguyên liệu).
-              tx,
-              order.id,
-              reservationExpiresAt,
-              needs,
-            ); // Lỗi thì ném ra InventoryVersionConflict
-
             // 3.6. Giữ lượt dùng mã giảm giá (CouponRedemption) nếu có
             if (couponQuote) {
               await this.promotionsService.reserve(
@@ -181,6 +173,8 @@ export class OrdersService {
               },
             });
 
+            await this.inventory.reserve(tx, order.id, reservationExpiresAt, needs);
+
             return {
               id: order.id,
               orderNumber: order.orderNumber,
@@ -194,13 +188,20 @@ export class OrdersService {
               createdAt: order.createdAt.toISOString(),
             };
           },
-          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+          // Stock writes and coupon reservations have explicit concurrency guards.
+          { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
         );
       } catch (error) {
         const prismaError = error as {
+          name?: string;
           code?: string;
+          cause?: { kind?: string };
           meta?: { target?: unknown };
         };
+        // The pg adapter can surface a serialization failure while committing.
+        const adapterWriteConflict =
+          prismaError.name === 'DriverAdapterError' &&
+          prismaError.cause?.kind === 'TransactionWriteConflict';
         const uniqueOrderNumber =
           prismaError.code === 'P2002' &&
           JSON.stringify(prismaError.meta?.target ?? '').match(
@@ -208,6 +209,7 @@ export class OrdersService {
           );
         if (
           !(error instanceof InventoryVersionConflict) &&
+          !adapterWriteConflict &&
           !['P2034', 'P2028', '40001', '40P01'].includes(prismaError.code ?? '') &&
           !uniqueOrderNumber
         )

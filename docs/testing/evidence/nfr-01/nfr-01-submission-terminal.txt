@@ -1,0 +1,108 @@
+
+> brewlite@1.0.0 perf:test
+> node ./scripts/run-load-test-nfr01.mjs
+
+================================================================
+   CHƯƠNG TRÌNH ĐO TẢI HIỆU NĂNG API BREWLITE — SRS NFR-01
+================================================================
+Hệ điều hành: win32 10.0.26200
+CPU         : 13th Gen Intel(R) Core(TM) i7-13620H (16 cores)
+Bộ nhớ RAM  : 12116 MB / 16088 MB (75.3%)
+Node.js     : v24.21.0
+API Host    : http://127.0.0.1:3102/api/v1
+Database URL: postgresql://brewlite:****@127.0.0.1:5432/brewlite_nfr01_submission?schema=public
+- Valid Product ID: 05f66b9f-e452-4cbe-a83d-98d0c686e4e5
+- Số variant có công thức (dùng để tạo đơn chuẩn bị cho đo thanh toán): 300
+- Đang đăng nhập test users để lấy JWT token...
+  -> Lấy JWT token thành công cho 6 tài khoản ghi đơn.
+Trạng thái DB trước đo: { productCount: 100, orderCount: 1000, totalStock: '330000000' }
+
+======================================================
+ ĐO TẢI: GET /api/v1/products
+ Điều kiện: 20 clients đồng thời | Warm-up: 30s | Đo: 60s
+======================================================
+[1/2] Đang warm-up 30 giây với 20 clients...
+  Warm-up hoàn tất: 33299 requests đã gửi.
+[2/2] Bắt đầu đo chính thức 60 giây với 20 clients...
+----------------- KẾT QUẢ ĐO -----------------
+ Tổng số mẫu   : 59201 requests
+ Thông lượng    : 986.3 req/sec
+ Latency p50    : 17.6 ms
+ Latency p90    : 29.43 ms
+ p95 gộp        : 34.46 ms
+ p95 2xx        : 34.46 ms (Ngưỡng SRS: < 500 ms) -> ✅ ĐẠT
+ Latency p99    : 46.78 ms
+ Min / Max      : 11.42 ms / 76.95 ms
+ Mã phản hồi    : { '200': 59201 }
+ Lỗi 5xx/Timeout: 0 (0%, Ngưỡng SRS: < 1%) -> ✅ ĐẠT
+ KẾT LUẬN       : ✅ ĐẠT MỤC TIÊU NFR-01
+
+======================================================
+ ĐO TẢI: GET /api/v1/products/05f66b9f-e452-4cbe-a83d-98d0c686e4e5
+ Điều kiện: 20 clients đồng thời | Warm-up: 30s | Đo: 60s
+======================================================
+[1/2] Đang warm-up 30 giây với 20 clients...
+  Warm-up hoàn tất: 27719 requests đã gửi.
+[2/2] Bắt đầu đo chính thức 60 giây với 20 clients...
+----------------- KẾT QUẢ ĐO -----------------
+ Tổng số mẫu   : 61919 requests
+ Thông lượng    : 1031.7 req/sec
+ Latency p50    : 16.67 ms
+ Latency p90    : 27.48 ms
+ p95 gộp        : 34.04 ms
+ p95 2xx        : 34.04 ms (Ngưỡng SRS: < 500 ms) -> ✅ ĐẠT
+ Latency p99    : 54.86 ms
+ Min / Max      : 10.31 ms / 86.97 ms
+ Mã phản hồi    : { '200': 61919 }
+ Lỗi 5xx/Timeout: 0 (0%, Ngưỡng SRS: < 1%) -> ✅ ĐẠT
+ KẾT LUẬN       : ✅ ĐẠT MỤC TIÊU NFR-01
+
+======================================================
+ ĐO TẢI: GET /api/v1/orders/me
+ Điều kiện: 20 clients đồng thời | Warm-up: 30s | Đo: 60s
+======================================================
+[1/2] Đang warm-up 30 giây với 20 clients...
+  Warm-up hoàn tất: 29037 requests đã gửi.
+[2/2] Bắt đầu đo chính thức 60 giây với 20 clients...
+----------------- KẾT QUẢ ĐO -----------------
+ Tổng số mẫu   : 39281 requests
+ Thông lượng    : 653.3 req/sec
+ Latency p50    : 20.61 ms
+ Latency p90    : 50.23 ms
+ p95 gộp        : 65.51 ms
+ p95 2xx        : 65.51 ms (Ngưỡng SRS: < 500 ms) -> ✅ ĐẠT
+ Latency p99    : 186.47 ms
+ Min / Max      : 7.34 ms / 1026.78 ms
+ Mã phản hồi    : { '200': 39281 }
+ Lỗi 5xx/Timeout: 0 (0%, Ngưỡng SRS: < 1%) -> ✅ ĐẠT
+ KẾT LUẬN       : ✅ ĐẠT MỤC TIÊU NFR-01
+
+======================================================
+ ĐO TẢI: POST /api/v1/orders
+ Điều kiện: 20 clients đồng thời | Warm-up: 30s | Đo: 60s
+======================================================
+[1/2] Đang warm-up 30 giây với 20 clients...
+  Warm-up hoàn tất: 3250 requests đã gửi.
+[2/2] Bắt đầu đo chính thức 60 giây với 20 clients...
+----------------- KẾT QUẢ ĐO -----------------
+ Tổng số mẫu   : 6953 requests
+ Thông lượng    : 115.7 req/sec
+ Latency p50    : 154.72 ms
+ Latency p90    : 226.48 ms
+ p95 gộp        : 302.01 ms
+ p95 2xx        : 302.01 ms (Ngưỡng SRS: < 500 ms) -> ✅ ĐẠT
+ Latency p99    : 442.94 ms
+ Min / Max      : 63.94 ms / 875.68 ms
+ Mã phản hồi    : { '201': 6953 }
+ Lỗi 5xx/Timeout: 0 (0%, Ngưỡng SRS: < 1%) -> ✅ ĐẠT
+ KẾT LUẬN       : ✅ ĐẠT MỤC TIÊU NFR-01
+
+======================================================
+ ĐO RIÊNG ROUTE PAYMENT: POST /api/v1/payments (VNPAY)
+======================================================
+Thực hiện chuỗi 100 giao dịch thanh toán (tạo order -> gọi payment)...
+
+Trạng thái DB sau đo: { productCount: 100, orderCount: 11303, totalStock: '328951568' }
+Số đơn hàng mới tạo ra trong lượt đo: 10303
+
+Đã lưu kết quả đo thô vào: docs/testing/evidence/perf_nfr-01/nfr-01-results-submission.json

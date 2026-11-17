@@ -23,6 +23,8 @@ function recipeIngredients(
 
 @Injectable()
 export class CatalogService {
+  private productsInFlight?: Promise<ProductResponseDto[]>;
+
   constructor(private readonly repository: CatalogRepository) {}
 
   // These entry points share the Orders transaction; Catalog owns variant data.
@@ -48,7 +50,16 @@ export class CatalogService {
     });
   }
 
-  async getProducts(): Promise<ProductResponseDto[]> {
+  getProducts(): Promise<ProductResponseDto[]> {
+    if (!this.productsInFlight) {
+      this.productsInFlight = this.loadProducts().finally(() => {
+        this.productsInFlight = undefined;
+      });
+    }
+    return this.productsInFlight;
+  }
+
+  private async loadProducts(): Promise<ProductResponseDto[]> {
     const products = await this.repository.findAllProducts();
 
     return products.map((p) => {

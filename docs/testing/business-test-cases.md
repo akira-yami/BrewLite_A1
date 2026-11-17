@@ -41,9 +41,11 @@ Dự án có ba tài liệu kiểm thử ở ba thời điểm; **file này (12/
 
 ## 1. Nghiệp vụ ĐẶT HÀNG (Orders) — `POST /orders`
 
-Chỉ CUSTOMER (JWT hợp lệ) đặt được. Giá tính **từ DB**, không nhận từ client. Tạo đơn chạy
-trong transaction **Serializable + retry ≤3**, giữ tồn kho theo công thức (BOM) và khóa coupon
-trong cùng transaction.
+Chỉ CUSTOMER (JWT hợp lệ) đặt được. Giá tính **từ DB**, không nhận từ client. Tạo đơn dùng
+transaction **Read Committed** với tối đa ba lần thử. Giữ kho theo công thức (BOM) dùng cập nhật
+có điều kiện theo phiên bản nguyên liệu và số lượng còn đủ. Khi phiên bản thay đổi, PostgreSQL
+kiểm tra lượng tồn hiện tại ngay trong cập nhật có điều kiện. Đơn, coupon, lịch sử và giữ kho
+cùng được ghi thành công hoặc cùng được hoàn tác trong transaction.
 
 | Mã | Tiêu đề | Điều kiện | Thao tác | Kết quả mong đợi |
 |----|---------|-----------|----------|------------------|

@@ -1,0 +1,17 @@
+Node: v24.21.0
+Command: node --test apps/web/tests/unit/menu-states.test.mjs
+Exit code: 0
+
+✔ TC-MENU-01: hiển thị loading khi API đang tải (90.0533ms)
+✔ TC-MENU-02: hiển thị empty state khi danh sách rỗng (22.3422ms)
+✔ TC-MENU-03: phân biệt lỗi API với danh sách rỗng (22.2675ms)
+✔ TC-MENU-04: nhấn Thử lại sẽ gọi refetch (22.7399ms)
+✔ TC-MENU-05: hiển thị sản phẩm khi API trả dữ liệu thành công (16.2759ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 555.0575

@@ -1,0 +1,12 @@
+Trích từ các log kiểm thử gốc. Số dòng tính từ đầu mỗi file.
+
+../a1-task-10-test-run.txt
+21: ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > merges normalized lines, preserves 0/null preferences, snapshots and ownership 242ms
+35: ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > fails before committing money outside the JSON integer range 23ms
+44: ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > luồng chính: PENDING → PAID → PREPARING → READY → COMPLETED, ghi lịch sử và khách thấy được 219ms
+45: ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PAID: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 64ms
+50: ✓ test/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang COMPLETED: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 89ms
+
+../nfr-02/api-unit-tests.txt
+69: ✓ test/unit/modules/orders/mappers/order-item.mapper.spec.ts > toOrderItemResponse > returns persisted preferences 0/100 and snapshot prices 3ms
+70: ✓ test/unit/modules/orders/mappers/order-item.mapper.spec.ts > toOrderItemResponse > returns persisted preferences null/null and snapshot prices 1ms

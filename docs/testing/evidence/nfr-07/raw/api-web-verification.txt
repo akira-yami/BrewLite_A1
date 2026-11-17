@@ -1,0 +1,187 @@
+Command: npm.cmd test
+
+
+> brewlite@1.0.0 test
+> npm run test:api && npm run test:web
+
+
+> brewlite@1.0.0 test:api
+> npm test --prefix apps/api
+
+
+> brewlite-api@0.0.1 test
+> vitest run
+
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+[Nest] 26384  - 11/17/2026, 11:18:08 PM    WARN [PaymentRecoveryService] VNPay QueryDr outcome remains UNKNOWN. paymentId=a1698475-3d03-4681-86af-4e68bc9b8d97
+[Nest] 26384  - 11/17/2026, 11:18:08 PM   ERROR [PaymentRecoveryService] VNPay recovery settlement rolled back. paymentId=a1698475-3d03-4681-86af-4e68bc9b8d97
+Error: settlement failed
+    at C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/test/unit/modules/payments/services/payment-recovery.service.spec.ts:321:20
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2956:64
+[Nest] 36264  - 11/17/2026, 11:18:09 PM     LOG [OrderExpiryJob] Đã hủy đơn order-expired, hết hạn coupon/reservation và hoàn kho thành công.
+[Nest] 36264  - 11/17/2026, 11:18:09 PM    WARN [OrderExpiryJob] Bỏ qua đơn order-conflict: concurrent update
+[Nest] 36264  - 11/17/2026, 11:18:09 PM     LOG [OrderExpiryJob] Đã hủy đơn order-valid, hết hạn coupon/reservation và hoàn kho thành công.
+[Nest] 36264  - 11/17/2026, 11:18:09 PM   ERROR [OrderExpiryJob] Lỗi xử lý đơn order-error: database unavailable
+Error: database unavailable
+    at C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/test/unit/modules/orders/services/order-expiry.job.spec.ts:243:30
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+[Nest] 36264  - 11/17/2026, 11:18:09 PM     LOG [OrderExpiryJob] Đã hủy đơn order-valid, hết hạn coupon/reservation và hoàn kho thành công.
+[Nest] 36264  - 11/17/2026, 11:18:09 PM     LOG [OrderExpiryJob] Đã hủy đơn order-empty, hết hạn coupon/reservation và hoàn kho thành công.
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2956:64
+[Nest] 36264  - 11/17/2026, 11:18:09 PM   ERROR [OrderExpiryJob] Lỗi quét các đơn hàng hết hạn.
+Error: query failed
+    at C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/test/unit/modules/orders/services/order-expiry.job.spec.ts:260:30
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+    at new Promise (<anonymous>)
+    at runWithCancel (file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+    at file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api/node_modules/@vitest/runner/dist/chunk-artifact.js:2956:64
+[Nest] 36456  - 11/17/2026, 11:18:18 PM    WARN [PaymentsService] VNPay IPN rejected: invalid signature or callback fields.
+
+ Test Files  41 passed (41)
+      Tests  437 passed (437)
+   Start at  23:18:00
+   Duration  18.37s (transform 4.16s, setup 0ms, import 189.84s, tests 4.40s, environment 9ms)
+
+
+> brewlite@1.0.0 test:web
+> npm test --prefix apps/web
+
+
+> brewlite-web@0.1.0 test
+> node --test tests/unit/*.test.mjs
+
+✔ profile request sends the token and does not cache private data (214.8723ms)
+✔ protected 401 invalidates its own token even with a non-JSON response (36.7926ms)
+✔ invalid login credentials show an error without logging out an existing session (25.0292ms)
+✔ server and network errors do not invalidate a session (32.8884ms)
+✔ protected requests use the current token and reject missing sessions before fetch (28.3564ms)
+✔ registration and login unwrap API responses (25.6804ms)
+✔ Nest validation arrays produce readable errors (19.8133ms)
+✔ protected 403 preserves session and exposes code FORBIDDEN_RESOURCE (17.8153ms)
+(node:36284) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/web/src/features/auth/session.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\Users\ADMIN\OneDrive\Desktop\cnpm\project\BrewLite\apps\web\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ login persists a session and notifies subscribers without touching the cart (5.0918ms)
+✔ reload verifies the stored token with the server instead of trusting cached user data (0.8422ms)
+✔ logout removes auth data, cancels expiry and preserves the cart (0.6645ms)
+✔ expiry clears a session automatically without making another HTTP request (0.5185ms)
+✔ invalid/expired persisted JWT is removed before profile fetch: e30.eyJleHAiOjE3OT (0.4443ms)
+✔ invalid/expired persisted JWT is removed before profile fetch: malformed (0.2346ms)
+✔ invalid/expired persisted JWT is removed before profile fetch: e30.e30.signature (0.2438ms)
+✔ a 401 restoring the session clears credentials (0.5114ms)
+✔ network or server failure preserves credentials and allows retry (0.7634ms)
+✔ a delayed profile response cannot resurrect a logged-out session (0.7205ms)
+✔ a stale 401 cannot log out a newer login (20.636ms)
+✔ a profile response cannot overwrite a newer login (0.5069ms)
+✔ logout in another tab is reflected when storage is reloaded (0.3031ms)
+✔ storage unavailable does not crash login or logout (1.4433ms)
+✔ server render and missing session stay anonymous without browser globals (0.2514ms)
+✔ inactive users are not restored as authenticated (0.4418ms)
+✔ invalid login responses are rejected without saving credentials (1.0514ms)
+✔ reading the token rechecks expiry even if a background timer was delayed (0.3425ms)
+✔ provider cleanup cancels timers and ignores pending profile responses (0.3528ms)
+✔ native browser timers are called without an incompatible receiver (0.4661ms)
+✔ Menu shows a login link for guests and an escaped username/logout for customers (210.422ms)
+✔ Menu exposes session loading and a recovery action for network errors (45.7484ms)
+✔ customer AuthControls displays a Loyalty badge linking to the rewards page (73.8249ms)
+✔ Login explains automatic expiry and intentional logout (15.7352ms)
+✔ login establishes the shared session and navigates after success (29.6409ms)
+✔ register establishes the shared session and navigates after success (36.6218ms)
+(node:30052) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/web/src/stores/cart-store.ts?test=0 is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to \\?\C:\Users\ADMIN\OneDrive\Desktop\cnpm\project\BrewLite\apps\web\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ removing order items subtracts only ordered quantities and matching options (138.2338ms)
+✔ different sugar/ice preferences stay separate; identical options merge without changing price (27.9522ms)
+✔ subtotal and totalQuantity recalculate after quantity and line changes (15.9166ms)
+✔ invalid quantities are rejected and leave the cart unchanged (9.5419ms)
+✔ omitted and null preferences merge, while explicit 100% remains separate (9.2512ms)
+✔ legacy carts retain quantities, migrate their identity and merge with new standard items (65.9056ms)
+✔ reload preserves zero preferences and quantity updates/removal address the correct item (16.7074ms)
+✔ topping order does not change cart identity (19.381ms)
+✔ different notes stay separate, identical trimmed notes merge and survive reload (15.3697ms)
+✔ missing, null and whitespace-only notes merge as no note (6.9959ms)
+✔ notes with reserved delimiters and HTML are preserved as text (6.319ms)
+✔ arbitrary note text can be persisted without breaking cart identity (7.3504ms)
+✔ replacing a persisted item preserves preferences, note and price after reload (24.9485ms)
+✔ replacement merges with matching normalized options and keeps different options separate (16.555ms)
+✔ TC-API-01: Trả về danh sách sản phẩm khi API thành công (7.2543ms)
+✔ TC-API-02: Ném lỗi khi API trả về HTTP 500 (1.1636ms)
+✔ TC-API-03: Có thể gọi lại API sau lần thất bại (0.534ms)
+✔ coupon quote survives route changes and rejects an invalid discount (199.5229ms)
+✔ preferred Loyalty coupon survives navigation and is removed when cleared (43.2922ms)
+✔ pending Loyalty redemption key is stable per customer and tier (75.5172ms)
+✔ pending payment attempt survives reload with order, key and method unchanged (26.2953ms)
+✔ confirmed failure rotates only the key and preserves the existing order for retry (17.3293ms)
+✔ incomplete pending key/method state is discarded (20.0027ms)
+✔ confirmed payment success clears the pending checkout attempt (17.1778ms)
+✔ confirmed payment failure rotates only the key and preserves the original order (35.6866ms)
+✔ processing and unknown payment outcomes preserve the exact attempt for safe replay (16.3194ms)
+✔ pending VNPay payment method and key survive reload (28.6034ms)
+✔ coupon validation uses the authenticated API and trims surrounding whitespace (203.9024ms)
+✔ coupon API rejects missing code and invalid subtotal before making a request (20.9567ms)
+✔ authenticated failures preserve HTTP status and business error code (21.1038ms)
+✔ inventory keeps nextCursor metadata and passes search/filter/cursor safely (195.1318ms)
+✔ inventory list expires session on 401 and rejects a malformed success body (151.0749ms)
+✔ inventory rejects missing pagination metadata before rendering (21.0813ms)
+✔ tiers are fetched publicly while overview uses authenticatedRequest (194.1776ms)
+✔ redemption includes tier body and Idempotency-Key header (59.2112ms)
+✔ quick redeem chooses the lowest affordable tier whose minimum subtotal is met (8.8443ms)
+✔ guest sees public reward tiers without personal balance, coupons, or history (214.0365ms)
+✔ customer sees balance, owned voucher, and points history (55.8605ms)
+✔ TC-MENU-01: hiển thị loading khi API đang tải (186.7481ms)
+✔ TC-MENU-02: hiển thị empty state khi danh sách rỗng (49.0188ms)
+✔ TC-MENU-03: phân biệt lỗi API với danh sách rỗng (43.9497ms)
+✔ TC-MENU-04: nhấn Thử lại sẽ gọi refetch (25.7991ms)
+✔ TC-MENU-05: hiển thị sản phẩm khi API trả dữ liệu thành công (20.6979ms)
+✔ lib/api-client delegates to auth/api with brewlite_token and parses StandardErrorEnvelope message (261.5016ms)
+✔ orders/api invalidates session on 401 but preserves session on 403 (53.5104ms)
+✔ payments/api invalidates session on 401 but preserves session on 403 (64.7042ms)
+✔ CheckoutAPI.validateCoupon returns the unwrapped checkout contract (8.9869ms)
+✔ CheckoutAPI.processPayment returns the unwrapped checkout contract (10.1055ms)
+✔ modal uses product toppings from the API and hides topping choices when none exist (54.9861ms)
+✔ editing opens with the saved size, quantity, zero sugar, ice and note (7.4052ms)
+✔ new product starts with the standard recipe and an empty note (7.198ms)
+✔ editing standard items retains the recipe and exposes percentage and quantity controls (5.7754ms)
+✔ sizes show recipe availability instead of independent finished-drink stock counts (5.4417ms)
+✔ header remains visible near the top, hides scrolling down and returns scrolling up (144.4263ms)
+✔ small direction changes do not make the header flicker (19.91ms)
+✔ header stays visible while a navigation control has keyboard focus (17.4716ms)
+✔ clicking a navigation control does not prevent hiding on subsequent scrolls (30.3275ms)
+✔ rapid scrolling shares a frame and unmount removes the listener and pending frame (15.5789ms)
+✔ getStaffQueueApi sends the bearer token and unwraps data (201.7232ms)
+✔ getStaffQueueApi passes an optional status filter (29.0663ms)
+✔ updateStaffOrderStatusApi PATCHes only the target status (20.8112ms)
+✔ 401 invalidates the session; 403 and 409 keep it and expose the API message (45.7163ms)
+ℹ tests 96
+ℹ suites 0
+ℹ pass 96
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1907.7825
+Exit code: 0

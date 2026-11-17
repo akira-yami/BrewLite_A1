@@ -1,0 +1,216 @@
+{
+  "testRunAtUTC": "2026-11-17T15:16:31.602Z",
+  "system": {
+    "cpuModel": "13th Gen Intel(R) Core(TM) i7-13620H",
+    "cpuCores": 16,
+    "totalMemMB": 16088,
+    "usedMemMB": 12116,
+    "memUsagePercent": 75.3,
+    "nodeVersion": "v24.21.0",
+    "platform": "win32",
+    "release": "10.0.26200"
+  },
+  "databaseBefore": {
+    "productCount": 100,
+    "orderCount": 1000,
+    "totalStock": "330000000"
+  },
+  "databaseAfter": {
+    "productCount": 100,
+    "orderCount": 11303,
+    "totalStock": "328951568"
+  },
+  "routes": [
+    {
+      "endpoint": "GET /api/v1/products",
+      "startTimeUTC": "2026-11-17T15:10:58.738Z",
+      "endTimeUTC": "2026-11-17T15:11:58.761Z",
+      "durationSeconds": 60.03,
+      "concurrency": 20,
+      "totalRequests": 59201,
+      "requestsPerSecond": 986.3,
+      "percentiles": {
+        "min": 11.42,
+        "avg": 20.27,
+        "p50": 17.6,
+        "p90": 29.43,
+        "p95": 34.46,
+        "p99": 46.78,
+        "max": 76.95
+      },
+      "successPercentiles": {
+        "min": 11.42,
+        "avg": 20.27,
+        "p50": 17.6,
+        "p90": 29.43,
+        "p95": 34.46,
+        "p99": 46.78,
+        "max": 76.95
+      },
+      "successCount": 59201,
+      "statusCodes": {
+        "200": 59201
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
+      "errors4xx": 0,
+      "timeouts": 0,
+      "transportErrorSample": null,
+      "errorRate5xxPercent": 0,
+      "thresholdP95": 500,
+      "thresholdErrorRate": 1,
+      "passLatency": true,
+      "passErrorRate": true,
+      "passed": true
+    },
+    {
+      "endpoint": "GET /api/v1/products/05f66b9f-e452-4cbe-a83d-98d0c686e4e5",
+      "startTimeUTC": "2026-11-17T15:12:28.816Z",
+      "endTimeUTC": "2026-11-17T15:13:28.831Z",
+      "durationSeconds": 60.01,
+      "concurrency": 20,
+      "totalRequests": 61919,
+      "requestsPerSecond": 1031.7,
+      "percentiles": {
+        "min": 10.31,
+        "avg": 19.38,
+        "p50": 16.67,
+        "p90": 27.48,
+        "p95": 34.04,
+        "p99": 54.86,
+        "max": 86.97
+      },
+      "successPercentiles": {
+        "min": 10.31,
+        "avg": 19.38,
+        "p50": 16.67,
+        "p90": 27.48,
+        "p95": 34.04,
+        "p99": 54.86,
+        "max": 86.97
+      },
+      "successCount": 61919,
+      "statusCodes": {
+        "200": 61919
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
+      "errors4xx": 0,
+      "timeouts": 0,
+      "transportErrorSample": null,
+      "errorRate5xxPercent": 0,
+      "thresholdP95": 500,
+      "thresholdErrorRate": 1,
+      "passLatency": true,
+      "passErrorRate": true,
+      "passed": true
+    },
+    {
+      "endpoint": "GET /api/v1/orders/me",
+      "startTimeUTC": "2026-11-17T15:13:58.892Z",
+      "endTimeUTC": "2026-11-17T15:14:59.014Z",
+      "durationSeconds": 60.12,
+      "concurrency": 20,
+      "totalRequests": 39281,
+      "requestsPerSecond": 653.3,
+      "percentiles": {
+        "min": 7.34,
+        "avg": 30.6,
+        "p50": 20.61,
+        "p90": 50.23,
+        "p95": 65.51,
+        "p99": 186.47,
+        "max": 1026.78
+      },
+      "successPercentiles": {
+        "min": 7.34,
+        "avg": 30.6,
+        "p50": 20.61,
+        "p90": 50.23,
+        "p95": 65.51,
+        "p99": 186.47,
+        "max": 1026.78
+      },
+      "successCount": 39281,
+      "statusCodes": {
+        "200": 39281
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
+      "errors4xx": 0,
+      "timeouts": 0,
+      "transportErrorSample": null,
+      "errorRate5xxPercent": 0,
+      "thresholdP95": 500,
+      "thresholdErrorRate": 1,
+      "passLatency": true,
+      "passErrorRate": true,
+      "passed": true
+    },
+    {
+      "endpoint": "POST /api/v1/orders",
+      "startTimeUTC": "2026-11-17T15:15:29.224Z",
+      "endTimeUTC": "2026-11-17T15:16:29.334Z",
+      "durationSeconds": 60.11,
+      "concurrency": 20,
+      "totalRequests": 6953,
+      "requestsPerSecond": 115.7,
+      "percentiles": {
+        "min": 63.94,
+        "avg": 172.79,
+        "p50": 154.72,
+        "p90": 226.48,
+        "p95": 302.01,
+        "p99": 442.94,
+        "max": 875.68
+      },
+      "successPercentiles": {
+        "min": 63.94,
+        "avg": 172.79,
+        "p50": 154.72,
+        "p90": 226.48,
+        "p95": 302.01,
+        "p99": 442.94,
+        "max": 875.68
+      },
+      "successCount": 6953,
+      "statusCodes": {
+        "201": 6953
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
+      "errors4xx": 0,
+      "timeouts": 0,
+      "transportErrorSample": null,
+      "errorRate5xxPercent": 0,
+      "thresholdP95": 500,
+      "thresholdErrorRate": 1,
+      "passLatency": true,
+      "passErrorRate": true,
+      "passed": true
+    },
+    {
+      "endpoint": "POST /api/v1/payments (VNPay: tạo liên kết thanh toán)",
+      "note": "Đo riêng theo yêu cầu SRS mục 2: tách biệt latency thanh toán khỏi API thông thường. Phương thức VNPAY; đo thời gian API tạo payment PROCESSING và liên kết thanh toán, không gồm bước khách thanh toán trên VNPay.",
+      "samples": 100,
+      "orderSetupFailures": 0,
+      "orderSetupErrorSamples": {},
+      "percentiles": {
+        "min": 5.35,
+        "avg": 8.57,
+        "p50": 8.11,
+        "p90": 9.82,
+        "p95": 10.41,
+        "p99": 38.98,
+        "max": 38.98
+      },
+      "statusCodes": {
+        "200": 100
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
+      "passed": true
+    }
+  ],
+  "allPassed": true
+}

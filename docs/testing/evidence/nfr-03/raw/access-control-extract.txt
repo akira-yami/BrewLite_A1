@@ -1,0 +1,15 @@
+Trích nguyên văn các dòng kết quả liên quan từ lượt kiểm thử.
+
+Nguồn: auth-http-tests.txt
+✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > blocks CUSTOMER from reading another user data via /auth/users/:userId with FORBIDDEN_RESOURCE 2ms
+✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > blocks CUSTOMER from accessing BARISTA-only route with FORBIDDEN_RESOURCE 2ms
+
+Nguồn: api-unit-tests.txt
+✓ test/unit/modules/loyalty/controllers/loyalty.controller.spec.ts > LoyaltyController > protects personal overview and redemption with JWT and CUSTOMER role 1ms
+✓ test/unit/modules/loyalty/controllers/loyalty.controller.spec.ts > LoyaltyController > returns the API envelope and passes the authenticated principal through 1ms
+
+Nguồn: postgres-invariants-tests.txt
+✓ test/integration/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > paginates equal timestamps and validates history queries without leaking other users 236ms
+✓ test/integration/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > RBAC: Customer không đổi được trạng thái; barista bị vô hiệu hóa (JWT còn hạn) bị từ chối 185ms
+✓ test/integration/staff-inventory.integration-spec.ts > Staff inventory: HTTP, PostgreSQL and concurrent stock > BARISTA can read stock but cannot change quantity even using the API directly 181ms
+✓ test/integration/staff-recipes.integration-spec.ts > Staff recipes: HTTP and PostgreSQL > returns quantities by active drink size and topping for baristas 292ms

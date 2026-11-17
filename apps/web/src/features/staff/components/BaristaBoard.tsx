@@ -4,10 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   getStaffQueueApi,
+  reviewStaffOrderRefundApi,
   StaffApiError,
   updateStaffOrderStatusApi,
 } from "../api";
-import { STAFF_COLUMNS, type StaffColumn, type StaffOrder } from "../types";
+import { STAFF_COLUMNS, type RefundDecision, type StaffColumn, type StaffOrder } from "../types";
 import { StaffIcon } from "./StaffIcon";
 import { StaffOrderCard } from "./StaffOrderCard";
 
@@ -25,6 +26,7 @@ export function BaristaBoard({ token }: { token: string }) {
   const queryKey = ["staff-queue", token];
   const [search, setSearch] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const [refundNotice, setRefundNotice] = useState<string | null>(null);
 
   const queue = useQuery({
     queryKey,
@@ -41,14 +43,24 @@ export function BaristaBoard({ token }: { token: string }) {
       order: StaffOrder;
       column: StaffColumn;
     }) => updateStaffOrderStatusApi(token, order.id, column.nextStatus),
-    onMutate: () => setActionError(null),
+    onMutate: () => { setActionError(null); setRefundNotice(null); },
     onError: (error) => setActionError(messageOf(error)),
     // Thành công hay thất bại (ví dụ 409 do barista khác đã xử lý) đều nạp lại hàng đợi.
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
+  const reviewRefund = useMutation({
+    mutationFn: ({ order, decision }: { order: StaffOrder; decision: RefundDecision }) =>
+      reviewStaffOrderRefundApi(token, order.id, decision),
+    onMutate: () => { setActionError(null); setRefundNotice(null); },
+    onSuccess: (refund, { order }) => setRefundNotice(refund.status === "APPROVED"
+      ? `Đã hủy đơn ${order.orderNumber} và hoàn ${refund.points.toLocaleString("vi-VN")} điểm Loyalty cho khách.`
+      : `Đã từ chối yêu cầu hoàn tiền của đơn ${order.orderNumber}. Bạn có thể nhận pha chế.`),
+    onError: (error) => setActionError(messageOf(error)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
+  });
 
   const orders = queue.data ?? [];
-  const pendingId = advance.isPending ? advance.variables?.order.id : null;
+  const pendingId = advance.isPending ? advance.variables?.order.id : reviewRefund.isPending ? reviewRefund.variables?.order.id : null;
 
   return (
     <section aria-label="Hàng đợi pha chế">
@@ -125,6 +137,7 @@ export function BaristaBoard({ token }: { token: string }) {
           {actionError}
         </div>
       )}
+      {refundNotice && <p role="status" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{refundNotice}</p>}
 
       {queue.isPending && (
         <div className="mt-6 rounded-2xl border border-[#E8DFC8] bg-white p-10 text-center text-sm font-semibold text-[#756A63]">
@@ -194,10 +207,11 @@ export function BaristaBoard({ token }: { token: string }) {
                       order={order}
                       column={column}
                       busy={pendingId === order.id}
-                      disabled={advance.isPending}
+                      disabled={advance.isPending || reviewRefund.isPending}
                       onAdvance={(target, targetColumn) =>
                         advance.mutate({ order: target, column: targetColumn })
                       }
+                      onReviewRefund={(target, decision) => reviewRefund.mutate({ order: target, decision })}
                     />
                   ))}
                 </div>

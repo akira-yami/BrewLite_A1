@@ -10,13 +10,18 @@ import {
 import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
 import { assertTransition } from '../state/order-state-machine.js';
 
+const staffOrderInclude = {
+  items: { include: { orderItemToppings: true } },
+  refundRequest: true,
+} satisfies Prisma.OrderInclude;
+
 @Injectable()
 export class OrdersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async lockById(id: string, tx: Prisma.TransactionClient) {
     await tx.$queryRaw`SELECT "id" FROM "orders" WHERE "id" = ${id}::uuid FOR UPDATE`;
-    return tx.order.findUnique({ where: { id } });
+    return tx.order.findUnique({ where: { id }, include: { refundRequest: true } });
   }
 
   async findByIdAndUserId(id: string, userId: string, tx?: Prisma.TransactionClient) {
@@ -90,18 +95,41 @@ export class OrdersRepository {
    * (updatedAt tăng dần) để đơn chờ lâu nhất đứng đầu.
    */
   async findStaffQueue(statuses: OrderStatus[], limit: number) {
+    if (statuses.includes(OrderStatus.PAID)) {
+      return this.prisma.$transaction(async (tx) => {
+        const pending = await tx.order.findMany({
+          where: { status: OrderStatus.PAID, refundRequest: { status: 'PENDING' } },
+          orderBy: [{ refundRequest: { requestedAt: 'asc' } }, { id: 'asc' }],
+          take: limit,
+          include: staffOrderInclude,
+        });
+        if (pending.length === limit) return pending;
+
+        const queued = await tx.order.findMany({
+          where: {
+            status: { in: statuses },
+            NOT: { refundRequest: { is: { status: 'PENDING' } } },
+          },
+          orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+          take: limit - pending.length,
+          include: staffOrderInclude,
+        });
+        return [...pending, ...queued];
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    }
+
     return this.prisma.order.findMany({
       where: { status: { in: statuses } },
       orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
       take: limit,
-      include: { items: { include: { orderItemToppings: true } } },
+      include: staffOrderInclude,
     });
   }
 
   async findStaffOrder(id: string, tx: Prisma.TransactionClient) {
     return tx.order.findUnique({
       where: { id },
-      include: { items: { include: { orderItemToppings: true } } },
+      include: staffOrderInclude,
     });
   }
 
@@ -109,6 +137,7 @@ export class OrdersRepository {
     return this.prisma.order.findFirst({
       where: { id: orderId, userId },
       include: {
+        refundRequest: true,
         items: {
           include: {
             orderItemToppings: true,

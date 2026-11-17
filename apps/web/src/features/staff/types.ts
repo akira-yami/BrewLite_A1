@@ -1,5 +1,5 @@
 import type { ProductSize } from '../catalog/types';
-import type { OrderItem, OrderStatus } from '../orders/types';
+import type { OrderItem, OrderRefundRequest, OrderStatus } from '../orders/types';
 
 export interface RecipeIngredient {
   id: string;
@@ -23,6 +23,10 @@ export type StaffQueueStatus = Extract<OrderStatus, 'PAID' | 'PREPARING' | 'READ
 /** Trạng thái barista được phép đặt cho đơn. */
 export type StaffTargetStatus = Extract<OrderStatus, 'PREPARING' | 'READY' | 'COMPLETED'>;
 
+export type RefundDecision =
+  | { decision: 'APPROVED' }
+  | { decision: 'REJECTED'; reason: string };
+
 export interface StaffOrder {
   id: string;
   orderNumber: string;
@@ -33,6 +37,7 @@ export interface StaffOrder {
   createdAt: string;
   /** Thời điểm đơn vào trạng thái hiện tại. */
   updatedAt: string;
+  refundRequest?: OrderRefundRequest;
 }
 
 export interface StaffColumn {

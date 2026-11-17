@@ -121,6 +121,7 @@ describe('OrdersRepository (Unit Test - TDD)', () => {
         userId: 'u-1',
       },
       include: {
+        refundRequest: true,
         items: {
           include: {
             orderItemToppings: true,

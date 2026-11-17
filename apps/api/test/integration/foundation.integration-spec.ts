@@ -58,11 +58,11 @@ describe('Foundation on migrated PostgreSQL', () => {
     expect(barista.role).toBe('BARISTA');
   });
 
-  it('has all 27 domain tables and the default ingredient version', async () => {
+  it('has all 28 domain tables and the default ingredient version', async () => {
     const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
     expect(tables.map(t => t.tablename).sort()).toEqual([
       'users', 'products', 'product_variants', 'toppings', 'product_toppings', 'orders',
-      'order_items', 'order_item_toppings', 'payments', 'order_status_histories',
+      'order_items', 'order_item_toppings', 'order_refund_requests', 'payments', 'order_status_histories',
       'inventory_reservations', 'coupons', 'coupon_redemptions', 'loyalty_transactions',
       'ingredients', 'recipe_items', 'inventory_reservation_items', 'topping_recipe_items',
       'payment_recovery_requests', 'payment_recovery_audits', 'payment_recovery_resolutions',

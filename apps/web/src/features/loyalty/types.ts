@@ -13,7 +13,7 @@ export interface LoyaltyCoupon {
 }
 
 export interface LoyaltyTransaction {
-  type: 'EARN' | 'REDEEM' | 'ADJUSTMENT' | 'REVERSAL';
+  type: 'EARN' | 'REDEEM' | 'ADJUSTMENT' | 'REVERSAL' | 'REFUND_CREDIT';
   points: number;
   balanceAfter: number;
   reason: string;

@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { StaffIcon } from "./StaffIcon";
 import { OrderStatusBadge } from "../../orders/components/OrderStatusBadge";
-import type { StaffColumn, StaffOrder } from "../types";
+import type { RefundDecision, StaffColumn, StaffOrder } from "../types";
 
 const formatVnd = (amount: number) => `${amount.toLocaleString("vi-VN")} đ`;
 const formatLevel = (level: number | null) =>
@@ -17,6 +18,7 @@ interface StaffOrderCardProps {
   busy: boolean;
   disabled: boolean;
   onAdvance: (order: StaffOrder, column: StaffColumn) => void;
+  onReviewRefund: (order: StaffOrder, decision: RefundDecision) => void;
 }
 
 export function StaffOrderCard({
@@ -25,7 +27,12 @@ export function StaffOrderCard({
   busy,
   disabled,
   onAdvance,
+  onReviewRefund,
 }: StaffOrderCardProps) {
+  const [decision, setDecision] = useState<RefundDecision['decision'] | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const pendingRefund = order.refundRequest?.status === "PENDING" ? order.refundRequest : null;
+
   return (
     <article
       style={{
@@ -88,7 +95,7 @@ export function StaffOrderCard({
         </strong>
         <button
           type="button"
-          disabled={disabled || busy}
+          disabled={disabled || busy || !!pendingRefund}
           onClick={() => onAdvance(order, column)}
           className="inline-flex items-center gap-2 rounded-lg bg-[#163D2C] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0F2E21] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#163D2C] disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -100,6 +107,41 @@ export function StaffOrderCard({
           />
         </button>
       </div>
+      {pendingRefund && (
+        <section aria-label="Yêu cầu hoàn tiền đang chờ" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <p className="font-bold">Yêu cầu hoàn tiền đang chờ</p>
+          <p className="mt-1 text-xs">Tạm dừng nhận pha chế. Nếu duyệt, đơn sẽ bị hủy và khách nhận {pendingRefund.points.toLocaleString("vi-VN")} điểm Loyalty.</p>
+          {decision ? (
+            <form className="mt-3 space-y-3" onSubmit={(event) => {
+              event.preventDefault();
+              if (disabled) return;
+              if (decision === "APPROVED") {
+                onReviewRefund(order, { decision });
+              } else if (rejectionReason.trim()) {
+                onReviewRefund(order, { decision, reason: rejectionReason.trim() });
+              }
+            }}>
+              {decision === "REJECTED" && (
+                <label className="block text-xs font-bold">
+                  Lý do từ chối gửi cho khách
+                  <textarea required maxLength={255} disabled={disabled} value={rejectionReason} onChange={(event) => setRejectionReason(event.target.value)} rows={2} className="mt-1 block w-full rounded-lg border border-amber-300 bg-white p-2 text-sm font-normal" />
+                </label>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" disabled={disabled || (decision === "REJECTED" && !rejectionReason.trim())} className="rounded-lg bg-[#163D2C] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">
+                  {busy ? "Đang xử lý…" : decision === "APPROVED" ? "Xác nhận hoàn điểm" : "Xác nhận từ chối"}
+                </button>
+                <button type="button" disabled={disabled} onClick={() => setDecision(null)} className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Quay lại</button>
+              </div>
+            </form>
+          ) : (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" disabled={disabled} onClick={() => setDecision("APPROVED")} className="rounded-lg bg-[#163D2C] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Duyệt hoàn điểm</button>
+              <button type="button" disabled={disabled} onClick={() => setDecision("REJECTED")} className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Từ chối</button>
+            </div>
+          )}
+        </section>
+      )}
     </article>
   );
 }

@@ -14,6 +14,7 @@ import {
     OrdersApiError,
 } from "@/features/orders/api";
 import { OrderDetailView } from "@/features/orders/components/OrderDetailView";
+import { OrderRefundPanel } from "@/features/orders/components/OrderRefundPanel";
 import { PaymentApiError } from "@/features/payments/api";
 import { cartStore } from "@/stores/cart-store";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +28,8 @@ export default function OrderDetailPage() {
   const query = useQuery({
     queryKey: ["order-detail", token, params.id],
     enabled: status === "authenticated" && !!token && !!params.id,
-    queryFn: () => getOrderDetailApi(token!, params.id!),
+    queryFn: ({ signal }) => getOrderDetailApi(token!, params.id!, signal),
+    refetchInterval: ({ state }) => state.data?.refundRequest?.status === "PENDING" ? 5000 : false,
     retry: false,
   });
   const client = useQueryClient();
@@ -149,6 +151,7 @@ export default function OrderDetailPage() {
               onRetryPayment={isExpired || order.status !== "PENDING" ? undefined : () => void handleRetryPayment()}
               isPaying={isPaying}
             />
+            {token && <OrderRefundPanel key={order.id} order={order} token={token} />}
 
             {["PENDING", "PAYMENT_FAILED"].includes(order.status) && (
               <div className="mt-5 space-y-4">

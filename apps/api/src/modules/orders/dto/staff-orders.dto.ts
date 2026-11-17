@@ -8,6 +8,7 @@ import {
 } from '../state/order-state-machine.js';
 import type { OrderStatus } from '../../../generated/prisma/client.js';
 import type { OrderItemResponseDto } from './order-item-response.dto.js';
+import type { OrderRefundRequestDto } from './order-refund-request.dto.js';
 
 export class StaffOrdersQueryDto {
   /** Lọc theo một trạng thái trong hàng đợi; bỏ trống để lấy PAID, PREPARING, READY. */
@@ -38,4 +39,5 @@ export interface StaffOrderDto {
   currency: 'VND';
   createdAt: string;
   updatedAt: string;
+  refundRequest?: OrderRefundRequestDto;
 }

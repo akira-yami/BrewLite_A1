@@ -4,6 +4,7 @@ import type {
   PaymentStatus,
 } from '../../../generated/prisma/client.js';
 import type { OrderItemResponseDto } from './order-item-response.dto.js';
+import type { OrderRefundRequestDto } from './order-refund-request.dto.js';
 
 export interface PaymentSummaryDto {
   id: string;
@@ -36,4 +37,5 @@ export interface OrderDetailResponseDto {
   createdAt: string;
   paymentSummary: PaymentSummaryDto | null;
   timeline: StatusTimelineDto[];
+  refundRequest?: OrderRefundRequestDto;
 }

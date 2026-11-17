@@ -49,6 +49,15 @@ export interface OrderDetail extends OrderSummary {
   subtotal: number;
   discountAmount: number;
   reservationExpiresAt?: string | null;
+  refundRequest?: OrderRefundRequest;
+}
+
+export interface OrderRefundRequest {
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requestedAt: string;
+  decidedAt: string | null;
+  rejectionReason: string | null;
+  points: number;
 }
 
 export interface OrderListResponse {

@@ -79,32 +79,12 @@ export class OrdersController {
     return { data };
   }
 
-  /**
-   * POST /orders/:id/cancel-paid
-   * Customer hủy đơn đã thanh toán (PAID) và nhận hoàn tiền dưới dạng điểm tích lũy.
-   * Chỉ được hủy khi Barista CHƯA bắt đầu pha chế (chưa bấm PREPARING).
-   */
-  @Post(':id/cancel-paid')
+  @Post([':id/refund-request', ':id/cancel-paid'])
   @HttpCode(HttpStatus.OK)
-  async cancelPaidOrder(
+  async requestRefund(
     @Param('id', ParseUUIDPipe) orderId: string,
     @CurrentUser() user: Principal,
   ) {
-    const result = await this.orders.cancelPaidOrder(
-      orderId,
-      user.id,
-      'CUSTOMER',
-      'Khách hàng yêu cầu hủy đơn hàng đã thanh toán',
-    );
-    // Trả về chi tiết đơn hàng sau khi hủy kèm thông tin hoàn điểm.
-    const data = await this.orders.getOrderDetail(orderId, user.id);
-    return {
-      data,
-      refund: {
-        refundPoints: result.refundPoints,
-        newLoyaltyBalance: result.newLoyaltyBalance,
-        message: `Đã hoàn ${result.refundPoints.toLocaleString('vi-VN')} điểm vào tài khoản của bạn.`,
-      },
-    };
+    return { data: await this.orders.requestOrderRefund(orderId, user.id) };
   }
 }

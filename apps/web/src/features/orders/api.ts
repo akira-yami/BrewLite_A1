@@ -1,4 +1,4 @@
-import type { CreateOrderInput, OrderDetail, OrderListResponse } from './types';
+import type { CreateOrderInput, OrderDetail, OrderListResponse, OrderRefundRequest, OrderSummary } from './types';
 import { authSession } from '../auth/session';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
@@ -26,7 +26,7 @@ function unwrap<T>(json: unknown): T {
   return json as T;
 }
 
-async function request<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, token: string, init?: RequestInit, parse = unwrap<T>): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
@@ -45,7 +45,7 @@ async function request<T>(path: string, token: string, init?: RequestInit): Prom
     throw new OrdersApiError(message, response.status, payload?.error?.code);
   }
 
-  return unwrap<T>(json);
+  return parse(json);
 }
 
 export function createOrderApi(token: string, input: CreateOrderInput) {
@@ -56,8 +56,17 @@ export function createOrderApi(token: string, input: CreateOrderInput) {
   });
 }
 
-export function getMyOrdersApi(token: string) {
-  return request<OrderListResponse | OrderDetail[]>('/orders/me', token);
+export function getMyOrdersApi(token: string, cursor: string | null = null, signal?: AbortSignal) {
+  const query = cursor ? `?${new URLSearchParams({ cursor })}` : '';
+  return request<OrderListResponse>(`/orders/me${query}`, token, { cache: 'no-store', signal }, (json) => {
+    const data = unwrap<OrderSummary[] | OrderListResponse | null>(json);
+    if (Array.isArray(data)) {
+      const envelope = json as { meta?: { nextCursor?: string | null } };
+      return { items: data, nextCursor: envelope.meta?.nextCursor ?? null };
+    }
+    if (Array.isArray(data?.items)) return data;
+    throw new Error('Phản hồi lịch sử đơn hàng không hợp lệ.');
+  });
 }
 
 export function getOrderDetailApi(token: string, orderId: string, signal?: AbortSignal) {
@@ -69,4 +78,8 @@ export function getOrderDetailApi(token: string, orderId: string, signal?: Abort
 
 export function cancelOrderApi(token: string, orderId: string) {
   return request<OrderDetail>(`/orders/${encodeURIComponent(orderId)}/cancel`, token, { method: 'POST' });
+}
+
+export function requestOrderRefundApi(token: string, orderId: string) {
+  return request<OrderRefundRequest>(`/orders/${encodeURIComponent(orderId)}/refund-request`, token, { method: 'POST' });
 }

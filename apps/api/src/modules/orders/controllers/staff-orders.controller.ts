@@ -19,6 +19,7 @@ import { Roles } from '../../auth/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../auth/guards/roles.guard.js';
 import { BaristaCanclePaidOrderDto } from '../dto/cancel-paid-order.dto.js';
+import { ReviewOrderRefundRequestDto } from '../dto/order-refund-request.dto.js';
 import {
   StaffOrdersQueryDto,
   UpdateOrderStatusDto,
@@ -66,6 +67,16 @@ export class StaffOrdersController {
     return { data };
   }
 
+  @Patch(':id/refund-request')
+  @HttpCode(HttpStatus.OK)
+  async reviewRefund(
+    @Param('id', ParseUUIDPipe) orderId: string,
+    @CurrentUser() user: Principal,
+    @Body() dto: ReviewOrderRefundRequestDto,
+  ) {
+    return { data: await this.orders.reviewOrderRefund(orderId, user.id, dto) };
+  }
+
   /**
    * POST /staff/orders/:id/cancel-paid
    * Barista hủy đơn PAID khi hết nguyên liệu đột xuất hoặc sự cố máy.
@@ -81,7 +92,6 @@ export class StaffOrdersController {
     const result = await this.orders.cancelPaidOrder(
       orderId,
       user.id,
-      'BARISTA',
       dto.reason,
     );
     return {

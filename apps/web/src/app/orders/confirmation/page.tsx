@@ -6,6 +6,7 @@ import { Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getOrderDetailApi, OrdersApiError } from '@/features/orders/api';
 import { OrderDetailView } from '@/features/orders/components/OrderDetailView';
+import { OrderRefundPanel } from '@/features/orders/components/OrderRefundPanel';
 import { useAuthSession } from '@/features/auth/use-auth-session';
 
 export default function OrderConfirmationPage() {
@@ -23,7 +24,8 @@ function OrderConfirmationContent() {
   const query = useQuery({
     queryKey: ['order-detail', token, orderId],
     enabled: status === 'authenticated' && !!token && !!orderId,
-    queryFn: () => getOrderDetailApi(token!, orderId!),
+    queryFn: ({ signal }) => getOrderDetailApi(token!, orderId!, signal),
+    refetchInterval: ({ state }) => state.data?.refundRequest?.status === 'PENDING' ? 5000 : false,
     retry: false,
   });
   const order = status === 'authenticated' ? query.data : undefined;
@@ -44,10 +46,11 @@ function OrderConfirmationContent() {
           <>
             <div className="mb-6 text-center">
               <p className="text-4xl">✓</p>
-              <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[#B85D36]">Đặt hàng thành công</p>
-              <h1 className="mt-1 font-serif text-3xl font-black text-[#163D2C]">Cảm ơn bạn đã chọn BrewLite</h1>
+              <p className="mt-3 text-xs font-bold uppercase tracking-[0.18em] text-[#B85D36]">{order.refundRequest?.status === 'APPROVED' ? 'Đã hoàn điểm Loyalty' : 'Đặt hàng thành công'}</p>
+              <h1 className="mt-1 font-serif text-3xl font-black text-[#163D2C]">{order.refundRequest?.status === 'APPROVED' ? 'Đơn hàng đã được hủy' : 'Cảm ơn bạn đã chọn BrewLite'}</h1>
             </div>
             <OrderDetailView order={order} />
+            {token && <OrderRefundPanel key={order.id} order={order} token={token} />}
             <div className="mt-6 grid grid-cols-2 gap-3">
               <Link href="/menu" className="rounded-full border border-[#D8CCBA] bg-white px-4 py-3 text-center text-sm font-bold text-[#163D2C]">Tiếp tục chọn món</Link>
               <Link href="/orders" className="rounded-full bg-[#163D2C] px-4 py-3 text-center text-sm font-bold text-white">Đơn hàng của tôi</Link>

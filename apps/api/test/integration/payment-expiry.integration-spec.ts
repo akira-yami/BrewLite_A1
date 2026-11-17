@@ -123,7 +123,7 @@ describe('payment admission and reservation expiry (PostgreSQL)', () => {
         expect(await promotionsRepo.countTotalRedemptions(f.coupon.id, new Date())).toBe(1);
         expect(await promotionsRepo.countRedemptions(f.coupon.id, f.user.id, new Date())).toBe(1);
       } finally {
-        finish(success ? { success, gatewayTransactionId: 'GW-TTL' } : { success, errorCode: 'DECLINED' });
+        finish(success ? { success, gatewayTransactionId: `GW-TTL-${randomUUID()}` } : { success, errorCode: 'DECLINED' });
       }
       expect(await pending).toMatchObject({ success, status: success ? 'SUCCEEDED' : 'FAILED' });
       await job().handleExpiredOrders();

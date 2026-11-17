@@ -13,7 +13,7 @@ import {
 import { loadAppConfig, type AppConfig } from '../../../config/app-config.js';
 import { APP_CONFIG } from '../../../config/app-config.module.js';
 import { PrismaService } from '../../../database/prisma.service.js';
-import { OrderStatus, PaymentMethod, PaymentStatus, Prisma } from '../../../generated/prisma/client.js';
+import { OrderStatus, PaymentMethod, PaymentStatus, Prisma, type Order, type OrderRefundRequest } from '../../../generated/prisma/client.js';
 import { CatalogService } from '../../catalog/services/catalog.service.js';
 import {
   InventoryService,
@@ -33,6 +33,7 @@ import type {
   StatusTimelineDto,
 } from '../dto/order-detail-response.dto.js';
 import type { OrderHistoryQueryDto } from '../dto/order-history-query.dto.js';
+import type { OrderRefundRequestDto, ReviewOrderRefundRequestDto } from '../dto/order-refund-request.dto.js';
 import type {
   StaffOrderDto,
   StaffOrdersQueryDto,
@@ -350,6 +351,7 @@ export class OrdersService {
       createdAt: order.createdAt.toISOString(),
       paymentSummary,
       timeline,
+      ...(order.refundRequest && { refundRequest: this.toRefundRequest(order.refundRequest, order.total) }),
     };
   }
   // =====================================================================
@@ -396,6 +398,7 @@ export class OrdersService {
       }
 
       assertTransition(order.status, toStatus); // Kiểm tra luật chuyển trạng thái
+      this.assertNoPendingRefundRequest(order.refundRequest);
 
       await this.repository.updateStatusWithHistory( // Cập nhật trạng thái và ghi lịch sử đồng bộ
         order.id,
@@ -414,7 +417,7 @@ export class OrdersService {
 
   private toStaffOrder(
     order: Prisma.OrderGetPayload<{
-      include: { items: { include: { orderItemToppings: true } } };
+      include: { items: { include: { orderItemToppings: true } }; refundRequest: true };
     }>,
   ): StaffOrderDto {
     return {
@@ -426,6 +429,7 @@ export class OrdersService {
       currency: 'VND',
       createdAt: order.createdAt.toISOString(),
       updatedAt: order.updatedAt.toISOString(),
+      ...(order.refundRequest && { refundRequest: this.toRefundRequest(order.refundRequest, order.total) }),
     };
   }
 
@@ -869,244 +873,289 @@ export class OrdersService {
   // 5. HỦY ĐƠN PAID VÀ HOÀN TIỀN THÀNH ĐIỂM TÍCH LŨY (STORE CREDIT)
   // =====================================================================
 
-  /**
-   * Hủy đơn PAID và hoàn tiền thành Store Credit (điểm tích lũy).
-   *
-   * 5 việc diễn ra nguyên tử trong 1 DB transaction:
-   *   1. Chuyển Order: PAID → CANCELLED + ghi OrderStatusHistory
-   *   2. Hoàn kho: Restore nguyên liệu từ snapshot của reservation CONSUMED
-   *   3. Mở khóa Voucher: CouponRedemption CONSUMED → RELEASED
-   *   4. Cộng Store Credit: Tạo REFUND_CREDIT transaction (1 VND = 1 điểm)
-   *   5. Thu hồi điểm EARN: Tạo REVERSAL transaction + trừ loyaltyBalance
-   *      + tăng loyaltyBalance
-   *
-   * Quyền:
-   *   - CUSTOMER: chỉ hủy khi Barista CHƯA bấm PREPARING (trạng thái còn PAID)
-   *   - BARISTA: hủy khi hết nguyên liệu / sự cố (phải truyền reason)
-   *
-   * @param orderId     UUID đơn hàng cần hủy
-   * @param actorId     UUID người thực hiện (CUSTOMER hoặc BARISTA)
-   * @param role        'CUSTOMER' | 'BARISTA'
-   * @param reason      Lý do hủy ghi vào lịch sử; bắt buộc với BARISTA
-   */
-  async cancelPaidOrder(
+  async requestOrderRefund(orderId: string, customerId: string): Promise<OrderRefundRequestDto> {
+    return this.prisma.$transaction(async (tx) => {
+      await this.users.assertActiveCustomer(tx, customerId);
+      const order = await this.repository.findByIdAndUserIdForUpdate(orderId, customerId, tx);
+      if (!order) throw this.refundOrderNotFound();
+
+      const existing = await tx.orderRefundRequest.findUnique({ where: { orderId } });
+      if (existing) return this.toRefundRequest(existing, order.total);
+
+      await this.assertPaidRefundEligible(order, tx);
+      const request = await tx.orderRefundRequest.create({ data: { orderId } });
+      return this.toRefundRequest(request, order.total);
+    });
+  }
+
+  async reviewOrderRefund(
     orderId: string,
-    actorId: string,
-    role: 'CUSTOMER' | 'BARISTA',
-    reason: string,
-  ) {
-    return this.prisma.$transaction(async (client) => {
-      // ─────────────────────────────────────────────────────────────────
-      // 0. LOCK ORDER + OWNERSHIP CHECK
-      // ─────────────────────────────────────────────────────────────────
+    baristaId: string,
+    { decision, reason }: ReviewOrderRefundRequestDto,
+  ): Promise<OrderRefundRequestDto> {
+    const rejectionReason = decision === 'REJECTED' ? reason?.trim() : null;
+    if (decision === 'REJECTED' && !rejectionReason) {
+      throw new BadRequestException({
+        code: 'REFUND_REJECTION_REASON_REQUIRED',
+        message: 'Vui lòng nhập lý do từ chối yêu cầu hoàn tiền.',
+      });
+    }
 
-      // Khóa hàng ORDER trước mọi thao tác để đảm bảo atomicity với
-      // barista đang đọc/đổi trạng thái đồng thời.
-      let order: Prisma.OrderGetPayload<Record<string, never>> | null;
+    return this.prisma.$transaction(async (tx) => {
+      await this.users.assertActiveBarista(tx, baristaId);
+      const order = await this.repository.lockById(orderId, tx);
+      if (!order) throw this.refundOrderNotFound();
+      const request = order.refundRequest;
 
-      if (role === 'CUSTOMER') {
-        // Customer chỉ được hủy đơn của chính mình; trả 404 nếu không phải chủ đơn.
-        order = await this.repository.findByIdAndUserIdForUpdate(
-          orderId,
-          actorId,
-          client,
-        );
-      } else {
-        // Barista được hủy bất kỳ đơn PAID nào (ví dụ: hết nguyên liệu).
-        order = await this.repository.findByIdForUpdate(orderId, client);
-      }
-
-      if (!order) {
+      if (!request) {
         throw new NotFoundException({
-          error: {
-            code: 'ORDER_NOT_FOUND',
-            message: 'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập.',
-          },
+          code: 'REFUND_REQUEST_NOT_FOUND',
+          message: 'Đơn hàng chưa có yêu cầu hoàn tiền.',
+        });
+      }
+      if (request.status === decision) return this.toRefundRequest(request, order.total);
+      if (request.status !== 'PENDING') {
+        throw new ConflictException({
+          code: 'REFUND_REQUEST_ALREADY_REVIEWED',
+          message: 'Yêu cầu hoàn tiền đã được xử lý.',
         });
       }
 
-      // ─────────────────────────────────────────────────────────────────
-      // 1. IDEMPOTENCY GUARD phải chạy TRƯỚC kiểm tra trạng thái.
-      // Sau lần hủy đầu, Order đã là CANCELLED; retry phải nhận đúng lỗi
-      // REFUND_ALREADY_PROCESSED thay vì ORDER_INVALID_TRANSITION.
-      // Guard chỉ đọc ledger, không thay đổi balance/inventory.
-      // ─────────────────────────────────────────────────────────────────
-      const existingRefund = await client.loyaltyTransaction.findFirst({
+      if (decision === 'APPROVED') {
+        await this.assertPaidRefundEligible(order, tx);
+        await this.refundPaidOrder(order, baristaId, 'Barista duyệt yêu cầu hoàn điểm của khách', tx);
+      }
+
+      const updated = await tx.orderRefundRequest.update({
+        where: { orderId },
+        data: {
+          status: decision,
+          decidedAt: new Date(),
+          decidedByUserId: baristaId,
+          rejectionReason,
+        },
+      });
+      return this.toRefundRequest(updated, order.total);
+    });
+  }
+
+  // Hủy chủ động từ quầy, ví dụ khi không thể chuẩn bị đơn.
+  async cancelPaidOrder(orderId: string, baristaId: string, reason: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.users.assertActiveBarista(tx, baristaId);
+      const order = await this.repository.lockById(orderId, tx);
+      if (!order) throw this.refundOrderNotFound();
+      this.assertNoPendingRefundRequest(order.refundRequest);
+
+      const existingRefund = await tx.loyaltyTransaction.findFirst({
         where: { orderId, type: 'REFUND_CREDIT' },
         select: { id: true },
       });
       if (existingRefund) {
         throw new ConflictException({
-          error: {
-            code: 'REFUND_ALREADY_PROCESSED',
-            message: 'Đơn hàng này đã được hoàn tiền rồi.',
-          },
+          code: 'REFUND_ALREADY_PROCESSED',
+          message: 'Đơn hàng này đã được hoàn tiền rồi.',
         });
       }
 
-      // ─────────────────────────────────────────────────────────────────
-      // 2. KIỂM TRA TRẠNG THÁI: CHỈ CHO PHÉP HỦY ĐƠN PAID
-      // ─────────────────────────────────────────────────────────────────
-      if (order.status !== OrderStatus.PAID) {
-        throw new ConflictException({
-          error: {
-            code: 'ORDER_INVALID_TRANSITION',
-            message: `Không thể hoàn tiền: đơn hàng đang ở trạng thái ${order.status}, chỉ được hủy khi PAID.`,
-            details: [{ from: order.status, to: OrderStatus.CANCELLED }],
-          },
-        });
-      }
+      await this.assertPaidRefundEligible(order, tx);
+      return this.refundPaidOrder(order, baristaId, reason, tx);
+    });
+  }
 
-      // ─────────────────────────────────────────────────────────────────
-      // 2. KIỂM TRA PAYMENT BLOCKING (MANUAL_REVIEW)
-      // Đơn PAID không thể còn PROCESSING, nhưng có thể đang MANUAL_REVIEW.
-      // ─────────────────────────────────────────────────────────────────
-      const blockingPayment = await client.payment.findFirst({
-        where: { orderId, status: PaymentStatus.MANUAL_REVIEW },
-        select: { id: true },
+  private refundOrderNotFound() {
+    return new NotFoundException({
+      code: 'ORDER_NOT_FOUND',
+      message: 'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập.',
+    });
+  }
+
+  private assertNoPendingRefundRequest(request?: Pick<OrderRefundRequest, 'status'> | null) {
+    if (request?.status === 'PENDING') {
+      throw new ConflictException({
+        code: 'REFUND_REQUEST_PENDING',
+        message: 'Hãy duyệt hoặc từ chối yêu cầu hoàn tiền trước khi xử lý đơn.',
       });
-      if (blockingPayment) {
-        throw new ConflictException({
-          error: {
-            code: 'PAYMENT_IN_PROGRESS',
-            message: 'Thanh toán đang trong quá trình xử lý thủ công, không thể hủy lúc này.',
+    }
+  }
+
+  private toRefundRequest(
+    request: OrderRefundRequest,
+    total: bigint,
+  ): OrderRefundRequestDto {
+    return {
+      status: request.status,
+      requestedAt: request.requestedAt.toISOString(),
+      decidedAt: request.decidedAt?.toISOString() ?? null,
+      rejectionReason: request.rejectionReason,
+      points: orderMoney(total),
+    };
+  }
+
+  private async assertPaidRefundEligible(
+    order: Pick<Order, 'id' | 'status'>,
+    client: Prisma.TransactionClient,
+  ) {
+    if (order.status !== OrderStatus.PAID) {
+      throw new ConflictException({
+        code: 'ORDER_INVALID_TRANSITION',
+        message: 'Chỉ có thể yêu cầu hoàn điểm khi đơn đã thanh toán và chưa được nhận pha chế.',
+        details: [{ from: order.status, to: OrderStatus.CANCELLED }],
+      });
+    }
+
+    const blockingPayment = await client.payment.findFirst({
+      where: { orderId: order.id, status: { in: [PaymentStatus.PROCESSING, PaymentStatus.MANUAL_REVIEW] } },
+      select: { id: true },
+    });
+    if (blockingPayment) {
+      throw new ConflictException({
+        code: 'PAYMENT_IN_PROGRESS',
+        message: 'Thanh toán đang được xử lý hoặc đối soát, chưa thể hoàn điểm.',
+      });
+    }
+  }
+
+  // Gọi khi đã khóa đơn và kiểm tra đủ điều kiện hoàn điểm trong cùng transaction.
+  private async refundPaidOrder(
+    order: Pick<Order, 'id' | 'orderNumber' | 'total' | 'userId'>,
+    actorId: string,
+    reason: string,
+    client: Prisma.TransactionClient,
+  ) {
+    const orderId = order.id;
+    const now = new Date();
+    const ownerId = order.userId;
+
+    // ─────────────────────────────────────────────────────────────────
+    // BƯỚC 1/5: Chuyển Order PAID → CANCELLED + ghi OrderStatusHistory
+    // ─────────────────────────────────────────────────────────────────
+    await this.repository.updateStatusWithHistory(
+      orderId,
+      OrderStatus.PAID,
+      OrderStatus.CANCELLED,
+      actorId,
+      reason,
+      client,
+    );
+
+    // ─────────────────────────────────────────────────────────────────
+    // BƯỚC 2/5: Hoàn kho nguyên liệu từ snapshot của reservation CONSUMED
+    // Khi PAID, reservation.status = CONSUMED → releaseInTransaction() không xử lý được.
+    // Phải restore trực tiếp bằng snapshot InventoryReservationItem.
+    // ─────────────────────────────────────────────────────────────────
+    const consumedReservations = await client.inventoryReservation.findMany({
+      where: { orderId, status: 'CONSUMED' },
+      include: {
+        items: {
+          orderBy: { ingredientId: 'asc' }, // Sort để tránh deadlock
+        },
+      },
+    });
+
+    for (const reservation of consumedReservations) {
+      // Chuyển trạng thái reservation CONSUMED → RELEASED để ghi nhận đã hoàn kho.
+      await client.inventoryReservation.update({
+        where: { id: reservation.id },
+        data: { status: 'RELEASED' },
+      });
+
+      // Restore từng nguyên liệu theo snapshot đã lưu lúc tạo đơn.
+      // Sort theo ingredientId để tránh deadlock khi nhiều transaction đồng thời.
+      for (const item of reservation.items) {
+        await client.ingredient.update({
+          where: { id: item.ingredientId },
+          data: {
+            stockQuantity: { increment: item.quantity },
+            version: { increment: 1 },
           },
         });
       }
+    }
 
-      const now = new Date();
-      const ownerId = order.userId;
+    // ─────────────────────────────────────────────────────────────────
+    // BƯỚC 3/5: Mở khóa Voucher — CouponRedemption CONSUMED → RELEASED
+    // Khách hàng có thể dùng lại voucher này cho đơn tiếp theo.
+    // ─────────────────────────────────────────────────────────────────
+    await this.promotionsService.releaseConsumedRedemption(client, orderId);
 
-      // ─────────────────────────────────────────────────────────────────
-      // BƯỚC 1/5: Chuyển Order PAID → CANCELLED + ghi OrderStatusHistory
-      // ─────────────────────────────────────────────────────────────────
-      await this.repository.updateStatusWithHistory(
-        orderId,
-        OrderStatus.PAID,
-        OrderStatus.CANCELLED,
-        actorId,
-        reason,
-        client,
-      );
-
-      // ─────────────────────────────────────────────────────────────────
-      // BƯỚC 2/5: Hoàn kho nguyên liệu từ snapshot của reservation CONSUMED
-      // Khi PAID, reservation.status = CONSUMED → releaseInTransaction() không xử lý được.
-      // Phải restore trực tiếp bằng snapshot InventoryReservationItem.
-      // ─────────────────────────────────────────────────────────────────
-      const consumedReservations = await client.inventoryReservation.findMany({
-        where: { orderId, status: 'CONSUMED' },
-        include: {
-          items: {
-            orderBy: { ingredientId: 'asc' }, // Sort để tránh deadlock
-          },
+    // ─────────────────────────────────────────────────────────────────
+    // BƯỚC 4/5: Hoàn tiền thành Store Credit — 1 VND = 1 điểm
+    // Tổng tiền của đơn (order.total) được quy đổi 1:1 thành điểm tích lũy.
+    // Tạo REFUND_CREDIT transaction + tăng loyaltyBalance.
+    // ─────────────────────────────────────────────────────────────────
+    const refundPoints = Number(order.total); // 1 VND = 1 điểm theo đề bài
+    if (!Number.isSafeInteger(refundPoints) || refundPoints <= 0) {
+      throw new ConflictException({
+        error: {
+          code: 'INVALID_REFUND_AMOUNT',
+          message: 'Giá trị đơn hàng không hợp lệ để hoàn điểm.',
         },
       });
+    }
 
-      for (const reservation of consumedReservations) {
-        // Chuyển trạng thái reservation CONSUMED → RELEASED để ghi nhận đã hoàn kho.
-        await client.inventoryReservation.update({
-          where: { id: reservation.id },
-          data: { status: 'RELEASED' },
-        });
+    const userAfterRefund = await client.user.update({
+      where: { id: ownerId },
+      data: { loyaltyBalance: { increment: refundPoints } },
+      select: { loyaltyBalance: true },
+    });
 
-        // Restore từng nguyên liệu theo snapshot đã lưu lúc tạo đơn.
-        // Sort theo ingredientId để tránh deadlock khi nhiều transaction đồng thời.
-        for (const item of reservation.items) {
-          await client.ingredient.update({
-            where: { id: item.ingredientId },
-            data: {
-              stockQuantity: { increment: item.quantity },
-              version: { increment: 1 },
-            },
-          });
-        }
-      }
+    await client.loyaltyTransaction.create({
+      data: {
+        userId: ownerId,
+        orderId,
+        type: 'REFUND_CREDIT',
+        points: refundPoints,
+        balanceAfter: userAfterRefund.loyaltyBalance,
+        reason: `Hoàn tiền đơn hàng #${order.orderNumber}`,
+      },
+    });
 
-      // ─────────────────────────────────────────────────────────────────
-      // BƯỚC 3/5: Mở khóa Voucher — CouponRedemption CONSUMED → RELEASED
-      // Khách hàng có thể dùng lại voucher này cho đơn tiếp theo.
-      // ─────────────────────────────────────────────────────────────────
-      await this.promotionsService.releaseConsumedRedemption(client, orderId);
+    let finalLoyaltyBalance = userAfterRefund.loyaltyBalance;
 
-      // ─────────────────────────────────────────────────────────────────
-      // BƯỚC 4/5: Hoàn tiền thành Store Credit — 1 VND = 1 điểm
-      // Tổng tiền của đơn (order.total) được quy đổi 1:1 thành điểm tích lũy.
-      // Tạo REFUND_CREDIT transaction + tăng loyaltyBalance.
-      // ─────────────────────────────────────────────────────────────────
-      const refundPoints = Number(order.total); // 1 VND = 1 điểm theo đề bài
-      if (!Number.isSafeInteger(refundPoints) || refundPoints <= 0) {
-        throw new ConflictException({
-          error: {
-            code: 'INVALID_REFUND_AMOUNT',
-            message: 'Giá trị đơn hàng không hợp lệ để hoàn điểm.',
-          },
-        });
-      }
+    // ─────────────────────────────────────────────────────────────────
+    // BƯỚC 5/5: Thu hồi điểm EARN — Tạo REVERSAL + decrement loyaltyBalance
+    // Lấy EARN transaction của đơn này (nếu có) và đảo ngược số điểm.
+    // ─────────────────────────────────────────────────────────────────
+    const earnTransaction = await client.loyaltyTransaction.findFirst({
+      where: { orderId, type: 'EARN' },
+      select: { id: true, points: true },
+    });
 
-      const userAfterRefund = await client.user.update({
+    if (earnTransaction) {
+      const userAfterReversal = await client.user.update({
         where: { id: ownerId },
-        data: { loyaltyBalance: { increment: refundPoints } },
+        data: { loyaltyBalance: { decrement: earnTransaction.points } },
         select: { loyaltyBalance: true },
       });
+      finalLoyaltyBalance = userAfterReversal.loyaltyBalance;
 
       await client.loyaltyTransaction.create({
         data: {
           userId: ownerId,
           orderId,
-          type: 'REFUND_CREDIT',
-          points: refundPoints,
-          balanceAfter: userAfterRefund.loyaltyBalance,
-          reason: `Hoàn tiền đơn hàng #${order.orderNumber}`,
+          type: 'REVERSAL',
+          points: -earnTransaction.points, // âm để thể hiện trừ điểm
+          balanceAfter: userAfterReversal.loyaltyBalance,
+          reason: `Thu hồi điểm tích lũy do hủy đơn hàng #${order.orderNumber}`,
         },
       });
+    }
 
-      let finalLoyaltyBalance = userAfterRefund.loyaltyBalance;
-
-      // ─────────────────────────────────────────────────────────────────
-      // BƯỚC 5/5: Thu hồi điểm EARN — Tạo REVERSAL + decrement loyaltyBalance
-      // Lấy EARN transaction của đơn này (nếu có) và đảo ngược số điểm.
-      // ─────────────────────────────────────────────────────────────────
-      const earnTransaction = await client.loyaltyTransaction.findFirst({
-        where: { orderId, type: 'EARN' },
-        select: { id: true, points: true },
-      });
-
-      if (earnTransaction) {
-        const userAfterReversal = await client.user.update({
-          where: { id: ownerId },
-          data: { loyaltyBalance: { decrement: earnTransaction.points } },
-          select: { loyaltyBalance: true },
-        });
-        finalLoyaltyBalance = userAfterReversal.loyaltyBalance;
-
-        await client.loyaltyTransaction.create({
-          data: {
-            userId: ownerId,
-            orderId,
-            type: 'REVERSAL',
-            points: -earnTransaction.points, // âm để thể hiện trừ điểm
-            balanceAfter: userAfterReversal.loyaltyBalance,
-            reason: `Thu hồi điểm tích lũy do hủy đơn hàng #${order.orderNumber}`,
-          },
-        });
-      }
-
-      // ─────────────────────────────────────────────────────────────────
-      // BƯỚC 6 (METADATA): Đánh dấu Payment SUCCEEDED → REFUNDED
-      // Chỉ cập nhật payment nếu có, không throw nếu không tìm thấy.
-      // ─────────────────────────────────────────────────────────────────
-      await client.payment.updateMany({
-        where: { orderId, status: PaymentStatus.SUCCEEDED },
-        data: { status: PaymentStatus.REFUNDED, processedAt: now },
-      });
-
-      return {
-        orderId,
-        orderNumber: order.orderNumber,
-        refundPoints,
-        newLoyaltyBalance: finalLoyaltyBalance,
-      };
+    // ─────────────────────────────────────────────────────────────────
+    // BƯỚC 6 (METADATA): Đánh dấu Payment SUCCEEDED → REFUNDED
+    // Chỉ cập nhật payment nếu có, không throw nếu không tìm thấy.
+    // ─────────────────────────────────────────────────────────────────
+    await client.payment.updateMany({
+      where: { orderId, status: PaymentStatus.SUCCEEDED },
+      data: { status: PaymentStatus.REFUNDED, processedAt: now },
     });
+
+    return {
+      orderId,
+      orderNumber: order.orderNumber,
+      refundPoints,
+      newLoyaltyBalance: finalLoyaltyBalance,
+    };
   }
 }

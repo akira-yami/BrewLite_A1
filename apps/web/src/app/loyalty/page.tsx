@@ -12,6 +12,8 @@ import type { LoyaltyOverview, LoyaltyTier } from '@/features/loyalty/types';
 import { readPendingLoyaltyRedeem, writePendingLoyaltyRedeem, writePreferredLoyaltyCoupon } from '@/features/checkout/session';
 import { formatVnd } from '@/stores/cart-store';
 
+const signedPoints = new Intl.NumberFormat('vi-VN', { signDisplay: 'exceptZero' });
+
 export default function LoyaltyPage() {
   const session = useAuthSession();
   const router = useRouter();
@@ -134,7 +136,7 @@ export default function LoyaltyPage() {
           </div>
           <div>
             <h2 className="text-2xl font-black text-[#163E2B]">Lịch sử điểm</h2>
-            <ul className="mt-4 divide-y divide-[#E5DCD2] rounded-xl bg-white px-4 shadow-sm">{overview?.transactions.map((transaction, index) => <li key={`${transaction.createdAt}-${index}`} className="flex justify-between gap-3 py-3 text-sm"><span><strong>{transaction.reason}</strong><span className="block text-xs text-[#756A63]">{new Date(transaction.createdAt).toLocaleString('vi-VN')}{transaction.orderNumber ? ` · ${transaction.orderNumber}` : ''}</span></span><span className="whitespace-nowrap font-bold text-[#163E2B]">{transaction.points > 0 && transaction.type === 'EARN' ? '+' : '-'}{transaction.points.toLocaleString('vi-VN')}<small className="ml-1">điểm</small></span></li>)}</ul>
+            <ul className="mt-4 divide-y divide-[#E5DCD2] rounded-xl bg-white px-4 shadow-sm">{overview?.transactions.map((transaction, index) => <li key={`${transaction.createdAt}-${index}`} className="flex justify-between gap-3 py-3 text-sm"><span><strong>{transaction.reason}</strong><span className="block text-xs text-[#756A63]">{new Date(transaction.createdAt).toLocaleString('vi-VN')}{transaction.orderNumber ? ` · ${transaction.orderNumber}` : ''}</span></span><span className="whitespace-nowrap font-bold text-[#163E2B]">{signedPoints.format(transaction.type === 'REDEEM' ? -Math.abs(transaction.points) : transaction.points)}<small className="ml-1">điểm</small></span></li>)}</ul>
           </div>
         </section>}
       </div>

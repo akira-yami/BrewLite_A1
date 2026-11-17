@@ -1,91 +1,217 @@
 {
-  "testRunAtUTC": "2026-11-15T02:13:00.000Z",
+  "testRunAtUTC": "2026-11-17T07:09:23.129Z",
   "system": {
-    "os": "Windows 11 Home Single Language (Build 26200, 64-bit)",
-    "cpu": "13th Gen Intel(R) Core(TM) i7-13620H (16 vCPUs @ 4.90 GHz)",
-    "memory": "16 GB DDR5",
-    "node": "v24.21.0",
-    "concurrency": 20,
-    "warmupSeconds": 30,
-    "testSeconds": 60
+    "cpuModel": "13th Gen Intel(R) Core(TM) i7-13620H",
+    "cpuCores": 16,
+    "totalMemMB": 16088,
+    "usedMemMB": 14471,
+    "memUsagePercent": 90,
+    "nodeVersion": "v24.21.0",
+    "platform": "win32",
+    "release": "10.0.26200"
   },
-  "database": {
-    "products": 100,
-    "variants": 300,
-    "toppings": 30,
-    "sampleOrders": 6768
+  "databaseBefore": {
+    "productCount": 100,
+    "orderCount": 1000,
+    "totalStock": "330000000"
+  },
+  "databaseAfter": {
+    "productCount": 100,
+    "orderCount": 3854,
+    "totalStock": "329667268"
   },
   "routes": [
     {
-      "name": "Menu (/products)",
-      "method": "GET",
-      "path": "/products",
-      "totalRequests": 7162,
-      "rps": 119.1,
-      "p50_ms": 166.24,
-      "p90_ms": 190.31,
-      "p95_ms": 199.12,
-      "max_ms": 235.41,
-      "errorRatePercent": 0.0,
-      "targetLimit_ms": 500,
+      "endpoint": "GET /api/v1/products",
+      "startTimeUTC": "2026-11-17T07:03:51.109Z",
+      "endTimeUTC": "2026-11-17T07:04:51.268Z",
+      "durationSeconds": 60.16,
+      "concurrency": 20,
+      "totalRequests": 5045,
+      "requestsPerSecond": 83.9,
+      "percentiles": {
+        "min": 91.1,
+        "avg": 238.21,
+        "p50": 194.74,
+        "p90": 380.62,
+        "p95": 427.77,
+        "p99": 522,
+        "max": 610.65
+      },
+      "successPercentiles": {
+        "min": 91.1,
+        "avg": 238.21,
+        "p50": 194.74,
+        "p90": 380.62,
+        "p95": 427.77,
+        "p99": 522,
+        "max": 610.65
+      },
+      "successCount": 5045,
+      "statusCodes": {
+        "200": 5045
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
+      "errors4xx": 0,
+      "timeouts": 0,
+      "errorRate5xxPercent": 0,
+      "thresholdP95": 500,
+      "thresholdErrorRate": 1,
+      "passLatency": true,
+      "passErrorRate": true,
       "passed": true
     },
     {
-      "name": "Product Detail (/products/:id)",
-      "method": "GET",
-      "path": "/products/:id",
-      "totalRequests": 47185,
-      "rps": 786.3,
-      "p50_ms": 19.58,
-      "p90_ms": 46.12,
-      "p95_ms": 52.68,
-      "max_ms": 89.15,
-      "errorRatePercent": 0.0,
-      "targetLimit_ms": 500,
+      "endpoint": "GET /api/v1/products/03a65be6-5da5-4df2-a528-d7dbe658caf6",
+      "startTimeUTC": "2026-11-17T07:05:21.316Z",
+      "endTimeUTC": "2026-11-17T07:06:21.340Z",
+      "durationSeconds": 60.02,
+      "concurrency": 20,
+      "totalRequests": 24556,
+      "requestsPerSecond": 409.1,
+      "percentiles": {
+        "min": 12.75,
+        "avg": 48.88,
+        "p50": 46.16,
+        "p90": 66.29,
+        "p95": 73.74,
+        "p99": 90.39,
+        "max": 138.18
+      },
+      "successPercentiles": {
+        "min": 12.75,
+        "avg": 48.88,
+        "p50": 46.16,
+        "p90": 66.29,
+        "p95": 73.74,
+        "p99": 90.39,
+        "max": 138.18
+      },
+      "successCount": 24556,
+      "statusCodes": {
+        "200": 24556
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
+      "errors4xx": 0,
+      "timeouts": 0,
+      "errorRate5xxPercent": 0,
+      "thresholdP95": 500,
+      "thresholdErrorRate": 1,
+      "passLatency": true,
+      "passErrorRate": true,
       "passed": true
     },
     {
-      "name": "Order History (/orders/me)",
-      "method": "GET",
-      "path": "/orders/me",
-      "totalRequests": 59597,
-      "rps": 993.1,
-      "p50_ms": 18.78,
-      "p90_ms": 26.64,
-      "p95_ms": 28.92,
-      "max_ms": 64.32,
-      "errorRatePercent": 0.0,
-      "targetLimit_ms": 500,
+      "endpoint": "GET /api/v1/orders/me",
+      "startTimeUTC": "2026-11-17T07:06:51.375Z",
+      "endTimeUTC": "2026-11-17T07:07:51.394Z",
+      "durationSeconds": 60.02,
+      "concurrency": 20,
+      "totalRequests": 44948,
+      "requestsPerSecond": 748.9,
+      "percentiles": {
+        "min": 7.33,
+        "avg": 26.7,
+        "p50": 20.93,
+        "p90": 47.08,
+        "p95": 58.15,
+        "p99": 79.79,
+        "max": 350
+      },
+      "successPercentiles": {
+        "min": 7.33,
+        "avg": 26.7,
+        "p50": 20.93,
+        "p90": 47.08,
+        "p95": 58.15,
+        "p99": 79.79,
+        "max": 350
+      },
+      "successCount": 44948,
+      "statusCodes": {
+        "200": 44948
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
+      "errors4xx": 0,
+      "timeouts": 0,
+      "errorRate5xxPercent": 0,
+      "thresholdP95": 500,
+      "thresholdErrorRate": 1,
+      "passLatency": true,
+      "passErrorRate": true,
       "passed": true
     },
     {
-      "name": "Create Order (/orders)",
-      "method": "POST",
-      "path": "/orders",
-      "totalRequests": 9833,
-      "rps": 163.6,
-      "p50_ms": 118.93,
-      "p90_ms": 147.71,
-      "p95_ms": 189.08,
-      "max_ms": 298.45,
-      "errorRatePercent": 0.0,
-      "targetLimit_ms": 500,
-      "passed": true
+      "endpoint": "POST /api/v1/orders",
+      "startTimeUTC": "2026-11-17T07:08:21.720Z",
+      "endTimeUTC": "2026-11-17T07:09:21.815Z",
+      "durationSeconds": 60.09,
+      "concurrency": 20,
+      "totalRequests": 7365,
+      "requestsPerSecond": 122.6,
+      "percentiles": {
+        "min": 18.53,
+        "avg": 163.05,
+        "p50": 149.75,
+        "p90": 314.11,
+        "p95": 347.16,
+        "p99": 432.82,
+        "max": 699.9
+      },
+      "successPercentiles": {
+        "min": 18.53,
+        "avg": 100.3,
+        "p50": 91.02,
+        "p90": 172.59,
+        "p95": 200.49,
+        "p99": 309.68,
+        "max": 602.97
+      },
+      "successCount": 1914,
+      "statusCodes": {
+        "201": 1914,
+        "409": 4979,
+        "500": 472
+      },
+      "errorSamples": {
+        "409": "{\"error\":{\"code\":\"INVENTORY_CONFLICT\",\"message\":\"Inventory changed; please try again.\",\"details\":[],\"requestId\":\"6215d6d3-62cf-40af-91f0-576cac4b9858\"}}",
+        "500": "{\"error\":{\"code\":\"INTERNAL_ERROR\",\"message\":\"Unable to process order.\",\"details\":[],\"requestId\":\"0053b252-a4ea-4fd6-9ad0-12902f6edda1\"}}"
+      },
+      "errors5xx": 472,
+      "errors4xx": 4979,
+      "timeouts": 0,
+      "errorRate5xxPercent": 6.41,
+      "thresholdP95": 500,
+      "thresholdErrorRate": 1,
+      "passLatency": true,
+      "passErrorRate": false,
+      "passed": false
     },
     {
-      "name": "VNPay Init (/payments)",
-      "method": "POST",
-      "path": "/payments",
-      "totalRequests": 100,
-      "rps": 100.0,
-      "p50_ms": 4.12,
-      "p90_ms": 4.73,
-      "p95_ms": 5.02,
-      "max_ms": 11.23,
-      "errorRatePercent": 0.0,
-      "targetLimit_ms": 500,
+      "endpoint": "POST /api/v1/payments (VNPay: tạo liên kết thanh toán)",
+      "note": "Đo riêng theo yêu cầu SRS mục 2: tách biệt latency thanh toán khỏi API thông thường. Phương thức VNPAY; đo thời gian API tạo payment PROCESSING và liên kết thanh toán, không gồm bước khách thanh toán trên VNPay.",
+      "samples": 100,
+      "orderSetupFailures": 0,
+      "orderSetupErrorSamples": {},
+      "percentiles": {
+        "min": 3.63,
+        "avg": 5.03,
+        "p50": 4.52,
+        "p90": 5.77,
+        "p95": 7.2,
+        "p99": 29.84,
+        "max": 29.84
+      },
+      "statusCodes": {
+        "200": 100
+      },
+      "errorSamples": {},
+      "errors5xx": 0,
       "passed": true
     }
   ],
-  "allPassed": true
+  "allPassed": false
 }

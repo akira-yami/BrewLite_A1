@@ -1,6 +1,8 @@
 import { authSession } from "../auth/session";
+import type { OrderRefundRequest } from "../orders/types";
 import type {
   DrinkRecipe,
+  RefundDecision,
   StaffOrder,
   StaffQueueStatus,
   StaffTargetStatus,
@@ -77,4 +79,12 @@ export function updateStaffOrderStatusApi(
       body: JSON.stringify({ status }),
     },
   );
+}
+
+export function reviewStaffOrderRefundApi(token: string, orderId: string, decision: RefundDecision) {
+  return request<OrderRefundRequest>(`/staff/orders/${encodeURIComponent(orderId)}/refund-request`, token, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(decision),
+  });
 }

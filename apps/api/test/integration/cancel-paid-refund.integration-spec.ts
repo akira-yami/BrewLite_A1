@@ -61,6 +61,34 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
     return order;
   }
 
+  const orderPath = (id: string) => `/api/v1/orders/${id}`;
+  const staffPath = (id: string) => `/api/v1/staff/orders/${id}`;
+
+  function requestRefund(id: string) {
+    return request(app.getHttpServer())
+      .post(`${orderPath(id)}/refund-request`)
+      .set('Authorization', bearer(customerToken));
+  }
+
+  function reviewRefund(id: string, decision: 'APPROVED' | 'REJECTED', reason?: string) {
+    return request(app.getHttpServer())
+      .patch(`${staffPath(id)}/refund-request`)
+      .set('Authorization', bearer(baristaToken))
+      .send({ decision, reason });
+  }
+
+  function startPreparing(id: string) {
+    return request(app.getHttpServer())
+      .patch(`${staffPath(id)}/status`)
+      .set('Authorization', bearer(baristaToken))
+      .send({ status: 'PREPARING' });
+  }
+
+  async function approveRefund(id: string) {
+    await requestRefund(id).expect(200);
+    return reviewRefund(id, 'APPROVED').expect(200);
+  }
+
   beforeAll(async () => {
     process.env.DATABASE_URL = connectionString;
     const module = await Test.createTestingModule({
@@ -153,7 +181,8 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
   // ─────────────────────────────────────────────────────────────────────────────
   // TEST 1: Customer hủy đơn PAID thành công → nhận Store Credit
   // ─────────────────────────────────────────────────────────────────────────────
-  it('customer hủy đơn PAID → nhận Store Credit đúng bằng order.total (1 VND = 1 điểm)', async () => {
+  it('chỉ hoàn Store Credit sau khi barista duyệt yêu cầu của khách', async () => {
+    const earlier = await newPaidOrder();
     const order = await newPaidOrder();
 
     // Lấy balance trước khi hủy (đã được cộng EARN khi PAID)
@@ -163,15 +192,30 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
     });
 
     // Gọi API hủy đơn PAID
-    const response = await request(app.getHttpServer())
+    const pending = await request(app.getHttpServer())
       .post(`/api/v1/orders/${order.id}/cancel-paid`)
       .set('Authorization', bearer(customerToken))
       .expect(200);
+    expect(pending.body.data).toMatchObject({ status: 'PENDING', points: Number(order.total) });
+    expect((await requestRefund(order.id).expect(200)).body.data).toEqual(pending.body.data);
+    expect(await prisma.loyaltyTransaction.count({ where: { orderId: order.id, type: 'REFUND_CREDIT' } })).toBe(0);
+    const pendingDetail = await request(app.getHttpServer()).get(orderPath(order.id))
+      .set('Authorization', bearer(customerToken)).expect(200);
+    expect(pendingDetail.body.data).toMatchObject({ status: 'PAID', refundRequest: { status: 'PENDING' } });
+
+    const staffQueue = await request(app.getHttpServer()).get('/api/v1/staff/orders?status=PAID&limit=1')
+      .set('Authorization', bearer(baristaToken)).expect(200);
+    expect(staffQueue.body.data[0]).toMatchObject({ id: order.id, refundRequest: { status: 'PENDING' } });
+    const fullQueue = await request(app.getHttpServer()).get('/api/v1/staff/orders?status=PAID&limit=2')
+      .set('Authorization', bearer(baristaToken)).expect(200);
+    expect(fullQueue.body.data.map(({ id }: { id: string }) => id)).toEqual([order.id, earlier.id]);
+    const response = await reviewRefund(order.id, 'APPROVED').expect(200);
 
     // Kiểm tra response structure
-    expect(response.body.data.status).toBe('CANCELLED');
-    expect(response.body.refund).toBeDefined();
-    expect(response.body.refund.refundPoints).toBe(Number(order.total));
+    expect(response.body.data).toMatchObject({ status: 'APPROVED', points: Number(order.total) });
+    const approvedDetail = await request(app.getHttpServer()).get(orderPath(order.id))
+      .set('Authorization', bearer(customerToken)).expect(200);
+    expect(approvedDetail.body.data).toMatchObject({ status: 'CANCELLED', refundRequest: { status: 'APPROVED' } });
 
     // Kiểm tra trạng thái đơn hàng
     const cancelledOrder = await prisma.order.findUniqueOrThrow({
@@ -245,10 +289,7 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
     });
 
     // Hủy đơn
-    await request(app.getHttpServer())
-      .post(`/api/v1/orders/${order.id}/cancel-paid`)
-      .set('Authorization', bearer(customerToken))
-      .expect(200);
+    await approveRefund(order.id);
 
     // Reservation phải chuyển CONSUMED → RELEASED
     const reservationAfter = await prisma.inventoryReservation.findUniqueOrThrow({
@@ -284,10 +325,7 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
       },
     });
 
-    await request(app.getHttpServer())
-      .post(`/api/v1/orders/${order.id}/cancel-paid`)
-      .set('Authorization', bearer(customerToken))
-      .expect(200);
+    await approveRefund(order.id);
 
     const paymentAfter = await prisma.payment.findUniqueOrThrow({
       where: { id: payment.id },
@@ -296,9 +334,9 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // TEST 4: Idempotency — hủy 2 lần trả 409, kho không bị hoàn 2 lần
+  // TEST 4: Duyệt lại trả cùng kết quả, kho không bị hoàn 2 lần
   // ─────────────────────────────────────────────────────────────────────────────
-  it('idempotency: hủy đơn PAID 2 lần trả 409 ở lần 2, inventory không bị hoàn gấp đôi', async () => {
+  it('duyệt lại cùng yêu cầu giữ nguyên kết quả và tồn kho', async () => {
     const order = await newPaidOrder();
 
     const reservation = await prisma.inventoryReservation.findFirstOrThrow({
@@ -308,22 +346,15 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
     const item = reservation.items[0];
 
     // Lần hủy đầu tiên — phải thành công
-    await request(app.getHttpServer())
-      .post(`/api/v1/orders/${order.id}/cancel-paid`)
-      .set('Authorization', bearer(customerToken))
-      .expect(200);
+    const first = await approveRefund(order.id);
 
     const stockAfterFirst = (await prisma.ingredient.findUniqueOrThrow({
       where: { id: item.ingredientId },
     })).stockQuantity;
 
-    // Lần hủy thứ 2 — phải trả 409 REFUND_ALREADY_PROCESSED
-    const response = await request(app.getHttpServer())
-      .post(`/api/v1/orders/${order.id}/cancel-paid`)
-      .set('Authorization', bearer(customerToken))
-      .expect(409);
-
-    expect(response.body.error?.code ?? response.body.code).toBe('REFUND_ALREADY_PROCESSED');
+    const response = await reviewRefund(order.id, 'APPROVED').expect(200);
+    expect(response.body.data).toEqual(first.body.data);
+    await reviewRefund(order.id, 'REJECTED', 'Từ chối sau duyệt').expect(409);
 
     // Tồn kho không thay đổi sau lần hủy thứ 2
     const stockAfterSecond = (await prisma.ingredient.findUniqueOrThrow({
@@ -346,27 +377,46 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
     expect(response.body.error?.code).toBe('ORDER_INVALID_TRANSITION');
   });
 
-  it('hoàn Store Credit đúng một lần khi khách và barista cùng hủy đơn PAID', async () => {
+  it('hoàn Store Credit đúng một lần khi hai thao tác duyệt chạy đồng thời', async () => {
     const order = await newPaidOrder();
-    const orderPath = `/api/v1/orders/${order.id}/cancel-paid`;
+    await requestRefund(order.id).expect(200);
 
     const responses = await Promise.all([
-      request(app.getHttpServer())
-        .post(orderPath)
-        .set('Authorization', bearer(customerToken)),
-      request(app.getHttpServer())
-        .post(orderPath.replace('/orders/', '/staff/orders/'))
-        .set('Authorization', bearer(baristaToken))
-        .send({ reason: 'Không thể chuẩn bị đơn' }),
+      reviewRefund(order.id, 'APPROVED').expect(200),
+      reviewRefund(order.id, 'APPROVED').expect(200),
     ]);
 
-    expect(responses.map(({ status }) => status).sort()).toEqual([200, 409]);
-    expect(responses.find(({ status }) => status === 409)?.body.error.code)
-      .toBe('REFUND_ALREADY_PROCESSED');
+    expect(responses[0].body.data).toEqual(responses[1].body.data);
     expect(await prisma.loyaltyTransaction.findMany({
       where: { orderId: order.id, type: 'REFUND_CREDIT' },
       select: { userId: true, points: true },
     })).toEqual([{ userId: customerId, points: Number(order.total) }]);
+  });
+
+  it('từ chối có lý do, giữ nguyên điểm và mở lại nút nhận pha chế', async () => {
+    const order = await newPaidOrder();
+    await requestRefund(order.id).expect(200);
+    const blocked = await startPreparing(order.id).expect(409);
+    expect(blocked.body.error.code).toBe('REFUND_REQUEST_PENDING');
+    await reviewRefund(order.id, 'REJECTED', '  ').expect(400);
+    const reason = 'Quầy đã xác nhận giữ đơn với khách';
+    await reviewRefund(order.id, 'REJECTED', reason).expect(200);
+    const detail = await request(app.getHttpServer()).get(orderPath(order.id))
+      .set('Authorization', bearer(customerToken)).expect(200);
+    expect(detail.body.data).toMatchObject({ status: 'PAID', refundRequest: { status: 'REJECTED', rejectionReason: reason } });
+    expect(await prisma.loyaltyTransaction.count({ where: { orderId: order.id, type: 'REFUND_CREDIT' } })).toBe(0);
+    await startPreparing(order.id).expect(200);
+  });
+
+  it('khóa thứ tự giữa gửi yêu cầu và nhận pha chế', async () => {
+    const order = await newPaidOrder();
+    const [requested, accepted] = await Promise.all([requestRefund(order.id), startPreparing(order.id)]);
+    expect([requested.status, accepted.status].sort()).toEqual([200, 409]);
+
+    const started = await newPaidOrder();
+    await startPreparing(started.id).expect(200);
+    const rejected = await requestRefund(started.id).expect(409);
+    expect(rejected.body.error.code).toBe('ORDER_INVALID_TRANSITION');
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -480,5 +530,8 @@ describe('cancelPaidOrder: hủy PAID → hoàn tiền Store Credit (PostgreSQL 
       .post(`/api/v1/staff/orders/${order.id}/cancel-paid`)
       .set('Authorization', bearer(customerToken))
       .expect(403);
+
+    await request(app.getHttpServer()).patch(`${staffPath(order.id)}/refund-request`)
+      .set('Authorization', bearer(customerToken)).send({ decision: 'APPROVED' }).expect(403);
   });
 });

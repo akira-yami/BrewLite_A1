@@ -31,6 +31,29 @@ test('checkout resumes an already fulfilled order even when its saved key is sta
   expect(paymentPosts).toBe(0);
 });
 
+test('order history can load the paid order from the next page after checkout', async ({ page }) => {
+  const cursor = '008af332-cb05-47dd-923a-8831a3c9f64b';
+  const paid = order('PAID').data;
+  const first = { ...paid, id: cursor, orderNumber: 'ORD-SAMPLE' };
+  await page.route(`**/api/v1/orders/${orderId}`, route => route.fulfill({ json: { data: paid } }));
+  await page.route(/\/api\/v1\/orders\/me(?:\?.*)?$/, route => {
+    const requestedCursor = new URL(route.request().url()).searchParams.get('cursor');
+    if (!requestedCursor) return route.fulfill({ json: { data: [first], meta: { nextCursor: cursor } } });
+    expect(requestedCursor).toBe(cursor);
+    return route.fulfill({ json: { data: [paid], meta: { nextCursor: null } } });
+  });
+
+  await page.goto('/checkout');
+  await expectConfirmation(page);
+  await page.getByRole('link', { name: 'Đơn hàng của tôi' }).click();
+  await expect(page.getByRole('link', { name: /ORD-SAMPLE/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /ORD-RECOVERY/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Xem thêm đơn hàng' }).click();
+  await expect(page.getByRole('link', { name: /ORD-RECOVERY.*Đã thanh toán/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /ORD-SAMPLE/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Xem thêm đơn hàng' })).toHaveCount(0);
+});
+
 test('checkout confirms an order paid while a same-key replay is in flight', async ({ page }) => {
   let status = 'PENDING';
   await page.route(`**/api/v1/orders/${orderId}`, route => route.fulfill({ json: order(status) }));

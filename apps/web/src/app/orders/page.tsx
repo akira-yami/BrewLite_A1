@@ -4,15 +4,11 @@ import { useAuthSession } from '@/features/auth/use-auth-session';
 import { useOrderPaymentRetry } from '@/features/checkout/use-order-payment-retry';
 import { getMyOrdersApi, OrdersApiError } from '@/features/orders/api';
 import { OrderStatusBadge } from '@/features/orders/components/OrderStatusBadge';
-import type { OrderDetail, OrderListResponse, OrderStatus, OrderSummary } from '@/features/orders/types';
+import type { OrderStatus, OrderSummary } from '@/features/orders/types';
 import { PaymentApiError } from '@/features/payments/api';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useState } from 'react';
-
-function toItems(response: OrderListResponse | OrderDetail[]) {
-  return Array.isArray(response) ? response : response.items;
-}
 
 /**
  * Đơn chưa thanh toán (PENDING/PAYMENT_FAILED) đã quá hạn giữ chỗ được coi như
@@ -107,13 +103,15 @@ function OrderCard({ order, token }: { order: OrderSummary; token: string }) {
 
 export default function OrdersHistoryPage() {
   const { status, token } = useAuthSession();
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ['orders-history', token],
     enabled: status === 'authenticated' && !!token,
-    queryFn: () => getMyOrdersApi(token!),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam, signal }) => getMyOrdersApi(token!, pageParam, signal),
+    getNextPageParam: (page) => page.nextCursor,
     retry: false,
   });
-  const orders: OrderSummary[] | null = status === 'authenticated' && query.data ? toItems(query.data) : null;
+  const orders = status === 'authenticated' ? query.data?.pages.flatMap((page) => page.items) : undefined;
   const error = status === 'anonymous'
     ? 'Vui lòng đăng nhập để xem lịch sử đơn hàng.'
     : query.error instanceof OrdersApiError && query.error.status === 401
@@ -128,13 +126,26 @@ export default function OrdersHistoryPage() {
         <p className="mt-1 text-sm text-[#756A63]">Theo dõi trạng thái và xem lại các đơn đã đặt.</p>
 
         {!orders && !error && <div className="mt-6 rounded-2xl border border-[#E8DFC8] bg-white p-10 text-center text-sm font-semibold text-[#756A63]">Đang tải lịch sử đơn hàng...</div>}
-        {error && <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-sm text-rose-700"><p>{error}</p><button type="button" onClick={() => { if (status === 'authenticated') void query.refetch(); }} className="mt-4 rounded-full bg-[#163D2C] px-4 py-2 text-xs font-bold text-white">Thử lại</button></div>}
+        {error && !query.isFetchNextPageError && <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-8 text-center text-sm text-rose-700"><p>{error}</p><button type="button" onClick={() => { if (status === 'authenticated') void query.refetch(); }} className="mt-4 rounded-full bg-[#163D2C] px-4 py-2 text-xs font-bold text-white">Thử lại</button></div>}
         {orders?.length === 0 && <div className="mt-6 rounded-2xl border border-[#E8DFC8] bg-white p-10 text-center"><p className="text-3xl">☕</p><h2 className="mt-3 font-serif text-xl font-black text-[#163D2C]">Bạn chưa có đơn hàng nào</h2><Link href="/menu" className="mt-5 inline-flex rounded-full bg-[#163D2C] px-5 py-2.5 text-sm font-bold text-white">Chọn món ngay</Link></div>}
         {orders && orders.length > 0 && (
           <div className="mt-6 space-y-3">
             {orders.map((order) => (
               <OrderCard key={order.id} order={order} token={token!} />
             ))}
+          </div>
+        )}
+        {orders && query.hasNextPage && (
+          <div className="mt-6 text-center">
+            {query.isFetchNextPageError && <p role="alert" className="mb-3 text-sm text-rose-700">{error}</p>}
+            <button
+              type="button"
+              onClick={() => void query.fetchNextPage()}
+              disabled={query.isFetching}
+              className="rounded-full bg-[#163D2C] px-5 py-2.5 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {query.isFetchingNextPage ? 'Đang tải...' : query.isFetchNextPageError ? 'Thử lại' : 'Xem thêm đơn hàng'}
+            </button>
           </div>
         )}
       </div>

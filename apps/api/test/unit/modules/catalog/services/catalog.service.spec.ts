@@ -125,6 +125,16 @@ describe('getProducts', () => {
 
     expect(repository.findAllProducts).toHaveBeenCalledOnce();
   });
+
+  it('shares a concurrent menu read and queries again after it settles', async () => {
+    repository.findAllProducts.mockResolvedValue([]);
+
+    await expect(Promise.all([service.getProducts(), service.getProducts()])).resolves.toEqual([[], []]);
+    expect(repository.findAllProducts).toHaveBeenCalledOnce();
+
+    await service.getProducts();
+    expect(repository.findAllProducts).toHaveBeenCalledTimes(2);
+  });
 });
 
 

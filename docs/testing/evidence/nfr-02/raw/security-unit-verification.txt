@@ -1,0 +1,125 @@
+Command: npm.cmd --prefix apps/api test -- --reporter=verbose auth.service.spec.ts create-order.dto.spec.ts payments.service.spec.ts
+
+> brewlite-api@0.0.1 test
+> vitest run --reporter=verbose auth.service.spec.ts create-order.dto.spec.ts payments.service.spec.ts
+
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional preferences and integer percentages: {} 7ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional preferences and integer percentages: {"sugarLevel":null,"iceLevel":null} 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional preferences and integer percentages: {"sugarLevel":0,"iceLevel":100} 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional preferences and integer percentages: {"sugarLevel":100,"iceLevel":0} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional preferences and integer percentages: {"sugarLevel":33,"iceLevel":67} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid sugarLevel: -1 3ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid sugarLevel: 101 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid sugarLevel: 25.5 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid sugarLevel: "50" 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid sugarLevel: false 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid sugarLevel: undefined 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid sugarLevel: {} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid iceLevel: -1 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid iceLevel: 101 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid iceLevel: 25.5 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid iceLevel: "50" 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid iceLevel: false 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid iceLevel: undefined 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid iceLevel: {} 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects client prices along with otherwise valid preferences 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional notes up to 500 characters: undefined 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional notes up to 500 characters: null 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional notes up to 500 characters: "" 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional notes up to 500 characters: "   " 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional notes up to 500 characters: "Để topping riêng" 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > accepts optional notes up to 500 characters: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid notes: 123 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid notes: false 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid notes: undefined 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid notes: {} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects invalid notes: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > trims notes and normalizes blank notes to null 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > trims a coupon code before validating and preserves its case 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects a blank coupon code: "" 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects a blank coupon code: " " 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects a blank coupon code: "\n\t" 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > accepts no coupon: undefined 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > accepts no coupon: null 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects server-owned top-level field userId 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects server-owned top-level field status 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects server-owned top-level field unitPrice 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects server-owned top-level field subtotal 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects server-owned top-level field discountAmount 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects server-owned top-level field total 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects missing or out-of-range item arrays: undefined 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects missing or out-of-range item arrays: null 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects missing or out-of-range item arrays: undefined 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects missing or out-of-range item arrays: {"productVariantId":"123e4567-e89b-42d3-a456-426614174000","quantity":1} 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > accepts 1 input lines 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > accepts 20 input lines 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects item entries that are not objects: {"items":[[]]} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects item entries that are not objects: {"items":[[{"productVariantId":"123e4567-e89b-42d3-a456-426614174000","quantity":1}]]} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects item entries that are not objects: {"items":[null]} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects item entries that are not objects: {"items":["invalid"]} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects item entries that are not objects: {"items":[123]} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects invalid quantity: 0 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects invalid quantity: 21 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects invalid quantity: 1.5 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects invalid quantity: "2" 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects invalid quantity: null 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects malformed IDs or repeated toppings: {"productVariantId":"unknown"} 0ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects malformed IDs or repeated toppings: {"toppingIds":["unknown"]} 1ms
+ ✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto checkout contract > rejects malformed IDs or repeated toppings: {"toppingIds":["123e4567-e89b-42d3-a456-426614174000","123e4567-e89b-42d3-a456-426614174000"]} 0ms
+stderr | test/unit/modules/payments/services/payments.service.spec.ts
+◇ injected env (12) from .env
+
+stderr | test/unit/modules/auth/auth.service.spec.ts
+◇ injected env (12) from .env
+
+ ✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > register > should hash password with bcrypt and create a user with default CUSTOMER role without exposing passwordHash and return expiresIn: 900 207ms
+ ✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > register > should throw ConflictException with USERNAME_ALREADY_EXISTS if username is already registered 3ms
+ ✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > login > should authenticate user, verify bcrypt password, and return JWT token, safe user payload and expiresIn: 900 105ms
+ ✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > login > should throw UnauthorizedException with INVALID_CREDENTIALS when username does not exist 3ms
+ ✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > login > should throw UnauthorizedException with INVALID_CREDENTIALS when password is wrong 102ms
+ ✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > login > should throw ForbiddenException with ACCOUNT_INACTIVE if account is deactivated 106ms
+ ✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > getProfile > should return user profile without passwordHash 2ms
+ ✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > getProfile > should throw NotFoundException with USER_NOT_FOUND if user does not exist 1ms
+[Nest] 33044  - 11/17/2026, 11:37:45 PM    WARN [PaymentsService] VNPay IPN rejected: invalid signature or callback fields.
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > getPaymentStatus > trả trạng thái PROCESSING hiện tại, không gọi gateway hoặc tạo attempt mới 8ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > getPaymentStatus > trả PAYMENT_NOT_FOUND nếu key không thuộc Order của customer hoặc không tồn tại 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 1. Nên ném 409 IDEMPOTENCY_KEY_REUSED nếu trùng key nhưng khác requestHash 3ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 2. Nên ném 409 PAYMENT_IN_PROGRESS nếu trùng key, cùng hash và đang PROCESSING 3ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 3. Nên trả về kết quả cũ (isRetried: true) không gọi Gateway nếu đã thanh toán hoàn tất SUCCEEDED 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 4. Nên ném 409 ORDER_ALREADY_PAID nếu dùng key mới nhưng đơn hàng đã thanh toán PAID 3ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 5. Nên ném 409 ORDER_INVALID_TRANSITION nếu đơn hàng bị hủy hoặc đang ở trạng thái không cho phép thanh toán 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 6. Thành công (SUCCEEDED): Tạo PROCESSING, gọi Gateway ngoài tx, mở tx cập nhật Repository và OrdersService, trạng thái SUCCEEDED và PAID 5ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 7. Thất bại (FAILED): Tạo PROCESSING, gọi Gateway thất bại, mở tx cập nhật Repository và OrdersService, cập nhật FAILED và PAYMENT_FAILED trong tx 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > retry key mới chuyển FAILED về PENDING trước khi gọi gateway 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > không retry FAILED đã hết hạn và không gọi gateway 3ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > không gọi gateway nếu CAS retry bị từ chối 3ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 8. Nên ném 409 ORDER_EXPIRED nếu đơn hàng PENDING nhưng đã quá hạn giữ chỗ 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 9. Replay cùng idempotency key của Payment FAILED phải trả kết quả cũ, không gọi Gateway 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 10. Retry bằng key mới chuyển PAYMENT_FAILED về PENDING và tạo Payment trong cùng transaction 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 11. Không cho retry nếu Order PAYMENT_FAILED đã hết hạn giữ chỗ 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 12. Chặn Payment PROCESSING thứ hai trên cùng Order bằng idempotency key khác 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 13. Phân biệt key bị tái sử dụng khi unique constraint thắng cuộc đua insert 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 14. Trả 409 PAYMENT_IN_PROGRESS khi unique constraint phát hiện cùng key và cùng payload đang xử lý 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > ordinary new VNPay key while PROCESSING remains 409; retryAttempt is required to supersede 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > PENDING + new VNPay key: supersedes old PROCESSING payment and creates a fresh attempt 6ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > PAYMENT_FAILED + new VNPay key: supersedes old PROCESSING payment before creating replacement 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > does not auto-expire MANUAL_REVIEW payments 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 15. Chuyển lỗi tranh quyền retry đồng thời thành 409 PAYMENT_IN_PROGRESS 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > creates a persisted VNPay intent and never calls MockGateway 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > replays the same persisted VNPay URL for the same idempotency key 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > rejects a new VNPay attempt while the gateway is disabled 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > settles a valid VNPay IPN once and rejects a duplicate callback 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > moves a late SUCCESS IPN after definitive FAILED into MANUAL_REVIEW without marking Order PAID 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > rejects invalid VNPay signatures and amount mismatches without settlement 2ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > a verified Return from the live gateway only redirects 1ms
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > does not settle a live payment link from a Sandbox Return 1ms
+
+ Test Files  3 passed (3)
+      Tests  103 passed (103)
+   Start at  23:37:40
+   Duration  4.35s (transform 1.15s, setup 0ms, import 6.97s, tests 650ms, environment 1ms)
+
+Exit code: 0

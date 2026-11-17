@@ -1,0 +1,51 @@
+Command: npm.cmd --prefix apps/api test -- --reporter=verbose payments.service.spec.ts -t "IDEMPOTENCY_KEY_REUSED"
+
+
+> brewlite-api@0.0.1 test
+> vitest run --reporter=verbose payments.service.spec.ts -t IDEMPOTENCY_KEY_REUSED
+
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | test/unit/modules/payments/services/payments.service.spec.ts
+◇ injected env (9) from .env
+
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > getPaymentStatus > trả trạng thái PROCESSING hiện tại, không gọi gateway hoặc tạo attempt mới
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > getPaymentStatus > trả PAYMENT_NOT_FOUND nếu key không thuộc Order của customer hoặc không tồn tại
+ ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 1. Nên ném 409 IDEMPOTENCY_KEY_REUSED nếu trùng key nhưng khác requestHash 4ms
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 2. Nên ném 409 PAYMENT_IN_PROGRESS nếu trùng key, cùng hash và đang PROCESSING
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 3. Nên trả về kết quả cũ (isRetried: true) không gọi Gateway nếu đã thanh toán hoàn tất SUCCEEDED
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 4. Nên ném 409 ORDER_ALREADY_PAID nếu dùng key mới nhưng đơn hàng đã thanh toán PAID
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 5. Nên ném 409 ORDER_INVALID_TRANSITION nếu đơn hàng bị hủy hoặc đang ở trạng thái không cho phép thanh toán
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 6. Thành công (SUCCEEDED): Tạo PROCESSING, gọi Gateway ngoài tx, mở tx cập nhật Repository và OrdersService, trạng thái SUCCEEDED và PAID
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 7. Thất bại (FAILED): Tạo PROCESSING, gọi Gateway thất bại, mở tx cập nhật Repository và OrdersService, cập nhật FAILED và PAYMENT_FAILED trong tx
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > retry key mới chuyển FAILED về PENDING trước khi gọi gateway
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > không retry FAILED đã hết hạn và không gọi gateway
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > không gọi gateway nếu CAS retry bị từ chối
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 8. Nên ném 409 ORDER_EXPIRED nếu đơn hàng PENDING nhưng đã quá hạn giữ chỗ
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 9. Replay cùng idempotency key của Payment FAILED phải trả kết quả cũ, không gọi Gateway
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 10. Retry bằng key mới chuyển PAYMENT_FAILED về PENDING và tạo Payment trong cùng transaction
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 11. Không cho retry nếu Order PAYMENT_FAILED đã hết hạn giữ chỗ
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 12. Chặn Payment PROCESSING thứ hai trên cùng Order bằng idempotency key khác
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 13. Phân biệt key bị tái sử dụng khi unique constraint thắng cuộc đua insert
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 14. Trả 409 PAYMENT_IN_PROGRESS khi unique constraint phát hiện cùng key và cùng payload đang xử lý
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > ordinary new VNPay key while PROCESSING remains 409; retryAttempt is required to supersede
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > PENDING + new VNPay key: supersedes old PROCESSING payment and creates a fresh attempt
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > PAYMENT_FAILED + new VNPay key: supersedes old PROCESSING payment before creating replacement
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > does not auto-expire MANUAL_REVIEW payments
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 15. Chuyển lỗi tranh quyền retry đồng thời thành 409 PAYMENT_IN_PROGRESS
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > creates a persisted VNPay intent and never calls MockGateway
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > replays the same persisted VNPay URL for the same idempotency key
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > rejects a new VNPay attempt while the gateway is disabled
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > settles a valid VNPay IPN once and rejects a duplicate callback
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > moves a late SUCCESS IPN after definitive FAILED into MANUAL_REVIEW without marking Order PAID
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > rejects invalid VNPay signatures and amount mismatches without settlement
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > a verified Return from the live gateway only redirects
+ ↓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > does not settle a live payment link from a Sandbox Return
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 31 skipped (32)
+   Start at  22:53:46
+   Duration  1.68s (transform 305ms, setup 0ms, import 1.39s, tests 5ms, environment 0ms)
+
+Exit code: 0

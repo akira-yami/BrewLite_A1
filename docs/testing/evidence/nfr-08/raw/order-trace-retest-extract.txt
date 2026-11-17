@@ -1,0 +1,10 @@
+Trích nguyên văn các dòng kết quả liên quan từ lượt kiểm thử.
+
+Nguồn: postgres-invariants-tests.txt
+✓ test/integration/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > merges normalized lines, preserves 0/null preferences, snapshots and ownership 739ms
+✓ test/integration/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > luồng chính: PENDING → PAID → PREPARING → READY → COMPLETED, ghi lịch sử và khách thấy được 967ms
+✓ test/integration/order-state-machine.integration-spec.ts > Order State Machine: real HTTP and PostgreSQL > đơn đang PAID: đặt READY bị 409 INVALID_ORDER_TRANSITION, trạng thái và lịch sử không đổi 205ms
+✓ test/integration/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > fails before committing money outside the JSON integer range 40ms
+
+Nguồn: api-unit-tests.txt
+✓ test/unit/modules/orders/mappers/order-item.mapper.spec.ts > toOrderItemResponse > returns persisted preferences 0/100 and snapshot prices 3ms

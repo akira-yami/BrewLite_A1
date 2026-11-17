@@ -1,237 +1,290 @@
 # BrewLite
 
-BrewLite là ứng dụng web đặt đồ uống và thanh toán không tiền mặt, được xây dựng cho bài tập lớn môn Công nghệ Phần mềm. Sản phẩm hướng tới luồng đặt món nhanh tại quầy: xem menu, chọn size/topping, quản lý giỏ hàng, đăng nhập, tạo đơn, thanh toán và theo dõi trạng thái.
+**Ứng dụng đặt đồ uống và thanh toán không tiền mặt — Bài tập lớn môn Công nghệ Phần mềm, Nhóm 7, Trường Đại học Sài Gòn.**
 
-## Hồ sơ Nhóm 7
+BrewLite hỗ trợ khách chọn đồ uống, tùy chỉnh món, đặt hàng, thanh toán qua VNPay và theo dõi đơn. Barista sử dụng quầy nhân viên để nhận đơn, cập nhật tiến độ pha chế, tra cứu tồn nguyên liệu và công thức. Máy chủ chịu trách nhiệm tính giá, giữ nguyên liệu, quản lý coupon và ghi nhận điểm thưởng.
 
-- [Mục lục tài liệu bàn giao](docs/README.md).
-- [Scrum và mốc thời gian](docs/scrum/README.md) · [Sprint Backlog và phân công](docs/scrum/phan-cong.md).
-- Đề bài gốc (PDF) được giữ cục bộ trong `BrewLite-Report/`, không theo dõi trong Git.
+Giảng viên hướng dẫn: **Từ Lãng Phiêu**. Phạm vi báo cáo Assignment 01 gồm 15 User Story, 17 yêu cầu chức năng và 8 yêu cầu phi chức năng.
 
-Bộ báo cáo PDF/LaTeX trong `BrewLite-Report/` được giữ cục bộ, không theo dõi trong Git. Tài liệu bàn giao, phân công, Scrum và minh chứng được quản lý trong `docs/`; các kết quả kiểm chứng cần đọc cùng ngày chạy và giới hạn ghi trong tài liệu tương ứng.
+[Hướng dẫn khởi chạy](#khởi-chạy-bằng-docker-compose) · [Tài khoản demo](#tài-khoản-demo) · [Kiểm thử](#kiểm-thử) · [Minh chứng NFR](#minh-chứng-yêu-cầu-phi-chức-năng) · [Tài liệu bàn giao](#tài-liệu-bàn-giao)
 
-## Công nghệ và hiện trạng
+## Thành viên và phân công
+
+| Thành viên | MSSV | Phụ trách chính |
+| --- | --- | --- |
+| Phan Anh Khang | 3124410145 | Nhóm trưởng; nền tảng, Orders, tích hợp, giao diện Barista và kho |
+| Đoàn Quang Khải | 3124410138 | Chi tiết sản phẩm, giỏ hàng, checkout và lịch sử đơn |
+| Nguyễn Huy Hoàng | 3124410105 | Catalog, dữ liệu mẫu và nghiệp vụ tồn kho |
+| Huỳnh Thái Kiệt | 3124410172 | Thanh toán phía máy chủ, idempotency, coupon và hoàn tiền |
+| Đỗ Mạnh Huy | 3124410113 | Xác thực, phân quyền và điểm thưởng |
+
+Phân công theo thẻ công việc và các sprint nằm trong [Sprint Backlog](docs/scrum/phan-cong.md) và [hồ sơ Scrum](docs/scrum/README.md).
+
+## Chức năng
+
+| Nhóm chức năng | Nội dung | Yêu cầu Assignment 01 |
+| --- | --- | --- |
+| Thực đơn và tùy chỉnh | Menu từ API; chọn size, topping, đường, đá và ghi chú; hiển thị khả năng phục vụ theo nguyên liệu | FR-01, FR-02 |
+| Giỏ hàng | Thêm, sửa, xóa món; tính tạm tính; tách dòng khác tùy chọn và khôi phục giỏ sau khi tải lại | FR-03 |
+| Tài khoản | Đăng ký, đăng nhập bằng JWT, đăng xuất trên trình duyệt và xử lý phiên hết hạn | FR-04 |
+| Đặt hàng | Tính giá tại máy chủ, lưu snapshot, giữ nguyên liệu/coupon trong cùng giao dịch và chống bán vượt tồn | FR-05, FR-06 |
+| Thanh toán và theo dõi | Tạo liên kết VNPay, tra cứu kết quả, tiếp tục hoặc thử lại đơn còn hạn; xem xác nhận và đơn của mình | FR-07, FR-08 |
+| Coupon và điểm thưởng | Kiểm tra điều kiện coupon, quản lý lượt sử dụng; cộng điểm một lần khi đơn PAID | FR-09, FR-10 |
+| Vòng đời đơn | Hủy đơn chưa thanh toán khi hợp lệ, tự xử lý hết hạn, kiểm soát chuyển trạng thái và ghi lịch sử | FR-11, FR-12, FR-13 |
+| Quầy Barista | Hàng đợi đơn, cập nhật pha chế/giao món; tra cứu kho và công thức ở chế độ chỉ đọc | FR-14, FR-15, FR-16 |
+| Đổi điểm | Xem số dư, sổ điểm, voucher cá nhân; đổi điểm lấy voucher dùng một lần | FR-17 |
+
+Mã nguồn còn có luồng khách gửi yêu cầu hoàn đơn đã thanh toán và Barista xét duyệt trước khi nhận pha. Khoản hoàn được ghi thành điểm Loyalty/store credit theo nghiệp vụ của ứng dụng. Đây là phần mở rộng, không phải hoàn tiền về tài khoản ngân hàng qua VNPay.
+
+## Công nghệ và kiến trúc
 
 | Thành phần | Công nghệ |
-|---|---|
-| Frontend | Next.js, React, TypeScript, Tailwind CSS |
-| Quản lý state | TanStack Query; giỏ hàng dùng custom store với `useSyncExternalStore` và localStorage |
-| Backend | NestJS, TypeScript, REST API |
-| Database | PostgreSQL |
-| ORM | Prisma |
-| Xác thực | JWT, Passport, bcrypt |
-| Validation | `class-validator` |
-| Thanh toán | Mock Payment Gateway |
-| DevOps | Docker Compose |
+| --- | --- |
+| Web | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Dữ liệu phía trình duyệt | TanStack Query; giỏ hàng dùng custom store, `useSyncExternalStore` và localStorage |
+| API | NestJS, TypeScript, REST với tiền tố `/api/v1` |
+| Cơ sở dữ liệu | PostgreSQL 18, Prisma ORM và migrations |
+| Xác thực và kiểm tra đầu vào | JWT, Passport, bcrypt, `class-validator` |
+| Thanh toán | VNPay; gateway mô phỏng phục vụ các bộ kiểm thử |
+| Kiểm thử | Vitest, Supertest, Node Test Runner, Playwright, Postman/Newman |
+| Đóng gói và CI | Docker Compose, GitHub Actions |
 
-## Kiến trúc
-
-Backend sử dụng modular monolith. Mỗi module tuân theo luồng:
+Backend là **modular monolith**, chia theo nghiệp vụ:
 
 ```text
-Controller -> Service -> Repository -> Prisma -> PostgreSQL
+Web Next.js -> REST API NestJS
+                 Controller -> Service -> Repository -> Prisma -> PostgreSQL
 ```
 
-- **Controller**: nhận HTTP request, guard, DTO và HTTP response.
-- **Service**: xử lý nghiệp vụ, state machine và điều phối transaction.
-- **Repository**: truy cập PostgreSQL qua Prisma.
-- **Mapper**: chuyển Prisma record sang Entity và Entity sang Response DTO.
-- **DTO**: validate hợp đồng request/response.
-- **Entity**: biểu diễn dữ liệu và enum nghiệp vụ trong module.
-
-Hướng dẫn nghiệm thu bốn phần bàn giao/nhân viên nằm tại [kiểm chứng Barista, kho và Compose](docs/testing/staff-acceptance.md).
-
-Mapper là helper thuần, không phải một tầng riêng; mapper không truy vấn database và không chứa business rule.
-
-## Cây thư mục
+Controller tiếp nhận request, kiểm tra quyền và DTO. Service điều phối nghiệp vụ, transaction và chuyển trạng thái. Repository truy cập dữ liệu; mapper chuyển dữ liệu sang response mà không thực hiện I/O. Các module chính gồm `auth`, `users`, `catalog`, `orders`, `inventory`, `payments`, `promotions` và `loyalty`.
 
 ```text
 BrewLite/
-├─ apps/
-│  ├─ web/                         # Ứng dụng Next.js
-│  │  ├─ public/
-│  │  ├─ src/
-│  │  │  ├─ app/                   # Route, layout, page
-│  │  │  ├─ components/            # UI dùng chung
-│  │  │  ├─ features/              # auth, cart, catalog, checkout, orders
-│  │  │  ├─ lib/                   # API client, auth, query client
-│  │  │  └─ stores/                # Custom cart store
-│  │  └─ tests/
-│  └─ api/                         # Ứng dụng NestJS
-│     ├─ prisma/
-│     │  └─ migrations/
-│     ├─ src/
-│     │  ├─ common/                # Guard, filter, interceptor, pipe, error
-│     │  ├─ config/
-│     │  ├─ database/              # PrismaModule/PrismaService, transaction utility
-│     │  └─ modules/
-│     │     └─ <module>/
-│     │        ├─ controllers/
-│     │        ├─ services/
-│     │        ├─ repositories/
-│     │        ├─ mappers/
-│     │        ├─ dto/
-│     │        └─ entities/
-│     │
-│     │     # Riêng payments có gateways/, inventory có jobs/ khi triển khai
-│     └─ test/
-├─ packages/
-│  ├─ contracts/                   # Contract/type dùng chung
-│  ├─ eslint-config/
-│  └─ tsconfig/
-├─ tests/e2e/
-├─ scripts/
-└─ docs/
+├── apps/
+│   ├── api/
+│   │   ├── prisma/             # Schema, migrations và seed
+│   │   ├── src/modules/        # Các module nghiệp vụ NestJS
+│   │   └── test/               # Unit, HTTP E2E và integration
+│   └── web/
+│       ├── src/app/            # Các trang Next.js
+│       ├── src/features/       # Chức năng phía web
+│       └── tests/              # Unit và Playwright E2E
+├── database/                   # ERD và bản xuất sơ đồ
+├── docs/                       # Kiến trúc, Scrum, kiểm thử và minh chứng
+├── postman/                    # Collection và environment mẫu
+├── scripts/                    # Kiểm tra tài liệu, seed tải và benchmark
+├── .github/workflows/          # CI và cloud smoke
+├── compose.yaml
+└── .env.example
 ```
 
-## Module backend
+## Khởi chạy bằng Docker Compose
 
-| Module | Trách nhiệm |
-|---|---|
-| `auth` | Đăng ký, đăng nhập và JWT |
-| `users` | Tài khoản, vai trò và thông tin khách hàng |
-| `catalog` | Sản phẩm, size, topping và giá niêm yết |
-| `orders` | Tạo đơn, snapshot giá và state machine |
-| `inventory` | Giữ, trừ, hoàn tồn kho và optimistic locking |
-| `payments` | Payment attempt, idempotency và mock gateway |
-| `promotions` | Coupon, điều kiện áp dụng và redemption |
-| `loyalty` | Sổ giao dịch và số dư điểm thưởng |
+### 1. Chuẩn bị môi trường
 
-## Chức năng MVP
+Cài Git và Docker Desktop có Docker Compose, khởi động Docker Desktop, rồi mở PowerShell tại thư mục gốc dự án. Node.js **24.x** và npm cần thiết khi chạy trực tiếp hoặc chạy kiểm thử trên máy.
 
-Đây là phạm vi cần nghiệm thu. Tiêu chí chấp nhận nằm trong các thẻ liên kết từ [Sprint Backlog](docs/scrum/phan-cong.md); danh sách này không có nghĩa mọi chức năng đã hoàn thành.
+Với lần thiết lập đầu tiên:
 
-- Hiển thị menu và chi tiết sản phẩm.
-- Chọn size, topping, mức đường và đá.
-- Thêm, sửa số lượng và xóa sản phẩm trong giỏ.
-- Đăng ký, đăng nhập bằng JWT.
-- Tạo đơn với giá được tính lại ở backend.
-- Thanh toán Ví/Thẻ qua mock gateway.
-- Chống xử lý thanh toán lặp bằng `Idempotency-Key`.
-- Kiểm soát tồn kho khi nhiều khách đặt đồng thời.
-- Áp dụng coupon và cộng điểm thưởng đúng một lần.
-- Hiển thị xác nhận và lịch sử đơn hàng.
-
-## Trạng thái đơn hàng
-
-```text
-PENDING -> PAID -> PREPARING -> READY -> COMPLETED
-PENDING -> PAYMENT_FAILED -> PENDING (retry)
-PENDING -> CANCELLED
-PAYMENT_FAILED -> CANCELLED
-PAID -> CANCELLED (trước khi nhận pha)
-```
-
-Mọi chuyển trạng thái phải đi qua `OrderService` và được ghi vào lịch sử trạng thái. `COMPLETED` và `CANCELLED` là trạng thái kết thúc. Chủ đơn được hủy từ PENDING/PAYMENT_FAILED/PAID khi hợp lệ; hủy từ PAID giữ giao dịch thành công và không hoàn tiền giả lập. Barista thực hiện các bước pha chế. Role tài khoản chỉ có `CUSTOMER` (user/khách hàng) và `BARISTA`; Mock Payment Gateway là tác nhân tích hợp.
-
-## Tài liệu
-
-- [Mục lục tài liệu (index)](docs/README.md)
-- [ERD và giải thích mô hình dữ liệu](docs/architecture/erd.md)
-- [ERD PlantUML](database/BrewLite.puml) · [Ảnh ERD](database/BrewLite.png)
-- [Tri thức module Order](docs/knowledge/orders-module-knowledge.md)
-- [Scrum, các mốc sprint và Definition of Done](docs/scrum/README.md)
-- [Bộ test case theo nghiệp vụ (hiện hành)](docs/testing/business-test-cases.md)
-- [Vòng đời giữ tồn và dữ liệu demo](docs/testing/reservation-and-demo-seed.md)
-
-## Khởi chạy dự án
-
-Chạy toàn bộ stack bằng:
-
-```bash
-cp .env.example .env
+```powershell
+Copy-Item .env.example .env
 node -e "console.log(require('node:crypto').randomBytes(48).toString('hex'))"
-# Điền secret vừa tạo vào JWT_SECRET trong .env trước khi chạy Compose.
-docker compose up -d --build
-# Seed có sẵn tài khoản Customer và Barista, không cần biến mật khẩu demo.
-docker compose --profile demo run --rm seed
 ```
 
-Compose chạy service `migrate` trước backend. Lệnh seed ở trên tạo catalog/công thức và tài khoản Barista, không tạo đơn giả; có sẵn Customer để đăng nhập. Có thể chạy seed lặp lại. Quầy nhân viên ở `/barista`, gồm hàng đợi đơn và quản lý kho nguyên liệu.  Kiểm tra trạng thái bằng `docker compose ps -a`; `migrate` phải exit 0, các service còn lại healthy. Frontend chạy tại `http://localhost:3000`, backend tại `http://localhost:3001/api/v1` và health endpoint là `http://localhost:3001/api/v1/health`.
+Điền chuỗi vừa tạo vào `JWT_SECRET` trong `.env`. Kiểm tra `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` và `DATABASE_URL_DOCKER` khớp nhau. URL dành cho Compose sử dụng hostname `postgres`; các ứng dụng chạy trên máy sử dụng `localhost` và cổng PostgreSQL được công bố.
 
-`JWT_SECRET` bắt buộc và không có giá trị mặc định. Compose dừng ngay nếu biến thiếu hoặc rỗng; mỗi môi trường cần secret riêng. Không commit file `.env` thật.
+Nếu máy đã dùng cổng 5432, đổi `POSTGRES_PORT` trong `.env`, ví dụ thành `55432`. PostgreSQL bên trong mạng Compose vẫn dùng cổng 5432. Giữ file `.env` hiện có nếu đã cấu hình; không ghi đè khi chạy lại hướng dẫn.
 
-Khi chạy trực tiếp trên host, tạo database PostgreSQL rồi làm theo [README API](apps/api/README.md): dùng `apps/api/.env.example` với hostname `localhost`, chạy migrate trước start. Root `.env.example` dùng hostname `postgres` cho Compose.
+### 2. Dựng stack và seed dữ liệu
 
-## CI trên GitHub Actions
+```powershell
+docker compose up -d --build
+docker compose --profile demo run --rm seed
+docker compose ps -a
+```
 
-Workflow `.github/workflows/ci.yml` chạy khi push, mở/cập nhật pull request hoặc chạy thủ công từ tab **Actions**. Các job dùng Node.js 24, cài dependencies bằng `npm ci` và cache npm theo lockfile của từng app:
+Compose đợi PostgreSQL sẵn sàng, chạy service `migrate`, rồi mới khởi động backend và frontend. Trạng thái mong đợi: `migrate` thoát mã `0`; `postgres`, `backend`, `frontend` báo `healthy`. Service seed bổ sung catalog, nguyên liệu, công thức và tài khoản demo; không tạo đơn hàng giả.
 
-- **Frontend:** lint, typecheck, test giỏ hàng và build Next.js.
-- **Backend:** generate Prisma client, lint, typecheck, unit test, API E2E test và build NestJS. Bộ API E2E hiện kiểm tra readiness và JWT/RBAC/ownership trên route Auth bằng provider mock; không phải E2E đặt hàng/thanh toán.
-- **Database migrations and integration:** PostgreSQL 18 riêng cho mỗi lần chạy; validate/generate Prisma, apply migration hai lần để kiểm tra chạy lặp, kiểm tra migration status và chạy integration test với database thật.
-- **Documentation:** kiểm tra liên kết tài liệu và hash nguồn ERD/SVG/PNG qua manifest; enum và danh mục A2 được kiểm tra khi bộ hồ sơ tương ứng có trong checkout; chạy bằng `node scripts/check-docs.mjs`.
+| Địa chỉ mặc định | Nội dung |
+| --- | --- |
+| `http://localhost:3000` | Web BrewLite |
+| `http://localhost:3000/menu` | Thực đơn |
+| `http://localhost:3000/barista` | Quầy nhân viên, yêu cầu tài khoản Barista |
+| `http://localhost:3001/api/v1` | API |
+| `http://localhost:3001/api/v1/health` | Kiểm tra API và kết nối cơ sở dữ liệu |
 
-CI dùng database tạm `brewlite_foundation_smoke_ci` với thông tin kết nối riêng, không cần cấu hình repository secrets. Ruleset `BrewLite CI quality gate` bắt buộc cả bốn job đạt trên main, strict và không có bypass actor; cần kiểm tra trực tiếp trên GitHub khi nghiệm thu. Cấu hình YAML không tự thiết lập rule trên GitHub. Repo hiện có CI, chưa có workflow CD. Hướng dẫn chạy và kiểm chứng nằm trong [mục lục tài liệu](docs/README.md).
+Nếu thay cổng web/API, cập nhật đồng thời các biến URL và origin trong `.env`. Xem log bằng `docker compose logs -f backend frontend`; dừng stack bằng `docker compose down`. Lệnh dừng thông thường giữ volume dữ liệu PostgreSQL.
 
-Sau khi Railway triển khai xong, chạy workflow **Railway Cloud Smoke** trong GitHub Actions để kiểm tra web, trang menu, kết nối PostgreSQL qua API readiness và dữ liệu danh mục. Có thể chạy cùng bài kiểm tra bằng `npm run test:smoke:cloud` với `SMOKE_WEB_URL` và `SMOKE_API_URL` trỏ đến URL gốc của web và API. URL API bao gồm `/api/v1/`.
+### 3. Cấu hình thanh toán VNPay
 
-## Quy ước phát triển
+VNPay tắt mặc định trong cấu hình mẫu. Stack có thể khởi động để xem menu và đăng nhập; thanh toán cần thông tin merchant hợp lệ và cấu hình callback.
 
-`OrderItem.note` là ghi chú món tùy chọn, tối đa 500 ký tự sau trim; thiếu/rỗng thành null. UI nhập và hiển thị ghi chú, giỏ persist và tách dòng khác ghi chú; DTO/mapper giữ cùng snapshot, không thay đổi giá. Migration bổ sung riêng giữ đơn cũ với note null.
+| Biến | Mục đích |
+| --- | --- |
+| `VNPAY_ENABLED` | Đặt `true` để bật VNPay |
+| `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET` | Mã merchant và khóa ký do VNPay cấp |
+| `VNPAY_PAYMENT_URL` | Địa chỉ trang thanh toán Sandbox hoặc production tương ứng |
+| `VNPAY_RETURN_URL` | Đường dẫn API `/api/v1/payments/vnpay/return` |
+| `VNPAY_IPN_URL` | Đường dẫn API `/api/v1/payments/vnpay/ipn`, có thể được VNPay truy cập |
+| `VNPAY_QUERY_URL`, `VNPAY_QUERY_SERVER_IP` | Cấu hình đối soát QueryDr khi hạ tầng hỗ trợ |
 
-`OrderItem` có `sugarLevel` và `iceLevel` nullable (cột `sugar_level`, `ice_level`): số nguyên 0..100, null/không gửi dùng công thức chuẩn, 0 là không đường/đá. UI cung cấp chuẩn/0/25/50/75/100%; lựa chọn không đổi giá và dòng khác tùy chọn được giữ riêng. Giỏ cũ thiếu trường vẫn được đọc với null. Schema, migration, DTO/mapper và giỏ đã hỗ trợ; API tạo đơn/checkout/barista tiếp tục triển khai theo DTO/controller trong mã nguồn và [tri thức module Order](docs/knowledge/orders-module-knowledge.md).
+Callback IPN được kiểm tra chữ ký và số tiền trước khi ghi nhận thanh toán. Trang Return phục vụ điều hướng/truy vấn kết quả, không tự xác nhận đơn đã thanh toán. Sau khi sửa biến runtime, chạy lại `docker compose up -d`. Chi tiết nằm trong [README API](apps/api/README.md).
 
-- Backend không tin giá, tổng tiền, user ID hoặc trạng thái do frontend gửi.
-- Tiền lưu bằng số nguyên theo đơn vị VND; không dùng số thực.
-- Thời gian lưu UTC bằng PostgreSQL `timestamptz`.
-- Controller không gọi Prisma/Repository trực tiếp và không chứa business rule.
-- Module khác chỉ gọi public Service, không truy cập Repository nội bộ.
-- Transaction nhiều Repository được điều phối tại Service.
-- Mapper không thực hiện I/O và không gọi Service/Repository.
-- API thay đổi phải cập nhật DTO, OpenAPI và tài liệu liên quan.
-- Migration được lưu trong source control; không sửa migration đã chạy trên môi trường chung.
+## Chạy trực tiếp để phát triển
 
-## Kiểm thử và Đo hiệu năng (Testing & Performance)
+Chuẩn bị PostgreSQL và tạo database trước. Có thể dùng PostgreSQL cài trên máy hoặc chạy riêng service `postgres` của Compose. Không chạy đồng thời hai PostgreSQL trên cùng cổng.
 
-### 1. Kiểm thử Unit & Integration (Đáp ứng 10 Task đề bài)
-- Chạy toàn bộ Unit tests:
-  ```bash
-  npm test
-  # hoặc npm run test:unit
-  ```
-  - Backend API: `npm run test:api` (42 test suites, 431 test cases)
-  - Frontend Web: `npm run test:web` (15 test suites, 96 test cases)
-- Chạy Integration tests nghiệp vụ backend:
-  ```bash
-  npm run test:integration
-  ```
-  Kiểm chứng các nghiệp vụ cốt lõi Task 10:
-  - (a) Chặn chuyển trạng thái đơn không hợp lệ (Order State Machine).
-  - (b) Thanh toán lặp cùng `Idempotency-Key` chỉ tạo 1 đơn/thanh toán.
-  - (c) Đặt hàng đồng thời không bán vượt tồn kho (Transaction + Optimistic locking).
-  - (d) Áp dụng coupon hợp lệ và tích lũy điểm loyalty khi đơn PAID.
+```powershell
+npm.cmd ci --prefix apps/api
+npm.cmd ci --prefix apps/web
+Copy-Item apps/api/.env.example apps/api/.env
+Copy-Item apps/web/.env.example apps/web/.env.local
+```
 
-### 2. Đo hiệu năng (Yêu cầu phi chức năng 4.2: API < 500ms với dữ liệu mẫu)
-- Chuẩn bị dữ liệu mẫu đo tải (100 sản phẩm, 300 biến thể, 30 topping, 1.000 đơn hàng):
-  ```bash
-  npm run perf:seed
-  ```
-- Thực thi đo tải đồng thời (20 clients đồng thời benchmark p50, p95, p99):
-  ```bash
-  npm run perf:test
-  ```
-- **Bằng chứng hiệu năng:** Xem tại [Báo cáo đo lường hiệu năng BrewLite](docs/testing/evidence/perf/bao-cao-hieu-nang.md) và file dữ liệu kết quả [nfr-01-results.json](docs/testing/evidence/perf/nfr-01-results.json).
+Chỉ sao chép cấu hình khi chưa có file môi trường. Sửa `apps/api/.env`: `DATABASE_URL` trỏ đúng database/cổng đang chạy, `JWT_SECRET` là secret riêng và `WEB_ORIGIN=http://localhost:3000`. Web dùng `NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1` trong `apps/web/.env.local`.
 
-## Lộ trình triển khai
+```powershell
+npm.cmd --prefix apps/api run prisma:generate
+npm.cmd --prefix apps/api run prisma:deploy
+Push-Location apps/api
+try { node --import=tsx prisma/seed-demo.ts } finally { Pop-Location }
+```
 
-1. Scaffold monorepo, Next.js, NestJS và cấu hình dùng chung.
-2. Tạo Prisma schema, migration và dữ liệu seed.
-3. Xây dựng catalog API và giao diện menu.
-4. Hoàn thiện giỏ hàng, auth và tạo đơn.
-5. Thêm payment idempotency, state machine, inventory, coupon và loyalty.
-6. Viết unit/integration/e2e test.
-7. Hoàn thiện Docker Compose, README chạy thật và demo bàn giao.
+Mở hai cửa sổ PowerShell tại thư mục gốc:
+
+```powershell
+# Cửa sổ 1: giữ API chạy
+npm.cmd run dev:api
+```
+
+```powershell
+# Cửa sổ 2: giữ web chạy
+npm.cmd run dev:web
+```
+
+Lỗi Prisma `P1001` là không kết nối được PostgreSQL tại URL đã chọn; cần kiểm tra service và cổng trước khi migrate hoặc seed. Lỗi benchmark `ECONNREFUSED` tới API thường xảy ra khi API chưa chạy hoặc `API_BASE_URL` sai cổng.
 
 ## Tài khoản demo
 
-Seed luôn tạo/cập nhật hai tài khoản trong database, mật khẩu lưu dạng bcrypt:
-
-| Vai trò | Tên đăng nhập | Mật khẩu |
-|---|---|---|
-| Customer | `customer01` | `Customer@123` |
+| Vai trò | Tên đăng nhập | Mật khẩu demo |
+| --- | --- | --- |
+| Khách hàng | `customer01` | `Customer@123` |
 | Barista | `barista01` | `Barista@123` |
 
-Chạy `npm run db:seed` trong `apps/api`, hoặc `node --import=tsx prisma/seed-demo.ts` để chỉ seed catalog và tài khoản, không sinh đơn giả. Không cần khai báo tài khoản demo trong `.env`. Đây là tài khoản trình diễn của đồ án.
+Seed còn tạo `operator01` / `Operator@123` cho vai trò kỹ thuật `PAYMENT_OPERATOR`, phục vụ API đối soát thanh toán. Hai vai trò chính trong luồng khách hàng và quầy nhân viên của báo cáo là Customer và Barista. Các tài khoản trên dành cho môi trường trình diễn; mật khẩu lưu trong DB dưới dạng bcrypt.
 
-Khi phát triển trên máy, chỉ cần một container PostgreSQL `brewlite-postgres-1`; frontend/backend chạy bằng npm trên host theo README từng app. Cấu hình Compose toàn stack vẫn được giữ phục vụ yêu cầu bàn giao trong đề bài.
+Luồng demo: đăng nhập Customer → chọn món và tùy chọn → giỏ hàng → nhập coupon nếu có → tạo đơn/thanh toán → xem xác nhận, đơn và điểm thưởng. Đăng nhập Barista ở phiên trình duyệt khác để xem đơn PAID, nhận pha, đánh dấu sẵn sàng và hoàn tất giao món. Khi demo thanh toán, chuẩn bị cấu hình VNPay trước.
+
+## Quy tắc nghiệp vụ chính
+
+- Giá, tổng tiền và chủ đơn được xác định tại máy chủ. Snapshot lưu tên món, giá, size, topping, đường/đá và ghi chú tại thời điểm đặt.
+- Tồn kho được quản lý ở **nguyên liệu**, theo công thức món và topping. Khả dụng trên menu phản ánh lúc đọc; việc giữ hàng được quyết định trong transaction tạo đơn.
+- Đơn, snapshot, lượt coupon và reservation cùng được hoàn tác khi giao dịch lỗi. Cập nhật tồn có điều kiện đủ số lượng để ngăn tồn âm khi đặt đồng thời.
+- `Idempotency-Key` dùng cho thanh toán và đổi điểm: cùng khóa/cùng nội dung được xử lý một lần; dùng lại khóa với nội dung khác bị từ chối.
+- Khi đơn chuyển PAID, điểm tích lũy bằng phần nguyên của tổng tiền sau giảm giá chia 10, ghi EARN một lần. Đổi điểm trừ số dư và cấp voucher cá nhân trong cùng giao dịch.
+- Tiền lưu dạng số nguyên VND; thời gian trong PostgreSQL dùng `timestamptz`. Mỗi lần đổi trạng thái hợp lệ đều có lịch sử.
+
+```text
+PENDING -> PAID -> PREPARING -> READY -> COMPLETED
+PENDING -> PAYMENT_FAILED -> PENDING (thử lại khi còn hạn)
+PENDING / PAYMENT_FAILED -> CANCELLED (hủy hợp lệ hoặc hết hạn)
+PAID -> CANCELLED (qua nghiệp vụ hoàn đơn được phép trước khi nhận pha)
+```
+
+Barista chỉ thực hiện các bước `PAID -> PREPARING -> READY -> COMPLETED`. `COMPLETED` và `CANCELLED` là trạng thái kết thúc. API từ chối bỏ bước hoặc thao tác không đúng quyền.
+
+## Kiểm thử
+
+Cài dependencies của hai app và generate Prisma Client trước khi chạy. Từ thư mục gốc:
+
+| Phạm vi | Lệnh PowerShell | Điều kiện |
+| --- | --- | --- |
+| Unit API và web | `npm.cmd test` | Không cần khởi động server hoặc DB |
+| Unit API | `npm.cmd run test:api` | Vitest |
+| Unit web | `npm.cmd run test:web` | Node Test Runner |
+| Integration PostgreSQL | `npm.cmd run test:integration` | DB test riêng, cấu hình `SMOKE_DATABASE_URL` |
+| HTTP E2E API | `npm.cmd --prefix apps/api run test:e2e` | Chuẩn bị DB test cho các ca checkout |
+| Browser E2E | `npm.cmd --prefix apps/web run test:e2e` | DB E2E đã migrate/seed và Chromium của Playwright |
+| Postman/Newman | `npm.cmd --prefix apps/api run test:api` | API đang chạy, environment Postman đúng URL |
+| Tài liệu | `node scripts/check-docs.mjs` | Kiểm tra liên kết và sơ đồ |
+
+Chú ý hai lệnh cùng tên `test:api`: lệnh ở **gốc** chạy unit API, còn lệnh trong **apps/api** chạy Postman/Newman.
+
+Database integration phải có tên bắt đầu bằng `brewlite_foundation_smoke`; dữ liệu fixture chỉ dùng trong DB kiểm thử. Hướng dẫn tạo PostgreSQL test, migration smoke, biến môi trường và Playwright nằm trong [hướng dẫn kiểm thử](docs/testing/README.md). Không trỏ các bộ kiểm thử ghi dữ liệu vào DB đang dùng để demo hoặc vận hành.
+
+Các lượt xác minh đã lưu đạt **437 test unit API, 96 test web, 51 ca PostgreSQL và 6 ca Chromium/Firefox**. Đây là kết quả của các lượt chạy có log, không phải cam kết bao phủ mọi tình huống. Bộ 6 ca trình duyệt là lượt xác minh riêng; lệnh E2E mặc định trong repo chạy project Chromium. [Log và phạm vi từng NFR](docs/testing/evidence/README.md).
+
+## Minh chứng yêu cầu phi chức năng
+
+| Mã | Nội dung | Minh chứng |
+| --- | --- | --- |
+| NFR-01 | Hiệu năng API trên dữ liệu mẫu | [Benchmark, JSON và phương pháp đo](docs/testing/evidence/nfr-01/README.md) |
+| NFR-02 | Bcrypt, JWT, kiểm tra đầu vào và chữ ký VNPay | [Ảnh DB/Postman và kiểm thử bảo mật](docs/testing/evidence/nfr-02/README.md) |
+| NFR-03 | Cô lập đơn/điểm của khách; quyền Barista | [Phản hồi 403/404/200 và log phân quyền](docs/testing/evidence/nfr-03/README.md) |
+| NFR-04 | Transaction, rollback, coupon và chống tồn âm | [Kiểm thử PostgreSQL và đặt đồng thời](docs/testing/evidence/nfr-04/README.md) |
+| NFR-05 | Idempotency thanh toán và đổi điểm | [Ca gửi lặp và từ chối đổi nội dung](docs/testing/evidence/nfr-05/README.md) |
+| NFR-06 | Desktop/mobile và trạng thái giao diện | [Ảnh thực tế và kiểm thử trình duyệt](docs/testing/evidence/nfr-06/README.md) |
+| NFR-07 | Mô-đun, kiểm thử, migrations và Docker Compose | [Log kiểm thử và nghiệm thu triển khai](docs/testing/evidence/nfr-07/README.md) |
+| NFR-08 | Snapshot, lịch sử trạng thái và tiền nguyên VND | [Đơn xác nhận và kiểm thử truy vết](docs/testing/evidence/nfr-08/README.md) |
+
+[Bảng tổng hợp minh chứng](docs/testing/evidence/README.md) giải thích phạm vi từng kết quả. Ảnh là ảnh chụp thực tế; các tệp `raw/` giữ log kiểm thử. Những lượt benchmark cũ chưa đạt được giữ riêng trong thư mục chẩn đoán.
+
+### Kết quả hiệu năng NFR-01
+
+Lượt đo dùng bộ dữ liệu mẫu ban đầu **100 sản phẩm, 300 biến thể, 30 topping và 1.000 đơn**. Bốn API đầu chạy 20 client đồng thời, làm nóng 30 giây và đo 60 giây mỗi API. Tạo liên kết VNPay được đo riêng với 100 mẫu tuần tự.
+
+| API | Mẫu thành công / Tổng mẫu | p95 |
+| --- | ---: | ---: |
+| `GET /products` | 59.201 / 59.201 | 34,46 ms |
+| `GET /products/:id` | 61.919 / 61.919 | 34,04 ms |
+| `GET /orders/me` | 39.281 / 39.281 | 65,51 ms |
+| `POST /orders` | 6.953 / 6.953 | 302,01 ms |
+| `POST /payments` — tạo liên kết VNPay | 100 / 100 | 10,41 ms |
+
+[JSON gốc](docs/testing/evidence/nfr-01/nfr-01-results-submission.json) ghi `allPassed: true`. Benchmark dùng tiêu chí **p95 dưới 500 ms** cho bốn API đo tải, kiểm tra lỗi và yêu cầu mọi mẫu đo thành công; một số request riêng lẻ vượt 500 ms. Bước VNPay chỉ đo thời gian tạo liên kết tại BrewLite, không gồm thời gian người dùng thanh toán trên cổng ngân hàng.
+
+Để đo lại, dùng DB mẫu riêng, đặt cùng `DATABASE_URL` cho seed/API/benchmark, giữ API chạy rồi thực hiện:
+
+```powershell
+npm.cmd run perf:seed
+$env:API_BASE_URL = 'http://127.0.0.1:3102/api/v1'
+$env:PERF_RESULTS_FILE = 'nfr-01-results-sample-retest.json'
+npm.cmd run perf:test
+```
+
+Cổng `3102` trong ví dụ phải trùng `PORT` của API phục vụ benchmark. Script tạo thêm đơn và cập nhật tồn kho, nên mỗi lượt so sánh cần bắt đầu từ bản sao dữ liệu mẫu ban đầu. Xem [cách chuẩn bị và tái hiện](docs/testing/evidence/nfr-01/bao-cao-hieu-nang.md).
+
+Các ca tự động về gateway/callback dùng mô phỏng theo cấu hình test. Minh chứng hiện có chưa xác nhận giao dịch ngân hàng VNPay Sandbox hoặc kiểm tra Safari; cần chạy riêng nếu tiêu chí nghiệm thu yêu cầu.
+
+## Tích hợp liên tục
+
+[Workflow CI](.github/workflows/ci.yml) chạy khi push, pull request hoặc chạy thủ công. Các job được cấu hình gồm:
+
+- **Frontend:** lint, typecheck, unit test và build Next.js.
+- **Backend:** Prisma generate/migrate, lint, typecheck, unit test, cấu hình môi trường, HTTP E2E và build NestJS.
+- **Database migrations and integration:** kiểm tra cấu hình Compose, áp migrations trên PostgreSQL riêng và chạy integration.
+- **Checkout E2E gate:** dựng API/web production và chạy Playwright trên DB riêng.
+- **Web Railway Docker build:** build Dockerfile dành cho web Railway.
+- **Documentation:** kiểm tra liên kết tài liệu và tính đồng bộ của sơ đồ.
+
+[Railway Cloud Smoke](.github/workflows/cloud-smoke.yml) là workflow riêng để kiểm tra bản đã triển khai. Cấu hình workflow và log chạy cục bộ không thay thế kết quả CI của commit trên GitHub; xem tab Actions để biết trạng thái lần push tương ứng.
+
+## Tài liệu bàn giao
+
+| Tài liệu | Nội dung |
+| --- | --- |
+| [Mục lục tài liệu](docs/README.md) | Điều hướng bộ hồ sơ dự án |
+| [Scrum và Sprint Backlog](docs/scrum/README.md) | Quy trình, review/retro và Definition of Done |
+| [Phân công chi tiết](docs/scrum/phan-cong.md) | Thành viên, thẻ công việc và các sprint |
+| [ERD](docs/architecture/erd.md) | Mô hình dữ liệu và tồn kho nguyên liệu |
+| [Sơ đồ PlantUML](database/BrewLite.puml) · [Ảnh ERD](database/BrewLite.png) | Nguồn và bản xuất sơ đồ |
+| [Nghiệp vụ Orders](docs/knowledge/orders-module-knowledge.md) | Tạo đơn, state machine và transaction |
+| [README API](apps/api/README.md) · [README web](apps/web/README.md) | Cấu hình và hướng dẫn cho từng app |
+| [Hướng dẫn kiểm thử](docs/testing/README.md) | Các bộ test và cách chuẩn bị DB riêng |
+| [Test case nghiệp vụ](docs/testing/business-test-cases.md) | Ca kiểm tra và log theo nghiệp vụ |
+| [Nghiệm thu Barista, kho và Compose](docs/testing/staff-acceptance.md) | Hướng dẫn nghiệm thu các phần bàn giao |
+| [Reservation và seed demo](docs/testing/reservation-and-demo-seed.md) | Giữ chỗ, hết hạn và dữ liệu trình diễn |
+| [Minh chứng NFR-01 đến NFR-08](docs/testing/evidence/README.md) | Ảnh, log và kết quả đo theo báo cáo |
+| [Postman collection](postman/BrewLite_API.postman_collection.json) · [Environment](postman/BrewLite_Environment.postman_environment.json) | Bộ yêu cầu API mẫu |
+
+Bộ báo cáo PDF/LaTeX trong `BrewLite-Report/` được giữ cục bộ và không theo dõi bằng Git. Tài liệu bàn giao và minh chứng được quản lý trong `docs/`. Không đưa secret môi trường thật vào Git; cấu hình tham khảo nằm trong các file `.env.example`.

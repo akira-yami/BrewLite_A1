@@ -1,0 +1,13 @@
+Playwright: 1.64.1
+Chromium and Firefox, viewport 390x844, application API and isolated PostgreSQL 18.4.
+Specs: staff-recipes.spec.ts; loyalty-checkout.spec.ts
+Exit code: 0
+
+Running 6 tests using 1 worker
+  ok 1 [chromium] › tests\e2e\loyalty-checkout.spec.ts:12:5 › customer redeems earned points and pays a discounted order with the voucher (5.5s)
+  ok 2 [chromium] › tests\e2e\staff-recipes.spec.ts:6:5 › shows a login prompt to guests and denies customer access to recipes (1.2s)
+  ok 3 [chromium] › tests\e2e\staff-recipes.spec.ts:20:5 › barista searches recipes without accents and sees quantities by size and topping (1.3s)
+  ok 4 [firefox] › tests\e2e\loyalty-checkout.spec.ts:12:5 › customer redeems earned points and pays a discounted order with the voucher (23.7s)
+  ok 5 [firefox] › tests\e2e\staff-recipes.spec.ts:6:5 › shows a login prompt to guests and denies customer access to recipes (2.0s)
+  ok 6 [firefox] › tests\e2e\staff-recipes.spec.ts:20:5 › barista searches recipes without accents and sees quantities by size and topping (2.0s)
+  6 passed (2.1m)

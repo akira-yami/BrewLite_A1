@@ -1,0 +1,11 @@
+Trích từ các log kiểm thử gốc. Số dòng tính từ đầu mỗi file.
+
+../a1-task-10-test-run.txt
+37: ✓ test/orders.integration-spec.ts > Week 3 Orders: real HTTP and PostgreSQL > keeps one order and one payment after two requests with the same Idempotency-Key 80ms
+
+../nfr-02/api-unit-tests.txt
+91: ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > 1. Nên ném 409 IDEMPOTENCY_KEY_REUSED nếu trùng key nhưng khác requestHash 1ms
+114: ✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > replays the same persisted VNPay URL for the same idempotency key 0ms
+
+../business-suite-2026-11-12/05-payment-expiry-and-loyalty.log
+47: ✓ test/loyalty-redemption.integration-spec.ts > Tính nguyên tử khi đổi điểm loyalty trên PostgreSQL > trả về cùng một coupon cho các lần thử lại đồng thời dùng cùng key 26ms

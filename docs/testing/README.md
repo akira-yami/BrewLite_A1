@@ -2,6 +2,8 @@
 
 Chạy các lệnh PowerShell dưới đây từ thư mục gốc của repo. Dùng Node.js 24 và Docker Desktop cho các nhóm cần PostgreSQL hoặc Docker Compose. Cài dependencies và tạo Prisma Client một lần sau khi clone hoặc khi dependencies thay đổi.
 
+[Minh chứng theo từng yêu cầu phi chức năng](evidence/README.md).
+
 ```powershell
 npm.cmd ci --prefix apps/api
 npm.cmd ci --prefix apps/web
@@ -125,4 +127,4 @@ Bộ này gửi các yêu cầu đọc tới web health, trang menu, API readine
 | Cấu hình môi trường và Compose | `node --test scripts/env-config.test.mjs scripts/compose-config.test.mjs`. Cần Docker Compose trong PATH. |
 | Demo ba tiêu chí Task 10 | Chuẩn bị database integration như trên rồi chạy `npm.cmd run test:integration -- order-state-machine.integration-spec.ts inventory-concurrency.integration-spec.ts orders.integration-spec.ts --reporter=verbose`. |
 | Postman/Newman | Chuẩn bị API local có dữ liệu mẫu ở `http://localhost:3001`, kiểm tra URL trong [Postman environment](../../postman/BrewLite_Environment.postman_environment.json), rồi chạy `npm.cmd --prefix apps/api run test:api`. Báo cáo nằm trong `logs/newman-report.json`. |
-| Đo tải NFR-01 | Dùng API và PostgreSQL local riêng cho benchmark. Chạy `npm.cmd run perf:seed`, khởi động API và chạy `npm.cmd run perf:test`. Xem [hướng dẫn tái hiện benchmark](evidence/perf/bao-cao-hieu-nang.md#6-hướng-dẫn-tái-hiện-kiểm-thử-reproduction-steps). |
+| Đo tải NFR-01 | Dùng API và PostgreSQL local riêng cho benchmark. Chạy `npm.cmd run perf:seed`, khởi động API và chạy `npm.cmd run perf:test`. Xem [hướng dẫn tái hiện benchmark](evidence/nfr-01/bao-cao-hieu-nang.md#tái-hiện). |

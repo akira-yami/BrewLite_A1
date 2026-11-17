@@ -1,0 +1,25 @@
+Node: v24.21.0
+Command: npm.cmd --prefix apps/api run test:e2e -- --reporter=verbose auth.e2e-spec
+Exit code: 0
+
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects a missing token without looking up a user 16ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > logs in with bcrypt credentials and returns a verifiable JWT in the data envelope 87ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > returns the same 401 credential error when the account does not exist 4ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects a wrong password without disclosing which credential failed 55ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects an inactive account after verifying its password 56ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects malformed tokens 3ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"expiresIn":-1} 3ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"secret":"wrong-signature-key"} 2ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"issuer":"wrong-issuer"} 3ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"audience":"wrong-audience"} 3ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects a signed token with no subject 3ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > uses JWT subject for the profile and never exposes the password hash 3ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > formats 401 with standard UNAUTHORIZED envelope when unauthenticated 2ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > allows CUSTOMER to read their own user data via /auth/users/:userId 3ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > blocks CUSTOMER from reading another user data via /auth/users/:userId with FORBIDDEN_RESOURCE 2ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > allows BARISTA to read any user data via /auth/users/:userId (Elevated role) 2ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > blocks CUSTOMER from accessing BARISTA-only route with FORBIDDEN_RESOURCE 2ms
+ ✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > RBAC & Ownership Guard (User Isolation) > allows BARISTA to access BARISTA-only route 2ms
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Duration  5.36s (transform 792ms, setup 0ms, import 3.73s, tests 1.44s, environment 0ms)

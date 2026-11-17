@@ -77,13 +77,13 @@ export class InventoryRepository {
   async reserveIngredient(
     tx: Prisma.TransactionClient,
     ingredientId: string,
-    expectedVersion: number,
+    expectedVersion: number | undefined,
     quantity: number,
   ) {
     return tx.ingredient.updateMany({
       where: {
         id: ingredientId,
-        version: expectedVersion,
+        ...(expectedVersion === undefined ? {} : { version: expectedVersion }),
         stockQuantity: { gte: quantity },
         isActive: true,
       },

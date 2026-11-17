@@ -1,0 +1,27 @@
+Command: npm.cmd --prefix apps/api test -- --reporter=verbose loyalty.controller.spec.ts loyalty.service.spec.ts
+
+> brewlite-api@0.0.1 test
+> vitest run --reporter=verbose loyalty.controller.spec.ts loyalty.service.spec.ts
+
+
+ RUN  v4.1.11 C:/Users/ADMIN/OneDrive/Desktop/cnpm/project/BrewLite/apps/api
+
+stderr | test/unit/modules/loyalty/services/loyalty.service.spec.ts
+◇ injected env (12) from .env
+
+ ✓ test/unit/modules/loyalty/services/loyalty.service.spec.ts > LoyaltyService > exposes the four fixed reward tiers in ascending points order 8ms
+ ✓ test/unit/modules/loyalty/services/loyalty.service.spec.ts > LoyaltyService > rejects a tier that is not in the public catalog before touching persistence 4ms
+ ✓ test/unit/modules/loyalty/services/loyalty.service.spec.ts > LoyaltyService > delegates overview and valid redemption to the repository 5ms
+stderr | test/unit/modules/loyalty/controllers/loyalty.controller.spec.ts
+◇ injected env (12) from .env
+
+ ✓ test/unit/modules/loyalty/controllers/loyalty.controller.spec.ts > LoyaltyController > leaves the tier catalog public 2ms
+ ✓ test/unit/modules/loyalty/controllers/loyalty.controller.spec.ts > LoyaltyController > protects personal overview and redemption with JWT and CUSTOMER role 1ms
+ ✓ test/unit/modules/loyalty/controllers/loyalty.controller.spec.ts > LoyaltyController > returns the API envelope and passes the authenticated principal through 3ms
+
+ Test Files  2 passed (2)
+      Tests  6 passed (6)
+   Start at  23:39:23
+   Duration  7.30s (transform 521ms, setup 0ms, import 7.51s, tests 28ms, environment 0ms)
+
+Exit code: 0

@@ -1,0 +1,12 @@
+Trích nguyên văn các dòng kết quả liên quan từ lượt kiểm thử.
+
+Nguồn: auth-http-tests.txt
+✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > logs in with bcrypt credentials and returns a verifiable JWT in the data envelope 87ms
+✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"expiresIn":-1} 3ms
+✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > rejects invalid claims or signature: {"secret":"wrong-signature-key"} 2ms
+✓ test/e2e/auth.e2e-spec.ts > JWT guard and current user (HTTP) > uses JWT subject for the profile and never exposes the password hash 3ms
+
+Nguồn: api-unit-tests.txt
+✓ test/unit/modules/auth/auth.service.spec.ts > AuthService (Unit Test - TDD) > register > should hash password with bcrypt and create a user with default CUSTOMER role without exposing passwordHash and return expiresIn: 900 142ms
+✓ test/unit/modules/orders/dto/create-order.dto.spec.ts > CreateOrderDto drink preferences > rejects client prices along with otherwise valid preferences 1ms
+✓ test/unit/modules/payments/services/payments.service.spec.ts > PaymentsService (Unit Test - TDD) > processPayment > rejects invalid VNPay signatures and amount mismatches without settlement 3ms

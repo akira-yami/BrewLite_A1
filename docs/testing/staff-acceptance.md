@@ -52,9 +52,11 @@ Phạm vi đối chiếu: A1-9.5, A1-10.2, EXT-UC10 và EXT quản lý kho theo 
 
 **Giới hạn Compose:** chưa nghiệm thu được toàn stack healthy từ volume rỗng. Docker Desktop lỗi EOF khi xuất image migrate, sau đó engine trả 500; restart thất bại vì socket `docker-secrets-engine/engine.sock` không truy cập được. Đây là điểm còn phải kiểm chứng lại sau khi Docker được khôi phục. Không reset Docker hoặc xóa volume để né lỗi. Thử đổi tên socket lỗi cũng bị hệ điều hành từ chối; không thay đổi được socket đó. Không đánh dấu A1-9.5 đã hoàn thành chỉ từ build/config pass.
 
+**Kết quả kiểm tra lại.** Một project mới với volume PostgreSQL rỗng đã chạy migration, khởi động cả ba dịch vụ ở trạng thái `healthy` và seed demo thành công. [Log nghiệm thu Compose](evidence/nfr-07/raw/compose-clean-start.txt).
+
 Database thay thế dùng để kiểm thử là cluster PostgreSQL 18 tạm trong `.tmp`, cổng 5549, hai database `brewlite_foundation_smoke_review` và `brewlite_review_e2e`; không migrate/seed database ứng dụng hiện có. Bộ integration ban đầu bị gián đoạn khi Docker dừng đã được chạy lại đầy đủ và đạt trên cluster này. API, frontend và cluster tạm đã được dừng sau kiểm thử; giữ dữ liệu trong `.tmp` để chẩn đoán.
 
-[Ảnh Barista desktop](evidence/staff-barista-desktop.png) · [Ảnh kho trên mobile](evidence/staff-inventory-mobile.png). Ảnh lấy từ lần browser test với API/DB thật; dữ liệu là dữ liệu kiểm thử.
+[Ảnh Barista desktop](evidence/nfr-06/desktop/desktop_2.png) · [Ảnh kho trên mobile](evidence/nfr-06/mobile/mobile_8.jpg).
 
 
 Kiểm chứng sau khi bỏ quyền sửa kho: 5 integration test PostgreSQL đạt (Barista đọc được, PATCH 403 và số lượng/version giữ nguyên); 75 frontend test đạt; typecheck API/web và kiểm tra liên kết docs đạt.

@@ -53,6 +53,19 @@ function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+async function readDatabaseSnapshot(client) {
+  const { rows: [counts] } = await client.query(`
+    SELECT (SELECT count(*) FROM products) AS product_count,
+           (SELECT count(*) FROM orders) AS order_count,
+           (SELECT sum(stock_quantity) FROM ingredients) AS total_stock
+  `);
+  return {
+    productCount: Number(counts.product_count),
+    orderCount: Number(counts.order_count),
+    totalStock: counts.total_stock,
+  };
+}
+
 function newStats() {
   return {
     latencies: [],
@@ -63,16 +76,18 @@ function newStats() {
     errors5xx: 0,
     timeouts: 0,
     errorSamples: {},
+    transportErrorSample: null,
   };
 }
 
-// Lưu nội dung phản hồi lỗi đầu tiên của mỗi mã HTTP để chẩn đoán nguyên nhân 4xx/5xx.
-async function captureErrorSample(res, bucket) {
-  if (res.status < 400 || bucket[res.status] !== undefined) return;
-  bucket[res.status] = '';
-  try {
+// Read every response to completion so fetch can reuse the connection.
+async function consumeResponse(res, bucket) {
+  if (res.status >= 400 && bucket[res.status] === undefined) {
+    bucket[res.status] = '';
     bucket[res.status] = (await res.text()).slice(0, 500);
-  } catch {}
+    return;
+  }
+  await res.arrayBuffer();
 }
 
 async function login(username, password) {
@@ -127,10 +142,10 @@ async function runWorker(requestFn, durationMs, stats, stopSignal) {
     const start = performance.now();
     try {
       const res = await requestFn();
+      await consumeResponse(res, stats.errorSamples);
       const elapsed = performance.now() - start;
       stats.latencies.push(elapsed);
       const code = res.status;
-      await captureErrorSample(res, stats.errorSamples);
       stats.statusCodes[code] = (stats.statusCodes[code] || 0) + 1;
       if (code >= 200 && code < 300) {
         stats.successLatencies.push(elapsed);
@@ -146,6 +161,11 @@ async function runWorker(requestFn, durationMs, stats, stopSignal) {
       const elapsed = performance.now() - start;
       stats.latencies.push(elapsed);
       stats.timeouts += 1;
+      stats.transportErrorSample ??= {
+        name: err.name,
+        message: err.message,
+        code: err.cause?.code ?? err.code ?? null,
+      };
     }
   }
 }
@@ -206,6 +226,7 @@ async function benchmarkEndpoint(name, requestFn, warmupMs, measureMs) {
     errors5xx: measureStats.errors5xx,
     errors4xx: measureStats.errors4xx,
     timeouts: measureStats.timeouts,
+    transportErrorSample: measureStats.transportErrorSample,
     errorRate5xxPercent: errorRate5xx,
     thresholdP95: 500,
     thresholdErrorRate: 1.0,
@@ -226,6 +247,9 @@ async function benchmarkEndpoint(name, requestFn, warmupMs, measureMs) {
   console.log(` Mã phản hồi    :`, measureStats.statusCodes);
   if (Object.keys(measureStats.errorSamples).length) {
     console.log(` Mẫu phản hồi lỗi:`, measureStats.errorSamples);
+  }
+  if (measureStats.transportErrorSample) {
+    console.log('  Mẫu lỗi kết nối/timeout:', measureStats.transportErrorSample);
   }
   console.log(` Lỗi 5xx/Timeout: ${measureStats.errors5xx + measureStats.timeouts} (${errorRate5xx}%, Ngưỡng SRS: < 1%) -> ${passErrorRate ? '✅ ĐẠT' : '❌ KHÔNG ĐẠT'}`);
   console.log(` KẾT LUẬN       : ${passed ? '✅ ĐẠT MỤC TIÊU NFR-01' : '❌ CHƯA ĐẠT'}`);
@@ -269,17 +293,19 @@ async function main() {
     // Lấy các variant đang bán và có công thức để phân tải ngẫu nhiên, tránh 20 client cùng giành một món.
     // API coi variant không có công thức là OUT_OF_STOCK (409), nên chỉ dùng variant có công thức.
     const vRes = await client.query(`
-      SELECT pv.id FROM product_variants pv
-      WHERE pv.is_active = true
-        AND EXISTS (SELECT 1 FROM recipe_items r WHERE r.product_variant_id = pv.id)
+      SELECT pv.id, EXISTS (
+        SELECT 1 FROM recipe_items r WHERE r.product_variant_id = pv.id
+      ) AS has_recipe
+      FROM product_variants pv
+      JOIN products p ON p.id = pv.product_id
+      WHERE pv.is_active = true AND p.is_active = true
     `);
-    variantIds = vRes.rows.map((r) => r.id);
+    variantIds = vRes.rows.filter((variant) => variant.has_recipe).map((variant) => variant.id);
     if (variantIds.length === 0) {
       throw new Error('Không có product_variants nào có công thức. Hãy chạy scripts/seed-perf-nfr01.mjs trước.');
     }
-    const totalVariantsRes = await client.query('SELECT count(*)::int AS n FROM product_variants WHERE is_active = true');
-    if (variantIds.length < totalVariantsRes.rows[0].n) {
-      console.warn(`  ! Chỉ ${variantIds.length}/${totalVariantsRes.rows[0].n} variant có công thức. Hãy chạy lại seed để dữ liệu đo đủ 300 variant.`);
+    if (variantIds.length < vRes.rows.length) {
+      console.warn(`  ! ${variantIds.length}/${vRes.rows.length} variant đang bán có công thức. Benchmark chỉ dùng các variant có công thức.`);
     }
 
     console.log(`- Valid Product ID: ${validProductId}`);
@@ -300,16 +326,7 @@ async function main() {
     console.log(`  -> Lấy JWT token thành công cho ${writerTokens.length} tài khoản ghi đơn.`);
 
     // Ghi nhận trạng thái DB trước khi đo
-    const [preProducts, preOrders, preStock] = await Promise.all([
-      client.query('SELECT count(*) FROM products'),
-      client.query('SELECT count(*) FROM orders'),
-      client.query('SELECT sum(stock_quantity) as total_stock FROM ingredients'),
-    ]);
-    const preDbSnapshot = {
-      productCount: parseInt(preProducts.rows[0].count, 10),
-      orderCount: parseInt(preOrders.rows[0].count, 10),
-      totalStock: preStock.rows[0].total_stock,
-    };
+    const preDbSnapshot = await readDatabaseSnapshot(client);
     console.log('Trạng thái DB trước đo:', preDbSnapshot);
 
     const results = [];
@@ -380,7 +397,7 @@ async function main() {
         const ordRes = await createOrder(token);
         if (!ordRes.ok) {
           orderSetupFailures += 1;
-          await captureErrorSample(ordRes, orderSetupErrorSamples);
+          await consumeResponse(ordRes, orderSetupErrorSamples);
           continue;
         }
         const ordData = await ordRes.json();
@@ -405,11 +422,11 @@ async function main() {
             method: 'VNPAY',
           }),
         });
+        await consumeResponse(payRes, paymentErrorSamples);
         const tElapsed = performance.now() - tStart;
         paymentLatencies.push(tElapsed);
         const s = payRes.status;
         paymentStatuses[s] = (paymentStatuses[s] || 0) + 1;
-        await captureErrorSample(payRes, paymentErrorSamples);
         if (s >= 500) payment5xx += 1;
       }
       if (orderSetupFailures > 0) {
@@ -441,21 +458,12 @@ async function main() {
     }
 
     // Ghi nhận trạng thái DB sau khi đo
-    const [postProducts, postOrders, postStock] = await Promise.all([
-      client.query('SELECT count(*) FROM products'),
-      client.query('SELECT count(*) FROM orders'),
-      client.query('SELECT sum(stock_quantity) as total_stock FROM ingredients'),
-    ]);
-    const postDbSnapshot = {
-      productCount: parseInt(postProducts.rows[0].count, 10),
-      orderCount: parseInt(postOrders.rows[0].count, 10),
-      totalStock: postStock.rows[0].total_stock,
-    };
+    const postDbSnapshot = await readDatabaseSnapshot(client);
     console.log('\nTrạng thái DB sau đo:', postDbSnapshot);
     console.log(`Số đơn hàng mới tạo ra trong lượt đo: ${postDbSnapshot.orderCount - preDbSnapshot.orderCount}`);
 
     // Lưu kết quả JSON
-    const evidenceDir = resolve(rootDir, 'docs/testing/evidence/perf');
+    const evidenceDir = resolve(rootDir, 'docs/testing/evidence/nfr-01');
     mkdirSync(evidenceDir, { recursive: true });
     const fullReport = {
       testRunAtUTC: new Date().toISOString(),
@@ -468,7 +476,7 @@ async function main() {
     // PERF_RESULTS_FILE cho phép chạy thử mà không ghi đè file bằng chứng chính thức.
     const resultsFile = process.env.PERF_RESULTS_FILE || (ordersOnly ? 'nfr-01-orders-20-clients.json' : 'nfr-01-results.json');
     writeFileSync(resolve(evidenceDir, resultsFile), JSON.stringify(fullReport, null, 2), 'utf-8');
-    console.log(`\nĐã lưu kết quả đo thô vào: docs/testing/evidence/perf/${resultsFile}`);
+    console.log(`\nĐã lưu kết quả đo thô vào: docs/testing/evidence/nfr-01/${resultsFile}`);
 
     return fullReport;
   } finally {

@@ -1,0 +1,21 @@
+Node: v24.21.0
+Command: node --test scripts/env-config.test.mjs scripts/compose-config.test.mjs
+Exit code: 0
+
+✔ Compose rejects an absent JWT secret before starting services (392.1162ms)
+✔ Compose rejects an empty JWT secret (309.1335ms)
+✔ copying the example environment still requires a private JWT secret (299.8971ms)
+✔ Compose passes the provided secret unchanged to the backend (329.6394ms)
+✔ .env.example declares required config and uses a valid JWT duration (23.4087ms)
+✔ apps/api/.env.example declares required config and uses a valid JWT duration (1.5851ms)
+✔ requires JWT_SECRET outside test mode (0.9047ms)
+✔ parses JWT lifetime and reservation TTL units accurately (0.4485ms)
+✔ rejects malformed JWT lifetime and non-positive/non-integer reservation TTL (0.2252ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1445.5527

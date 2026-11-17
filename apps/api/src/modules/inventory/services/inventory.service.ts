@@ -129,20 +129,9 @@ export class InventoryService {
         a.localeCompare(b),
       );
 
-      for (const [ingredientId, need] of sortedNeeds) {
+      for (const [, need] of sortedNeeds) {
         if (!Number.isInteger(need.quantity) || need.quantity <= 0) {
           throw new ConflictException('Invalid reservation quantity');
-        }
-
-        const updated = await this.repository.reserveIngredient(
-          tx,
-          ingredientId,
-          need.version,
-          need.quantity,
-        );
-
-        if (updated.count !== 1) {
-          throw new InventoryVersionConflict();
         }
       }
 
@@ -159,6 +148,27 @@ export class InventoryService {
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([ingredientId, quantity]) => ({ ingredientId, quantity })),
         );
+      }
+
+      // Acquire stock locks after writing reservation rows. A failed stock
+      // update rolls back every write in the transaction.
+      for (const [ingredientId, need] of sortedNeeds) {
+        const updated = await this.repository.reserveIngredient(
+          tx,
+          ingredientId,
+          need.version,
+          need.quantity,
+        );
+        if (updated.count === 1) continue;
+
+        // Read Committed rechecks the stock predicate on the current row.
+        const current = await this.repository.reserveIngredient(
+          tx,
+          ingredientId,
+          undefined,
+          need.quantity,
+        );
+        if (current.count !== 1) throw new InventoryVersionConflict();
       }
 
       return;

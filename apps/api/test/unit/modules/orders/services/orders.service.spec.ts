@@ -919,6 +919,36 @@ describe('OrdersService- Cổng thanh toán (Unit Test - TDD)', () => {
         ConflictException,
       );
     });
+
+    it('retries a pg adapter write conflict and returns a conflict after three attempts', async () => {
+      const error = Object.assign(new Error('TransactionWriteConflict'), {
+        name: 'DriverAdapterError',
+        cause: { kind: 'TransactionWriteConflict' },
+      });
+      prismaMock.$transaction.mockRejectedValue(error);
+
+      await expect(service.createOrder('u-1', mockDto as any)).rejects.toMatchObject({
+        status: 409,
+        response: { error: { code: 'INVENTORY_CONFLICT' } },
+      });
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(3);
+    });
+
+    it('rechecks sufficient stock atomically after an optimistic update misses', async () => {
+      txMock.order.create.mockResolvedValue(mockOrderDb);
+      txMock.ingredient.updateMany
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValue({ count: 1 });
+
+      await expect(service.createOrder('u-1', mockDto as any)).resolves.toMatchObject({
+        id: mockOrderDb.id,
+      });
+      expect(txMock.ingredient.updateMany).toHaveBeenNthCalledWith(2, {
+        where: { id: 'ingredient-1', isActive: true, stockQuantity: { gte: 20 } },
+        data: { stockQuantity: { decrement: 20 }, version: { increment: 1 } },
+      });
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    });
   });
 
   // ==========================================

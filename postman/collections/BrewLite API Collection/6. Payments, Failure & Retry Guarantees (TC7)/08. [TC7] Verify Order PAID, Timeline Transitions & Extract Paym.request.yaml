@@ -1,0 +1,34 @@
+$kind: http-request
+name: 08. [TC7] Verify Order PAID, Timeline Transitions & Extract Payment ID
+url: "{{baseUrl}}/orders/{{orderId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("[TC7] Order is PAID with full PENDING -> PAYMENT_FAILED -> PENDING -> PAID timeline", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.id).to.eql(getVar("orderId"));
+          pm.expect(jsonData.data.status).to.eql("PAID");
+          pm.expect(jsonData.data.paymentSummary).to.be.an("object").that.is.not.null;
+          pm.expect(jsonData.data.paymentSummary.status).to.eql("SUCCEEDED");
+
+          const statuses = (jsonData.data.timeline || []).map((t) => t.toStatus);
+          pm.expect(statuses).to.eql(["PENDING", "PAYMENT_FAILED", "PENDING", "PAID"]);
+
+          setVar("paymentId", jsonData.data.paymentSummary.id);
+      });
+    language: text/javascript
+order: 8000

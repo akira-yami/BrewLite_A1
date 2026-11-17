@@ -1,0 +1,35 @@
+$kind: http-request
+name: 01. [TC1 Prep] Snapshot Ingredient Stock Before Creating Valid Order
+url: "{{baseUrl}}/staff/inventory?limit=100"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+queryParams:
+  limit: "100"
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Snapshots cup & coffee bean stock before creating order", function () {
+          const items = pm.response.json().data;
+          const cupCode = getVar("cupCode") || "CUP_S";
+          const cup = items.find((i) => i.code === cupCode);
+          const bean = items.find((i) => i.code === "COFFEE_BEAN_CAU_DAT");
+          pm.expect(cup, "Cup ingredient " + cupCode + " exists").to.be.ok;
+          setVar("cupStockBeforeOrder", String(cup.stockQuantity));
+          if (bean) {
+              setVar("beanStockBeforeOrder", String(bean.stockQuantity));
+          }
+      });
+    language: text/javascript
+order: 1000

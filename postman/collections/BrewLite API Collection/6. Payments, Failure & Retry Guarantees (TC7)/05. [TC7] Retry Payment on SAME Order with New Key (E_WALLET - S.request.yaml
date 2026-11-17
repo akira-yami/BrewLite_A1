@@ -1,0 +1,42 @@
+$kind: http-request
+name: 05. [TC7] Retry Payment on SAME Order with New Key (E_WALLET -> SUCCEEDED)
+url: "{{baseUrl}}/payments"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: "{{paymentIdempotencyKey}}"
+body:
+  type: json
+  content: |-
+    {
+      "orderId": "{{orderId}}",
+      "method": "E_WALLET"
+    }
+scripts:
+  - type: beforeRequest
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      const key = "idem_retry_ewallet_" + Date.now();
+      setVar("paymentIdempotencyKey", key);
+    language: text/javascript
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("[TC7] Retry with new Idempotency-Key succeeds on the exact same order", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.success).to.be.true;
+          pm.expect(jsonData.data.isRetried).to.be.false;
+          pm.expect(jsonData.data.status).to.eql("SUCCEEDED");
+      });
+    language: text/javascript
+order: 5000

@@ -1,0 +1,47 @@
+$kind: http-request
+url: "{{baseUrl}}/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{registeredUsername}}",
+      "password": "Customer@123"
+    }
+scripts:
+  - type: beforeRequest
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      const rand = Math.floor(Math.random() * 1000000);
+      const username = "new_customer_" + rand;
+      setVar("registeredUsername", username);
+    language: text/javascript
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 201 Created", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("Customer registered successfully", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.user).to.have.property("id");
+          pm.expect(jsonData.data.user.role).to.eql("CUSTOMER");
+          pm.expect(jsonData.data.user.username).to.eql(getVar("registeredUsername"));
+          setVar("customerBId", jsonData.data.user.id);
+      });
+    language: text/javascript
+order: 1000

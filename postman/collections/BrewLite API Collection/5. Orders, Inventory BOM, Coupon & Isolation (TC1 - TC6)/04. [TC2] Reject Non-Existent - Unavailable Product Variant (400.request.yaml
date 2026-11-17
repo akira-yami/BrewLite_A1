@@ -1,0 +1,31 @@
+$kind: http-request
+name: 04. [TC2] Reject Non-Existent / Unavailable Product Variant (400 INVALID_OPTION)
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        {
+          "productVariantId": "00000000-0000-4000-8000-000000000099",
+          "quantity": 1
+        }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 400 Bad Request", function () {
+          pm.response.to.have.status(400);
+      });
+      pm.test("[TC2] Error code is INVALID_OPTION for missing/unavailable variant", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.error.code).to.eql("INVALID_OPTION");
+      });
+    language: text/javascript
+order: 4000

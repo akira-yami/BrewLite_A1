@@ -1,0 +1,15 @@
+$kind: http-request
+url: "{{baseUrl}}/payments/status"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 400 Bad Request", function () {
+          pm.response.to.have.status(400);
+      });
+    language: text/javascript
+order: 10000

@@ -1,0 +1,7 @@
+$kind: http-request
+description: Available only when NODE_ENV=test. Add the signed VNPay IPN query parameters, including vnp_SecureHash, from the test gateway. An empty or invalid payload does not simulate a successful payment.
+url: "{{baseUrl}}/payments/test/vnpay/simulate-ipn"
+method: POST
+headers:
+  Content-Type: application/json
+order: 5000

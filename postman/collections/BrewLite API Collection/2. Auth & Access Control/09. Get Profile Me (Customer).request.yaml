@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{baseUrl}}/auth/me"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Profile matches current customer", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.id).to.eql(getVar("customerId"));
+          pm.expect(jsonData.data.username).to.eql("customer01");
+      });
+    language: text/javascript
+order: 9000

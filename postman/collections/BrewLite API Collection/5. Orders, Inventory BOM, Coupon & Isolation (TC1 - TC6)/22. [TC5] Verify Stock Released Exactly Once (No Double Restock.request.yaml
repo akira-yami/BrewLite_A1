@@ -1,0 +1,29 @@
+$kind: http-request
+name: 22. [TC5] Verify Stock Released Exactly Once (No Double Restock on Duplicate Cancel)
+url: "{{baseUrl}}/staff/inventory?limit=100"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+queryParams:
+  limit: "100"
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("[TC5] Stock released EXACTLY ONCE (not incremented a second time)", function () {
+          const items = pm.response.json().data;
+          const cup = items.find((i) => i.code === (getVar("cupCode") || "CUP_S"));
+          pm.expect(cup.stockQuantity).to.eql(Number(getVar("cupStockBeforeCancelFlow")));
+      });
+    language: text/javascript
+order: 22000

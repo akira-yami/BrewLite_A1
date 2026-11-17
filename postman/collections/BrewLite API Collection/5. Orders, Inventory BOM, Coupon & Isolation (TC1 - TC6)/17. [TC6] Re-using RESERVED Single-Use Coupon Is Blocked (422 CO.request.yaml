@@ -1,0 +1,31 @@
+$kind: http-request
+name: 17. [TC6] Re-using RESERVED Single-Use Coupon Is Blocked (422 COUPON_NOT_APPLICABLE)
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        {
+          "productVariantId": "{{productVariantId}}",
+          "quantity": 1
+        }
+      ],
+      "couponCode": "BREW10-TEST01"
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 422 Unprocessable Entity", function () {
+          pm.response.to.have.status(422);
+      });
+      pm.test("[TC6] Coupon redemption state is RESERVED -> blocks exceeding perUserLimit", function () {
+          pm.expect(pm.response.json().error.code).to.eql("COUPON_NOT_APPLICABLE");
+      });
+    language: text/javascript
+order: 17000

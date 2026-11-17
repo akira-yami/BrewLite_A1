@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{baseUrl}}/payments/{{paymentId}}/recovery/resolve"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: res_cust_test_1
+body:
+  type: json
+  content: |-
+    {
+      "decision": "REFUND_CONFIRMED",
+      "evidenceReference": "EVID-TEST-01",
+      "incidentReference": "INC-TEST-01"
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 403 Forbidden", function () {
+          pm.response.to.have.status(403);
+      });
+    language: text/javascript
+order: 17000

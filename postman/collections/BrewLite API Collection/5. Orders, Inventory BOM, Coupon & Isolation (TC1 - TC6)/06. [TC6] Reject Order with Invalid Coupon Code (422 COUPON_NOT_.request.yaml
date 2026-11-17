@@ -1,0 +1,32 @@
+$kind: http-request
+name: 06. [TC6] Reject Order with Invalid Coupon Code (422 COUPON_NOT_APPLICABLE)
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        {
+          "productVariantId": "{{productVariantId}}",
+          "quantity": 1
+        }
+      ],
+      "couponCode": "COUPON_KHONG_TON_TAI_999"
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 422 Unprocessable Entity", function () {
+          pm.response.to.have.status(422);
+      });
+      pm.test("[TC6] Returns COUPON_NOT_APPLICABLE error code", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.error.code).to.eql("COUPON_NOT_APPLICABLE");
+      });
+    language: text/javascript
+order: 6000

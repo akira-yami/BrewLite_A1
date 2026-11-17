@@ -1,0 +1,18 @@
+$kind: http-request
+url: "{{baseUrl}}/payments/vnpay/ipn"
+method: GET
+headers:
+  Content-Type: application/json
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Response includes RspCode", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData).to.have.property("RspCode");
+      });
+    language: text/javascript
+order: 13000

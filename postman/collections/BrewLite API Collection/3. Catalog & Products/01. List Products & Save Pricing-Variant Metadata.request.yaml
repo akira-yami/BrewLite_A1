@@ -1,0 +1,56 @@
+$kind: http-request
+name: 01. List Products & Save Pricing/Variant Metadata
+url: "{{baseUrl}}/products"
+method: GET
+headers:
+  Content-Type: application/json
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Products returned with variants, prices and toppings", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.success).to.be.true;
+          pm.expect(jsonData.data).to.be.an("array").that.is.not.empty;
+
+          const preferredProduct =
+              jsonData.data.find((p) => p.sku === "COFFEE-CAU-DAT-01" && p.variants.some((v) => v.available)) ||
+              jsonData.data.find((p) => p.variants.some((v) => v.available) && p.toppings.some((t) => t.available)) ||
+              jsonData.data[0];
+
+          const variant =
+              preferredProduct.variants.find((v) => v.size === "S" && v.available) ||
+              preferredProduct.variants.find((v) => v.available) ||
+              preferredProduct.variants[0];
+
+          const topping =
+              preferredProduct.toppings.find((t) => t.code === "TOP_FLAN" && t.available) ||
+              preferredProduct.toppings.find((t) => t.available) ||
+              preferredProduct.toppings[0];
+
+          // Tìm món Trà đào cam sả size L (dùng 2 quả cam/ly, kho tối đa 200 quả) để test OUT_OF_STOCK dễ dàng
+          const peachTea = jsonData.data.find((p) => p.sku === "TEA-PEACH-ORANGE-04");
+          const peachLarge = peachTea && peachTea.variants.find((v) => v.size === "L");
+
+          setVar("productId", preferredProduct.id);
+          setVar("productSku", preferredProduct.sku);
+          setVar("productVariantId", variant.id);
+          setVar("variantSize", variant.size);
+          setVar("variantPrice", String(variant.price));
+          setVar("cupCode", "CUP_" + variant.size);
+          setVar("toppingId", topping.id);
+          setVar("toppingCode", topping.code);
+          setVar("toppingPrice", String(topping.price));
+          setVar("outOfStockVariantId", peachLarge ? peachLarge.id : variant.id);
+      });
+    language: text/javascript
+order: 1000

@@ -1,0 +1,20 @@
+$kind: http-request
+name: 19. [TC5] Cancel Order - 1st Time (200 OK -> CANCELLED)
+url: "{{baseUrl}}/orders/{{cancelOrderId}}/cancel"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("[TC5] Order status changed to CANCELLED", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.status).to.eql("CANCELLED");
+      });
+    language: text/javascript
+order: 19000

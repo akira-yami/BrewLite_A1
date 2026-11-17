@@ -1,0 +1,27 @@
+$kind: http-request
+name: 05. Create Order - Invalid Payload (Quantity 0 -> 400 VALIDATION_ERROR)
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        {
+          "productVariantId": "{{productVariantId}}",
+          "quantity": 0
+        }
+      ]
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 400 Bad Request", function () {
+          pm.response.to.have.status(400);
+      });
+    language: text/javascript
+order: 5000

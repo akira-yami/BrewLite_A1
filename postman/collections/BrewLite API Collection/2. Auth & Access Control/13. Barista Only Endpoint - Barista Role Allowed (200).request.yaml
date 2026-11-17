@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/auth/barista-only"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Barista greeting verified", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.message).to.include("Barista");
+      });
+    language: text/javascript
+order: 13000

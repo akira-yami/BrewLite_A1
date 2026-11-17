@@ -1,0 +1,27 @@
+$kind: http-request
+name: 12. Get Order Detail by ID (Owner Customer A -> 200 OK)
+url: "{{baseUrl}}/orders/{{orderId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Returns full order detail for owner", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.id).to.eql(getVar("orderId"));
+          pm.expect(jsonData.data.items).to.be.an("array").that.is.not.empty;
+      });
+    language: text/javascript
+order: 12000

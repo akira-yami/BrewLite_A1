@@ -1,0 +1,43 @@
+$kind: http-request
+name: 07. [TC3] Reject Order Exceeding Ingredient Stock (409 OUT_OF_STOCK)
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+body:
+  type: json
+  content: "{{oversellPayload}}"
+scripts:
+  - type: beforeRequest
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      const variantId = getVar("outOfStockVariantId") || getVar("productVariantId");
+      const toppingId = getVar("toppingId");
+      // Tạo 20 dòng khác note (mỗi dòng 20 ly = tổng 400 ly; với Trà đào size L cần 800 quả cam > kho 200, kèm 400 phần topping > kho 200)
+      const items = Array.from({ length: 20 }, (_, idx) => ({
+          productVariantId: variantId,
+          quantity: 20,
+          toppingIds: toppingId ? [toppingId] : [],
+          note: "oversell-check-line-" + (idx + 1)
+      }));
+      setVar("oversellPayload", JSON.stringify({ items }));
+    language: text/javascript
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 409 Conflict", function () {
+          pm.response.to.have.status(409);
+      });
+      pm.test("[TC3] Returns OUT_OF_STOCK error and refuses order creation", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.error.code).to.eql("OUT_OF_STOCK");
+      });
+    language: text/javascript
+order: 7000

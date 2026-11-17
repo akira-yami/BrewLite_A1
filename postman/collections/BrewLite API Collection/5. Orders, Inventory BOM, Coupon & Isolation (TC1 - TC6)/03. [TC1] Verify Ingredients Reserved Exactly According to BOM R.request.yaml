@@ -1,0 +1,40 @@
+$kind: http-request
+name: 03. [TC1] Verify Ingredients Reserved Exactly According to BOM Recipe
+url: "{{baseUrl}}/staff/inventory?limit=100"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+queryParams:
+  limit: "100"
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("[TC1] Cup stock decreased by exact order quantity (2) & coffee beans reserved", function () {
+          const items = pm.response.json().data;
+          const cupCode = getVar("cupCode") || "CUP_S";
+          const cup = items.find((i) => i.code === cupCode);
+          const beforeCup = Number(getVar("cupStockBeforeOrder"));
+
+          pm.expect(cup.stockQuantity).to.eql(beforeCup - 2);
+          setVar("cupStockAfterValidOrder", String(cup.stockQuantity));
+
+          if (getVar("productSku") === "COFFEE-CAU-DAT-01" && getVar("variantSize") === "S") {
+              const bean = items.find((i) => i.code === "COFFEE_BEAN_CAU_DAT");
+              const beforeBean = Number(getVar("beanStockBeforeOrder"));
+              const extraEspresso = getVar("toppingCode") === "TOP_ESPRESSO" ? 9 * 2 : 0;
+              pm.expect(bean.stockQuantity).to.eql(beforeBean - (15 * 2 + extraEspresso));
+          }
+      });
+    language: text/javascript
+order: 3000

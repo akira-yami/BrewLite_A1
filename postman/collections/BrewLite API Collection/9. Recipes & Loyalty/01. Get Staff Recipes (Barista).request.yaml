@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/staff/recipes"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+order: 1000

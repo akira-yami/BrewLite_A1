@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{baseUrl}}/coupons/validate"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+body:
+  type: json
+  content: |-
+    {
+      "code": "NOT_EXISTING_COUPON",
+      "subtotal": 50000
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 422 Unprocessable Entity", function () {
+          pm.response.to.have.status(422);
+      });
+      pm.test("Coupon validation returns COUPON_NOT_APPLICABLE error code", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.error.code).to.eql("COUPON_NOT_APPLICABLE");
+      });
+    language: text/javascript
+order: 2000

@@ -1,0 +1,24 @@
+$kind: http-request
+name: 13. [TC4] Foreign User B Views Customer A Order -> Denied & No Data Leaked (404)
+url: "{{baseUrl}}/orders/{{orderId}}"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("[TC4] Status code is 404 Not Found (prevents UUID enumeration)", function () {
+          pm.response.to.have.status(404);
+      });
+      pm.test("[TC4] Error is ORDER_NOT_FOUND and zero order data is leaked", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.error.code).to.eql("ORDER_NOT_FOUND");
+          pm.expect(jsonData).to.not.have.property("data");
+          const raw = pm.response.text();
+          pm.expect(raw).to.not.include("orderNumber");
+          pm.expect(raw).to.not.include("subtotal");
+      });
+    language: text/javascript
+order: 13000

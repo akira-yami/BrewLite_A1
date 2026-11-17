@@ -1,0 +1,25 @@
+$kind: http-request
+url: "{{baseUrl}}/auth/register"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "username": "{{registeredUsername}}",
+      "password": "Customer@123"
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 409 Conflict", function () {
+          pm.response.to.have.status(409);
+      });
+      pm.test("Returns user conflict error", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.error || jsonData.message).to.be.ok;
+      });
+    language: text/javascript
+order: 2000

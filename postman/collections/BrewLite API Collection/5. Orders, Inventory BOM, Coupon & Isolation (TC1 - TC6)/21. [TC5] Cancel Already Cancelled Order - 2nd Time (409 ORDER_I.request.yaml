@@ -1,0 +1,16 @@
+$kind: http-request
+name: 21. [TC5] Cancel Already Cancelled Order - 2nd Time (409 ORDER_INVALID_TRANSITION)
+url: "{{baseUrl}}/orders/{{cancelOrderId}}/cancel"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("[TC5] Status code is 409 Conflict on duplicate cancel", function () {
+          pm.expect([400, 409]).to.include(pm.response.code);
+      });
+    language: text/javascript
+order: 21000

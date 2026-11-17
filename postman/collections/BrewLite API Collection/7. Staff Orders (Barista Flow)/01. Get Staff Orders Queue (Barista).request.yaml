@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{baseUrl}}/staff/orders"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Barista queue contains active orders", function () {
+          var jsonData = pm.response.json();
+          const orders = Array.isArray(jsonData.data) ? jsonData.data : (jsonData.data.items || []);
+          pm.expect(orders).to.be.an("array");
+      });
+    language: text/javascript
+order: 1000

@@ -1,0 +1,71 @@
+name: New Environment
+values:
+  - key: registeredUsername
+    value: ''
+  - key: customerBId
+    value: ''
+  - key: customerToken
+    value: ''
+  - key: customerId
+    value: ''
+  - key: customerBToken
+    value: ''
+  - key: baristaToken
+    value: ''
+  - key: baristaId
+    value: ''
+  - key: operatorToken
+    value: ''
+  - key: operatorId
+    value: ''
+  - key: productId
+    value: ''
+  - key: productSku
+    value: ''
+  - key: productVariantId
+    value: ''
+  - key: variantSize
+    value: ''
+  - key: variantPrice
+    value: ''
+  - key: cupCode
+    value: ''
+  - key: toppingId
+    value: ''
+  - key: toppingCode
+    value: ''
+  - key: toppingPrice
+    value: ''
+  - key: outOfStockVariantId
+    value: ''
+  - key: cupStockBeforeOrder
+    value: ''
+  - key: beanStockBeforeOrder
+    value: ''
+  - key: orderId
+    value: ''
+  - key: orderTotal
+    value: ''
+  - key: cupStockAfterValidOrder
+    value: ''
+  - key: oversellPayload
+    value: ''
+  - key: cupStockBeforeCancelFlow
+    value: ''
+  - key: cancelOrderId
+    value: ''
+  - key: cupStockBeforePayment
+    value: ''
+  - key: failedPaymentKey
+    value: ''
+  - key: paymentIdempotencyKey
+    value: ''
+  - key: newPayKey
+    value: ''
+  - key: operatorRecKey
+    value: ''
+  - key: operatorResKey
+    value: ''
+  - key: ingredientId
+    value: ''
+color: 0

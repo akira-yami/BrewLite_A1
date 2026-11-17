@@ -1,0 +1,61 @@
+$kind: http-request
+name: 02. [TC1 & TC6] Create Valid Order with Coupon (Verify Subtotal/Discount/Total/Status)
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        {
+          "productVariantId": "{{productVariantId}}",
+          "quantity": 2,
+          "toppingIds": [
+            "{{toppingId}}"
+          ],
+          "sugarLevel": 50,
+          "iceLevel": 50,
+          "note": "Ít đường ít đá, uống tại quán"
+        }
+      ],
+      "couponCode": "BREW10-DEMO"
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 201 Created", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("[TC1 & TC6] Order has exact subtotal, 10% coupon discount, total and PENDING status", function () {
+          var jsonData = pm.response.json();
+          const order = jsonData.data;
+          const variantPrice = Number(getVar("variantPrice"));
+          const toppingPrice = Number(getVar("toppingPrice"));
+          const expectedSubtotal = (variantPrice + toppingPrice) * 2;
+          const expectedDiscount = Math.floor(expectedSubtotal * 0.10);
+          const expectedTotal = expectedSubtotal - expectedDiscount;
+
+          pm.expect(order).to.have.property("id");
+          pm.expect(order.status).to.eql("PENDING");
+          pm.expect(order.subtotal).to.eql(expectedSubtotal);
+          pm.expect(order.discountAmount).to.eql(expectedDiscount);
+          pm.expect(order.total).to.eql(expectedTotal);
+          pm.expect(order.items).to.be.an("array").with.lengthOf(1);
+          pm.expect(order.items[0].sugarLevel).to.eql(50);
+          pm.expect(order.items[0].iceLevel).to.eql(50);
+
+          setVar("orderId", order.id);
+          setVar("orderTotal", String(order.total));
+      });
+    language: text/javascript
+order: 2000

@@ -1,0 +1,25 @@
+$kind: http-request
+url: "{{baseUrl}}/staff/orders/{{orderId}}/status"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+body:
+  type: json
+  content: |-
+    {
+      "status": "COMPLETED"
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Order completed and finalized", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.status).to.eql("COMPLETED");
+      });
+    language: text/javascript
+order: 5000

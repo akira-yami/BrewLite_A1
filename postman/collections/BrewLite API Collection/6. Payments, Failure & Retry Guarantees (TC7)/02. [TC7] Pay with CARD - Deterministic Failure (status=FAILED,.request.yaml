@@ -1,0 +1,45 @@
+$kind: http-request
+name: 02. [TC7] Pay with CARD -> Deterministic Failure (status=FAILED, order=PAYMENT_FAILED)
+url: "{{baseUrl}}/payments"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: "{{failedPaymentKey}}"
+body:
+  type: json
+  content: |-
+    {
+      "orderId": "{{orderId}}",
+      "method": "CARD"
+    }
+scripts:
+  - type: beforeRequest
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      const key = "idem_fail_card_" + Date.now();
+      setVar("failedPaymentKey", key);
+    language: text/javascript
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK (requires NODE_ENV=test & MOCK_PAYMENT_MODE=deterministic)", function () {
+          if (pm.response.code === 400) {
+              pm.expect.fail("Server đang tắt Mock Gateway (400 PAYMENT_METHOD_UNSUPPORTED). Hãy đặt NODE_ENV=test và MOCK_PAYMENT_MODE=deterministic trong .env để test kịch bản CARD thất bại -> E_WALLET retry.");
+          }
+          pm.response.to.have.status(200);
+      });
+      pm.test("[TC7] First payment attempt fails deterministically without losing order", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.success).to.be.false;
+          pm.expect(jsonData.data.isRetried).to.be.false;
+          pm.expect(jsonData.data.status).to.eql("FAILED");
+      });
+    language: text/javascript
+order: 2000

@@ -1,0 +1,85 @@
+$kind: http-request
+name: 10. [TC3] Concurrent Two-User Orders Contention Check (No Negative Stock)
+url: "{{baseUrl}}/staff/inventory?limit=100"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+queryParams:
+  limit: "100"
+scripts:
+  - type: beforeRequest
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      const baseUrl = getVar("baseUrl");
+      const variantId = getVar("productVariantId");
+      const tokenA = getVar("customerToken");
+      const tokenB = getVar("customerBToken");
+      const baristaToken = getVar("baristaToken");
+
+      const buildOrderReq = (token, tag) => ({
+          url: baseUrl + "/orders",
+          method: "POST",
+          header: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + token
+          },
+          body: {
+              mode: "raw",
+              raw: JSON.stringify({
+                  items: [{ productVariantId: variantId, quantity: 1, note: "concurrent-" + tag }]
+              })
+          }
+      });
+
+      // Bắn đồng thời 2 request đặt hàng từ 2 khách hàng khác nhau cùng tranh nguyên liệu
+      // Postman/Newman tự động đợi toàn bộ callback của pm.sendRequest hoàn tất trước khi chạy request chính
+      pm.sendRequest(buildOrderReq(tokenA, "userA"), function (err, res) {
+          if (!err && res && res.code === 201) {
+              const id = res.json().data.id;
+              pm.sendRequest({
+                  url: baseUrl + "/orders/" + id + "/cancel",
+                  method: "POST",
+                  header: { "Authorization": "Bearer " + tokenA }
+              }, function () {});
+          }
+      });
+      pm.sendRequest(buildOrderReq(tokenB, "userB"), function (err, res) {
+          if (!err && res && res.code === 201) {
+              const id = res.json().data.id;
+              pm.sendRequest({
+                  url: baseUrl + "/orders/" + id + "/cancel",
+                  method: "POST",
+                  header: { "Authorization": "Bearer " + tokenB }
+              }, function () {});
+          }
+      });
+    language: text/javascript
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("[TC3] After concurrent order contention & cleanup, all stocks >= 0 and balanced", function () {
+          const items = pm.response.json().data;
+          items.forEach((ing) => {
+              pm.expect(ing.stockQuantity, ing.code + " must never go negative").to.be.at.least(0);
+          });
+          const cup = items.find((i) => i.code === (getVar("cupCode") || "CUP_S"));
+          pm.expect(cup.stockQuantity).to.eql(Number(getVar("cupStockAfterValidOrder")));
+      });
+    language: text/javascript
+order: 10000

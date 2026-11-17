@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{baseUrl}}/payments/vnpay/return?vnp_ResponseCode=00"
+method: GET
+headers:
+  Content-Type: application/json
+queryParams:
+  vnp_ResponseCode: "00"
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 503 (VNPay not configured in dev) or 302/200", function () {
+          pm.expect([200, 302, 503]).to.include(pm.response.code);
+      });
+    language: text/javascript
+order: 12000

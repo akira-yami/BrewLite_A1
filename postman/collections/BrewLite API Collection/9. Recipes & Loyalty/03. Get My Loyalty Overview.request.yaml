@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/loyalty/me"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+order: 3000

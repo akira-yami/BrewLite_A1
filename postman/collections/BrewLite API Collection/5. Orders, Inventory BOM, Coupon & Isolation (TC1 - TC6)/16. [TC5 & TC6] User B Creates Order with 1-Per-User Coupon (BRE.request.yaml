@@ -1,0 +1,43 @@
+$kind: http-request
+name: 16. [TC5 & TC6] User B Creates Order with 1-Per-User Coupon (BREW10-TEST01)
+url: "{{baseUrl}}/orders"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerBToken}}
+body:
+  type: json
+  content: |-
+    {
+      "items": [
+        {
+          "productVariantId": "{{productVariantId}}",
+          "quantity": 1
+        }
+      ],
+      "couponCode": "BREW10-TEST01"
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 201 Created", function () {
+          pm.response.to.have.status(201);
+      });
+      pm.test("[TC6] Single-use coupon applied accurately & saves cancelOrderId", function () {
+          var jsonData = pm.response.json();
+          const variantPrice = Number(getVar("variantPrice"));
+          const expectedDiscount = Math.floor(variantPrice * 0.10);
+          pm.expect(jsonData.data.subtotal).to.eql(variantPrice);
+          pm.expect(jsonData.data.discountAmount).to.eql(expectedDiscount);
+          pm.expect(jsonData.data.total).to.eql(variantPrice - expectedDiscount);
+          setVar("cancelOrderId", jsonData.data.id);
+      });
+    language: text/javascript
+order: 16000

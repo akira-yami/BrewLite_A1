@@ -1,0 +1,27 @@
+$kind: http-request
+url: "{{baseUrl}}/staff/inventory"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+scripts:
+  - type: afterResponse
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Ingredients returned", function () {
+          var jsonData = pm.response.json();
+          const items = jsonData.data || [];
+          pm.expect(items).to.be.an("array").that.is.not.empty;
+          setVar("ingredientId", items[0].id);
+      });
+    language: text/javascript
+order: 1000

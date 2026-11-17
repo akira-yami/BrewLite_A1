@@ -1,0 +1,36 @@
+$kind: http-request
+name: 18. Operator Recovery Resolution - Non-VNPAY Payment Conflict (409)
+url: "{{baseUrl}}/payments/{{paymentId}}/recovery/resolve"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{operatorToken}}
+  Idempotency-Key: "{{operatorResKey}}"
+body:
+  type: json
+  content: |-
+    {
+      "decision": "REFUND_CONFIRMED",
+      "evidenceReference": "EVID-TEST-01",
+      "incidentReference": "INC-TEST-01"
+    }
+scripts:
+  - type: beforeRequest
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      setVar("operatorResKey", "res_op_" + Date.now());
+    language: text/javascript
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 409 Conflict (PAYMENT_NOT_RECONCILABLE)", function () {
+          pm.response.to.have.status(409);
+      });
+    language: text/javascript
+order: 18000

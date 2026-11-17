@@ -1,0 +1,23 @@
+$kind: http-request
+description: Redeems points and creates a coupon. Requires sufficient points. Reuse the same Idempotency-Key for retries. Clear collection variable loyaltyIdempotencyKey before starting a new redemption.
+url: "{{baseUrl}}/loyalty/redeem"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: "{{loyaltyIdempotencyKey}}"
+body:
+  type: json
+  content: |-
+    {
+      "tierId": "10000"
+    }
+scripts:
+  - type: beforeRequest
+    code: |
+
+      if (!pm.collectionVariables.get('loyaltyIdempotencyKey')) {
+          pm.collectionVariables.set('loyaltyIdempotencyKey', pm.variables.replaceIn('{{$guid}}'));
+      }
+    language: text/javascript
+order: 4000

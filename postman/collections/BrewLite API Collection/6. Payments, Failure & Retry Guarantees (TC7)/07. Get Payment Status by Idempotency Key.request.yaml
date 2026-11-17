@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/payments/status"
+method: GET
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: "{{paymentIdempotencyKey}}"
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Returns accurate SUCCEEDED payment record", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.success).to.be.true;
+          pm.expect(jsonData.data.status).to.eql("SUCCEEDED");
+      });
+    language: text/javascript
+order: 7000

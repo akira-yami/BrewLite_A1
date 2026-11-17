@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{baseUrl}}/staff/inventory/{{ingredientId}}/stock"
+method: PATCH
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{baristaToken}}
+body:
+  type: json
+  content: |-
+    {
+      "stockQuantity": 9999
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 403 Forbidden", function () {
+          pm.response.to.have.status(403);
+      });
+      pm.test("Explicit message denying barista stock updates", function () {
+          var jsonData = pm.response.json();
+          var msg = (jsonData.error && jsonData.error.message) || jsonData.message;
+          pm.expect(msg).to.include("Barista chỉ được xem tồn kho");
+      });
+    language: text/javascript
+order: 3000

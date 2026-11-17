@@ -1,0 +1,28 @@
+$kind: http-request
+name: 01. Validate Coupon - Valid Code (BREW10-DEMO -> 10% Discount)
+url: "{{baseUrl}}/coupons/validate"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+body:
+  type: json
+  content: |-
+    {
+      "code": "BREW10-DEMO",
+      "subtotal": 50000
+    }
+scripts:
+  - type: afterResponse
+    code: |
+
+      pm.test("Status code is 200 OK", function () {
+          pm.response.to.have.status(200);
+      });
+      pm.test("Coupon is valid and calculates exact 10% discount (5000 VND)", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.data.code).to.eql("BREW10-DEMO");
+          pm.expect(jsonData.data.discountAmount).to.eql(5000);
+      });
+    language: text/javascript
+order: 1000

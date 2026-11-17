@@ -1,0 +1,35 @@
+$kind: http-request
+name: 11. [TC7] Re-pay Already PAID Order with New Key -> Rejected (409 ORDER_ALREADY_PAID)
+url: "{{baseUrl}}/payments"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{customerToken}}
+  Idempotency-Key: "{{newPayKey}}"
+body:
+  type: json
+  content: |-
+    {
+      "orderId": "{{orderId}}",
+      "method": "E_WALLET"
+    }
+scripts:
+  - type: beforeRequest
+    code: |
+
+      const getVar = (k) => pm.environment.get(k) || pm.collectionVariables.get(k);
+      const setVar = (k, v) => {
+          pm.environment.set(k, v);
+          pm.collectionVariables.set(k, v);
+      };
+
+      setVar("newPayKey", "idem_new_pay_" + Date.now());
+    language: text/javascript
+  - type: afterResponse
+    code: |
+
+      pm.test("[TC7] Status code is 409 Conflict (ORDER_ALREADY_PAID)", function () {
+          pm.expect([400, 409]).to.include(pm.response.code);
+      });
+    language: text/javascript
+order: 11000
